@@ -3,6 +3,7 @@ import { useState } from "react"
 import Sidebar from "./components/Sidebar"
 import Header from "./components/Header"
 import Dashboard from "./pagos/Dashboard"
+import Ventas from "./pagos/Ventas"
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard")
@@ -18,8 +19,10 @@ function App() {
         <Header />
 
         {activePage === "Dashboard" ? (
-          <Dashboard />
-        ) : (
+  <Dashboard />
+) : activePage === "Ventas" ? (
+  <Ventas />
+) : (
           <main className="flex-1 p-8">
             <h1 className="text-3xl font-bold text-slate-800">
               {activePage}
