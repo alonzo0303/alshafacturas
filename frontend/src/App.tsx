@@ -1,21 +1,44 @@
 
+import { useState } from "react"
+import Sidebar from "./components/Sidebar"
+import Header from "./components/Header"
+import Dashboard from "./pagos/Dashboard"
+
 function App() {
+  const [activePage, setActivePage] = useState("Dashboard")
+
   return (
-    <main className="min-h-screen bg-slate-950 flex items-center justify-center">
-      <div className="bg-white rounded-2xl p-10 shadow-xl text-center">
-        <h1 className="text-3xl font-bold text-blue-700">
-          ALSHAFACTURAS SaaS PRO
-        </h1>
+    <div className="flex min-h-screen bg-slate-100">
+      <Sidebar
+        activePage={activePage}
+        onNavigate={setActivePage}
+      />
 
-        <p className="mt-4 text-slate-600">
-          Sistema de ventas, inventario y facturación electrónica
-        </p>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header />
 
-        <p className="mt-6 text-sm font-medium text-green-600">
-          React + TypeScript + Tailwind CSS
-        </p>
+        {activePage === "Dashboard" ? (
+          <Dashboard />
+        ) : (
+          <main className="flex-1 p-8">
+            <h1 className="text-3xl font-bold text-slate-800">
+              {activePage}
+            </h1>
+
+            <p className="mt-2 text-slate-600">
+              Módulo de {activePage.toLowerCase()} en desarrollo.
+            </p>
+
+            <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-slate-500">
+                Próximamente implementaremos las funcionalidades
+                de este módulo.
+              </p>
+            </div>
+          </main>
+        )}
       </div>
-    </main>
+    </div>
   )
 }
 
