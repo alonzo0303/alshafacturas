@@ -4,8 +4,14 @@ import Sidebar from "./components/Sidebar"
 import Header from "./components/Header"
 import Dashboard from "./pagos/Dashboard"
 import Ventas from "./pagos/Ventas"
-
-function App() {
+import Login from "./auth/Login"
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import AdminLogin from "./auth/AdminLogin"
+import SuperAdminDashboard from "./admin/SuperAdminDashboard"
+import Empresas from "./admin/Empresas"
+import Usuarios from "./usuarios/Usuarios"
+function PanelEmpresa() {
+    return <Login />
   const [activePage, setActivePage] = useState("Dashboard")
 
   return (
@@ -42,6 +48,29 @@ function App() {
         )}
       </div>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/demo" element={<SuperAdminDashboard />} />
+        <Route
+  path="/admin/demo/empresas"
+  element={<Empresas />}
+/>
+        <Route path="/panel" element={<PanelEmpresa />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route
+  path="/empresa/demo/usuarios"
+  element={<Usuarios />}
+/>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
