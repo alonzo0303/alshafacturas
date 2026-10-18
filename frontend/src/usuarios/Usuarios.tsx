@@ -1,19 +1,19 @@
 
 import { useState, type FormEvent } from "react"
-
+import { roles, type Rol } from "../config/permisos"
 
 type Trabajador = {
   id: number
   nombre: string
   correo: string
-  rol: string
+  rol: Rol
   estado: "Activo" | "Inactivo"
 }
 
 function Usuarios() {
   const [nombre, setNombre] = useState("")
   const [correo, setCorreo] = useState("")
-  const [rol, setRol] = useState("Vendedor")
+ const [rol, setRol] = useState<Rol>("vendedor")
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
 
   function registrarTrabajador(evento: FormEvent<HTMLFormElement>) {
@@ -51,7 +51,7 @@ const nuevoTrabajador: Trabajador = {
 
     setNombre("")
     setCorreo("")
-    setRol("Vendedor")
+   setRol("vendedor")
   }
 
 function cambiarEstadoTrabajador(id: number) {
@@ -153,19 +153,29 @@ function cambiarEstadoTrabajador(id: number) {
                 Rol del trabajador
               </label>
 
-              <select
-                id="rol"
-                value={rol}
-                onChange={(evento) =>
-                  setRol(evento.target.value)
-                }
-                className="w-full rounded-lg border border-slate-300 px-4 py-3"
-              >
-                <option value="Administrador">Administrador</option>
-                <option value="Jefe de almacén">Jefe de almacén</option>
-                <option value="Vendedor">Vendedor</option>
-                <option value="Cajero">Cajero</option>
-              </select>
+              
+<select
+  id="rol"
+  value={rol}
+  onChange={(evento) =>
+    setRol(evento.target.value as Rol)
+  }
+  className="w-full rounded-lg border border-slate-300 px-4 py-3"
+>
+  <option value="administrador">
+    Administrador de empresa
+  </option>
+  <option value="jefeAlmacen">
+    Jefe de almacén
+  </option>
+  <option value="vendedor">
+    Vendedor
+  </option>
+  <option value="encargadoCompras">
+    Encargado de compras
+  </option>
+</select>
+
             </div>
 
             <button
@@ -194,6 +204,7 @@ function cambiarEstadoTrabajador(id: number) {
                     <th className="p-3">Nombre</th>
                     <th className="p-3">Correo</th>
                     <th className="p-3">Rol</th>
+                    <th className="p-3">Permisos</th>
                     <th className="p-3">Estado</th>
                     <th className="p-3">Acciones</th>
                   </tr>
@@ -214,6 +225,20 @@ function cambiarEstadoTrabajador(id: number) {
                       <td className="p-3">
                         {trabajador.rol}
                       </td>
+                      
+<td className="p-3">
+  <div className="flex flex-wrap gap-2">
+    {roles[trabajador.rol].map((permiso) => (
+      <span
+        key={permiso}
+        className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700"
+      >
+        {permiso}
+      </span>
+    ))}
+  </div>
+</td>
+
                       
 <td className="p-3">
   <span
