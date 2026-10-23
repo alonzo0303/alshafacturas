@@ -30,6 +30,19 @@
 		<java.version>21</java.version>
 	</properties>
 	<dependencies>
+	
+<!-- Migraciones de base de datos con Flyway -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-flyway</artifactId>
+</dependency>
+
+<!-- Soporte de Flyway para PostgreSQL -->
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-database-postgresql</artifactId>
+</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
