@@ -6,6 +6,7 @@ import com.alshagroup.alshafacturas.service.EmpresaService;
 
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/empresas")
@@ -22,8 +23,10 @@ public class EmpresaController {
         return empresaService.listarEmpresas();
     }
 
-    @PostMapping
-    public Empresa guardarEmpresa(@RequestBody Empresa empresa) {
-        return empresaService.guardarEmpresa(empresa);
-    }
+    
+@PostMapping
+public Empresa guardarEmpresa(@Valid @RequestBody Empresa empresa) {
+    return empresaService.guardarEmpresa(empresa);
+}
+
 }
