@@ -20,6 +20,9 @@ import org.springframework.security.web.context.SecurityContextRepository;
 
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+
 @Configuration
 public class SecurityConfig {
 
@@ -36,10 +39,30 @@ public SecurityFilterChain securityFilterChain(
         SecurityContextRepository securityContextRepository
 ) throws Exception {
 
-    http
-        .authorizeHttpRequests(auth -> auth
-            .anyRequest().authenticated()
+   http
+    .csrf(csrf -> csrf
+        .csrfTokenRepository(
+            CookieCsrfTokenRepository.withHttpOnlyFalse()
         )
+    )
+    
+
+.authorizeHttpRequests(auth -> auth
+    .requestMatchers("/error").permitAll()
+
+    .requestMatchers(
+        org.springframework.http.HttpMethod.GET,
+        "/api/auth/csrf"
+    ).permitAll()
+
+    .requestMatchers(
+        org.springframework.http.HttpMethod.POST,
+        "/api/auth/login"
+    ).permitAll()
+
+    .anyRequest().authenticated()
+)
+
         .securityContext(context -> context
             .securityContextRepository(securityContextRepository)
         )

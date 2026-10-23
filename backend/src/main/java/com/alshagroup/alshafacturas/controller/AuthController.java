@@ -30,6 +30,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.web.bind.annotation.GetMapping;
+
 
 @RestController
 @RequestMapping("/api/auth")
@@ -53,11 +56,19 @@ public AuthController(
     this.autenticacionService = autenticacionService;
     this.authenticationManager = authenticationManager;
     this.securityContextRepository = securityContextRepository;
+ 
     this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
 }
 
+// NUEVO: Endpoint para obtener el token CSRF
+@GetMapping("/csrf")
+public CsrfToken obtenerCsrf(CsrfToken csrfToken) {
+    return csrfToken;
+}
 
+// Método de login que ya teníamos
 @PostMapping("/login")
+
 
 public ResponseEntity<LoginResponse> login(
         @Valid @RequestBody LoginRequest request,
