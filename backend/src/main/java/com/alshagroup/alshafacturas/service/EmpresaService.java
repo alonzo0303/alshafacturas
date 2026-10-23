@@ -5,7 +5,10 @@ import com.alshagroup.alshafacturas.entity.Empresa;
 import com.alshagroup.alshafacturas.repository.EmpresaRepository;
 import org.springframework.stereotype.Service;
 
+
 import java.util.List;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @Service
 public class EmpresaService {
@@ -20,7 +23,17 @@ public class EmpresaService {
         return empresaRepository.findAll();
     }
 
-    public Empresa guardarEmpresa(Empresa empresa) {
-        return empresaRepository.save(empresa);
+    
+public Empresa guardarEmpresa(Empresa empresa) {
+
+    if (empresaRepository.existsByRuc(empresa.getRuc())) {
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "Ya existe una empresa registrada con este RUC"
+        );
     }
+
+    return empresaRepository.save(empresa);
+}
+
 }

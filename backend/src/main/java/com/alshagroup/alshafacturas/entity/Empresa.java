@@ -7,6 +7,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(name = "empresas")
@@ -16,11 +19,23 @@ public class Empresa {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 11, unique = true)
-    private String ruc;
+   
+@NotBlank(message = "El RUC es obligatorio")
+@Pattern(
+    regexp = "^[0-9]{11}$",
+    message = "El RUC debe contener exactamente 11 digitos"
+)
+@Column(nullable = false, length = 11, unique = true)
+private String ruc;
 
-    @Column(nullable = false, length = 200)
-    private String razonSocial;
+@NotBlank(message = "La razon social es obligatoria")
+@Size(
+    max = 200,
+    message = "La razon social no puede superar los 200 caracteres"
+)
+@Column(nullable = false, length = 200)
+private String razonSocial;
+
 
     @Column(length = 255)
     private String direccion;
