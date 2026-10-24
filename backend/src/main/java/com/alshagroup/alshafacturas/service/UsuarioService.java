@@ -93,6 +93,7 @@ String rolTexto = request.rol().trim().toUpperCase(Locale.ROOT);
 
 Rol rol;
 
+
 try {
     rol = Rol.valueOf(rolTexto);
 } catch (IllegalArgumentException e) {
@@ -101,6 +102,15 @@ try {
             "El rol debe ser ADMIN o VENDEDOR"
     );
 }
+
+// SUPERADMIN no puede registrarse como empleado.
+if (rol == Rol.SUPERADMIN) {
+    throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "No está permitido registrar usuarios SUPERADMIN"
+    );
+}
+
 
 usuario.setRol(rol.name());
 
