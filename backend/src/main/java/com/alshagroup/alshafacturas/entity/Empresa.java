@@ -7,6 +7,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -39,6 +41,9 @@ private String razonSocial;
 
     @Column(length = 255)
     private String direccion;
+    @Enumerated(EnumType.STRING)
+@Column(name = "estado", nullable = false)
+private EstadoEmpresa estado = EstadoEmpresa.PENDIENTE;
 
     public Empresa() {
     }
@@ -70,4 +75,11 @@ private String razonSocial;
     public void setDireccion(String direccion) {
         this.direccion = direccion;
     }
+    public EstadoEmpresa getEstado() {
+    return estado;
+}
+
+public void setEstado(EstadoEmpresa estado) {
+    this.estado = estado;
+}
 }

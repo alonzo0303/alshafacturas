@@ -2,6 +2,7 @@
 package com.alshagroup.alshafacturas.service;
 
 import com.alshagroup.alshafacturas.entity.Empresa;
+import com.alshagroup.alshafacturas.entity.EstadoEmpresa;
 import com.alshagroup.alshafacturas.repository.EmpresaRepository;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +44,24 @@ public Empresa obtenerEmpresaPorId(Long empresaId) {
                     HttpStatus.NOT_FOUND,
                     "La empresa no existe"
             ));
+}
+
+public Empresa cambiarEstadoEmpresa(
+        Long empresaId,
+        EstadoEmpresa nuevoEstado
+) {
+    if (nuevoEstado == null) {
+        throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "El estado de la empresa es obligatorio"
+        );
+    }
+
+    Empresa empresa = obtenerEmpresaPorId(empresaId);
+
+    empresa.setEstado(nuevoEstado);
+
+    return empresaRepository.save(empresa);
 }
 
 }
