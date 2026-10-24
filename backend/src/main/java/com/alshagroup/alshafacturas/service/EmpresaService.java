@@ -36,4 +36,13 @@ public Empresa guardarEmpresa(Empresa empresa) {
     return empresaRepository.save(empresa);
 }
 
+public Empresa obtenerEmpresaPorId(Long empresaId) {
+
+    return empresaRepository.findById(empresaId)
+            .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "La empresa no existe"
+            ));
+}
+
 }
