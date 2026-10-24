@@ -123,4 +123,27 @@ usuario.setActivo(true);
     );
 }
 
+public UsuarioResponse registrarEmpleado(
+        Long empresaIdAutenticada,
+        UsuarioRequest request
+) {
+
+    if (empresaIdAutenticada == null) {
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "No se pudo identificar la empresa del usuario"
+        );
+    }
+
+    UsuarioRequest solicitudSegura = new UsuarioRequest(
+            empresaIdAutenticada,
+            request.nombre(),
+            request.correo(),
+            request.password(),
+            request.rol()
+    );
+
+    return registrarUsuario(solicitudSegura);
+}
+
 }

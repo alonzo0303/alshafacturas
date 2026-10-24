@@ -23,7 +23,10 @@ import org.springframework.security.web.authentication.session.ChangeSessionIdAu
 
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
 
