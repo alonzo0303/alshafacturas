@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import com.alshagroup.alshafacturas.dto.EmpleadoRequest;
+
 @RestController
 @RequestMapping("/api/usuarios")
 public class UsuarioController {
@@ -30,7 +32,7 @@ public class UsuarioController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UsuarioResponse> registrarEmpleado(
             @AuthenticationPrincipal UsuarioPrincipal usuario,
-            @Valid @RequestBody UsuarioRequest request
+            @Valid @RequestBody EmpleadoRequest request
     ) {
         UsuarioResponse nuevoUsuario = usuarioService.registrarEmpleado(
                 usuario.getEmpresaId(),

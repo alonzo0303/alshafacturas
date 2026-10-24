@@ -23,6 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.alshagroup.alshafacturas.security.Rol;
 import java.util.Locale;
 
+import com.alshagroup.alshafacturas.dto.EmpleadoRequest;
+
 @Service
 public class UsuarioService {
 
@@ -123,19 +125,12 @@ usuario.setActivo(true);
     );
 }
 
+
 public UsuarioResponse registrarEmpleado(
         Long empresaIdAutenticada,
-        UsuarioRequest request
+        EmpleadoRequest request
 ) {
-
-    if (empresaIdAutenticada == null) {
-        throw new ResponseStatusException(
-                HttpStatus.UNAUTHORIZED,
-                "No se pudo identificar la empresa del usuario"
-        );
-    }
-
-    UsuarioRequest solicitudSegura = new UsuarioRequest(
+    UsuarioRequest nuevoUsuario = new UsuarioRequest(
             empresaIdAutenticada,
             request.nombre(),
             request.correo(),
@@ -143,7 +138,7 @@ public UsuarioResponse registrarEmpleado(
             request.rol()
     );
 
-    return registrarUsuario(solicitudSegura);
+    return registrarUsuario(nuevoUsuario);
 }
 
 }
