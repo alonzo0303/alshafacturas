@@ -33,3 +33,13 @@ En la impresión física, instala el controlador correspondiente y selecciona el
 ## Referencia de experiencia de uso
 
 Se consultó el contenido público de [tefacturo.pe](https://tefacturo.pe/) como referencia de organización por rubros y módulos empresariales. No se reutilizan su código, textos, imágenes, logotipo ni afirmaciones comerciales. AlshaFacturas mantiene su navegación, morado, planes y permisos propios. El punto de venta añade filtros por categoría y acceso al detalle de la operación en móvil. El video de YouTube compartido no pudo cargarse desde el entorno; no se afirma haber revisado su contenido.
+
+## Editar un negocio existente y guardar fotos
+
+En SUPERADMIN → Empresas → Empresas registradas, pulsa **Editar** en la fila del negocio. Se abre su código existente y permite cambiar nombre y dirección. **Guardar cambios del negocio** actualiza esa misma empresa; no crea otra, no altera RUC, estado, cuentas ni plan, y no borra productos, fotos, saldos u operaciones. No uses Crear empresa para renombrar una existente. Los nombres/direcciones de las notas internas consultadas pueden reflejar los datos actuales; los XML ya guardados no se reescriben.
+
+La barra inferior de tablas es un control con un tirador visible: se puede arrastrar con ratón o dedo, pulsar en la pista o usar teclado Home/End y flechas. Sigue sincronizada con el desplazamiento de la tabla y los botones anteriores/siguientes.
+
+Seleccionar **Foto del producto** muestra una vista previa. La imagen solo se almacena al confirmar **Guardar producto** o **Guardar** en la plantilla común. Se desactiva la confirmación mientras se prepara la imagen. Persiste en PostgreSQL junto con el sistema; al ejecutar localmente queda en la base local, y al desplegar en un servidor compartido queda en su base. Copiar o mover únicamente el código fuente no copia los datos ni las fotos: se necesita el respaldo de la base.
+
+**Leer código desde una imagen** (antes Escanear foto) es otra función: reconoce el código y no guarda esa imagen como foto de mercancía. Una foto nueva en una plantilla común no sustituye automáticamente las fotos de productos ya incorporados por los negocios.

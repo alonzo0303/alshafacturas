@@ -58,12 +58,14 @@ function ProductForm({
     ),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [existing, setExisting] = useState(product);
   const [photo, setPhoto] = useState<File | null | undefined>();
   const final =
     Number(price || 0) * (tax === "GRAVADO" && !includes ? 1.18 : 1);
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (preparingPhoto || busy) return;
     const d = new FormData(e.currentTarget);
     setBusy(true);
     setError("");
@@ -118,7 +120,7 @@ function ProductForm({
   return (
     <form onSubmit={save} className="form">
       <ErrorNotice message={error} />
-      <fieldset disabled={busy}>
+      <fieldset disabled={busy || preparingPhoto}>
         <ImageEditor
           initialUrl={
             product?.imagen_version
@@ -128,6 +130,7 @@ function ProductForm({
                 : undefined
           }
           onChange={setPhoto}
+          onBusyChange={setPreparingPhoto}
           disabled={busy}
         />
         <div className="form-grid">

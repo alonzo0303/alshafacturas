@@ -58,3 +58,13 @@ Verificado el 10 de noviembre de 2026:
 - Accesibilidad automática: sin infracciones axe A/AA en las pantallas probadas. No sustituye revisión manual completa ni uso en dispositivos físicos.
 
 El ensayo de Nginx reutilizó una imagen existente con archivos compilados/configuración montados de solo lectura; no reconstruyó imágenes ni reemplazó contenedores de bases de datos. Se habilitaron imágenes `blob:` y medios locales en CSP para vista previa y escaneo. No se enviaron comprobantes a SUNAT ni se copiaron recursos de la referencia comercial. El contenido público de tefacturo.pe pudo consultarse; el video de YouTube no cargó desde el entorno.
+
+## Actualización: edición de empresa y barra arrastrable
+
+Verificado el 10 de noviembre de 2026: 8 pruebas Java, 24 de API y 8 recorridos de navegador aprobados; 2 pruebas externas SUNAT omitidas. TypeScript/Vite y lint aprobados.
+
+La prueba de edición comprueba el mismo ID, RUC y estado; compara productos, ventas, compras, movimientos, usuarios y plan antes/después, verifica lectura de la foto y acceso posterior con las mismas credenciales. Se rechazan edición sin permiso y nombre vacío. El recorrido de SUPERADMIN edita nombre/dirección y vuelve a ingresar al negocio para consultar su producto existente.
+
+El control de tabla se probó con arrastre real del ratón hasta el extremo y movimiento efectivo de scrollLeft, además de flechas y teclas Home/End. No se trata solo de un color sobre la tabla. Se conserva el desplazamiento táctil y se oculta la antigua barra nativa pequeña para evitar duplicarla.
+
+Las fotos se confirman al guardar el formulario; se impide confirmar mientras se prepara el archivo. El texto del lector distingue la lectura de un código desde imagen del almacenamiento de una foto de producto. No se ejecutaron migraciones nuevas ni se modificaron datos del equipo del usuario.

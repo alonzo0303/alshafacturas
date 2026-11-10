@@ -99,6 +99,31 @@ class ApiRegression(unittest.TestCase):
     def stock(self, product, client=None):
         return next(p['stock'] for p in (client or self.a).ok('/productos') if p['id'] == product['id'])
 
+    def test_company_profile_keeps_inventory_operations_people_and_photo(self):
+        company,email,owner=self.company('Nombre original de prueba')
+        p=self.product(stock=5,client=owner)
+        owner.ok('/ventas','POST',self.sale(p))
+        owner.ok('/compras','POST',{'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor','referencia':uuid.uuid4().hex,'lineas':[{'productoId':p['id'],'cantidad':2,'costo':4}]})
+        owner.ok('/usuarios','POST',{'nombre':'Personal prueba','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
+        png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
+        self.assertEqual(owner.raw(f"/productos/{p['id']}/imagen",'PUT',png)[0],200)
+        paths=['/productos','/ventas','/compras','/inventario','/usuarios','/plan']
+        before={path:owner.ok(path) for path in paths}
+        count=len(self.platform.ok('/empresas'))
+        result=self.platform.ok(f"/empresas/{company['id']}",'PUT',{'razonSocial':'Nombre actualizado','direccion':'Nueva dirección'})
+        self.assertEqual((result['id'],result['ruc'],result['estado']),(company['id'],company['ruc'],'ACTIVA'))
+        self.assertEqual(result['razonSocial'],'Nombre actualizado')
+        self.assertEqual(result['direccion'],'Nueva dirección')
+        self.assertEqual(len(self.platform.ok('/empresas')),count)
+        for path in paths:self.assertEqual(owner.ok(path),before[path],path)
+        self.assertEqual(owner.raw(f"/productos/{p['id']}/imagen")[0],200)
+        self.assertEqual(owner.request(f"/empresas/{company['id']}",'PUT',{'razonSocial':'Intrusión'})[0],403)
+        self.assertEqual(self.platform.request(f"/empresas/{company['id']}",'PUT',{'razonSocial':'  '})[0],400)
+        self.assertEqual(owner.ok('/empresas/mi-empresa')['razonSocial'],'Nombre actualizado')
+        again=Client();again.login(company['ruc'],email)
+        self.assertEqual(again.ok('/auth/me')['empresaId'],company['id'])
+        self.assertEqual(self.platform.request('/empresas/999999999','PUT',{'razonSocial':'No existe'})[0],404)
+
     def test_images_are_validated_private_and_removable(self):
         p=self.product()
         png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')

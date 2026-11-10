@@ -59,6 +59,19 @@ public class EmpresaService {
     return saved;
   }
 
+  public record DatosRequest(
+      @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 200)
+          String razonSocial,
+      @jakarta.validation.constraints.Size(max = 255) String direccion) {}
+
+  @org.springframework.transaction.annotation.Transactional
+  public Empresa editarDatos(Long id, DatosRequest r) {
+    if (empresaRepository.editarDatos(
+            id, r.razonSocial().trim(), r.direccion() == null ? null : r.direccion().trim())
+        == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "La empresa no existe");
+    return obtenerEmpresaPorId(id);
+  }
+
   public Empresa cambiarEstadoEmpresa(Long empresaId, EstadoEmpresa nuevoEstado) {
     if (nuevoEstado == null) {
       throw new ResponseStatusException(

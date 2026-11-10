@@ -140,6 +140,7 @@ export function CatalogoAdmin() {
     ),
     [editing, setEditing] = useState<Plantilla | null>(null),
     [search, setSearch] = useState("");
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [photo, setPhoto] = useState<File | null | undefined>();
   const [savedId, setSavedId] = useState<number | null>(null);
   const [formVersion, setFormVersion] = useState(0);
@@ -154,6 +155,7 @@ export function CatalogoAdmin() {
         <h2>{editing ? "Editar plantilla" : "Nueva plantilla"}</h2>
         <Form
           key={editing?.id ?? `new-${formVersion}`}
+          disabled={preparingPhoto}
           onSave={async (d) => {
             const id = editing?.id || savedId;
             const saved = await api<Plantilla>(
@@ -187,6 +189,7 @@ export function CatalogoAdmin() {
                 : undefined
             }
             onChange={setPhoto}
+            onBusyChange={setPreparingPhoto}
           />
           <div className="form-grid">
             <Field label="Nombre del producto común">

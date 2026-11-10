@@ -65,6 +65,8 @@ export function Table({
 }) {
   const scroll = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({
+    offset: 0,
+    max: 0,
     overflow: false,
     start: true,
     end: true,
@@ -74,6 +76,8 @@ export function Table({
     if (!element) return;
     const update = () =>
       setPosition({
+        offset: element.scrollLeft,
+        max: Math.max(0, element.scrollWidth - element.clientWidth),
         overflow: element.scrollWidth > element.clientWidth + 1,
         start: element.scrollLeft < 1,
         end:
@@ -98,7 +102,7 @@ export function Table({
     <div className="table-container">
       {position.overflow && (
         <div className="table-controls">
-          <small>Desliza para ver más columnas</small>
+          <small>Arrastra la barra inferior o usa las flechas</small>
           <button
             type="button"
             aria-label="Columnas anteriores"
@@ -157,6 +161,28 @@ export function Table({
           </tbody>
         </table>
       </div>
+      {position.overflow && (
+        <div className="table-slider">
+          <label>
+            <span className="sr-only">
+              Desplazar columnas de {headers.join(", ")}
+            </span>
+            <input
+              className="table-range"
+              type="range"
+              min={0}
+              max={position.max}
+              step={1}
+              value={Math.round(position.offset)}
+              aria-valuetext={`${Math.round(position.max ? (position.offset / position.max) * 100 : 0)}% de desplazamiento`}
+              onChange={(e) => {
+                if (scroll.current)
+                  scroll.current.scrollLeft = Number(e.target.value);
+              }}
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }
@@ -180,17 +206,20 @@ export function Form({
   children,
   label = "Guardar",
   onDone,
+  disabled = false,
 }: {
   onSave: (data: FormData) => Promise<unknown>;
   children: ReactNode;
   label?: string;
   onDone?: () => void;
+  disabled?: boolean;
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [success, setSuccess] = useState("");
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (disabled || busy) return;
     const form = e.currentTarget;
     setError("");
     setSuccess("");
@@ -211,7 +240,7 @@ export function Form({
       <ErrorNotice message={error} />
       {children}
       <div className="form-actions">
-        <button className="primary" disabled={busy}>
+        <button className="primary" disabled={busy || disabled}>
           {busy ? "Guardando…" : label}
         </button>
         <span role="status">{success}</span>

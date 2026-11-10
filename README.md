@@ -6,7 +6,7 @@ Esta versión integra la gestión de empresas y usuarios con productos, clientes
 
 ## Funciones disponibles
 
-- SUPERADMIN creado mediante variables de entorno. Alta transaccional de empresa con su primer administrador; activación y suspensión.
+- SUPERADMIN creado mediante variables de entorno. Alta transaccional de empresa con su primer administrador; edición de nombre/dirección conservando código y datos, activación y suspensión.
 - Sesiones HTTP, BCrypt, protección CSRF y cierre de sesión. La suspensión de una empresa o desactivación de un usuario revoca el acceso de sus sesiones en la siguiente solicitud.
 - ADMIN: catálogo, precios, usuarios, inventario, compras, ventas, reportes y datos de empresa. VENDEDOR: ventas, clientes, catálogo e inventario en consulta. Roles adicionales de almacén y compras, y roles personalizados con permisos.
 - Productos editables, SKU único por empresa, activación/desactivación y alerta de stock mínimo.

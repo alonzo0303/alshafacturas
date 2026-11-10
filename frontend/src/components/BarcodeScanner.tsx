@@ -140,7 +140,7 @@ export default function BarcodeScanner({
           {camera ? "Detener cámara" : "Escanear con cámara"}
         </button>
         <label className="file-scan">
-          Escanear foto
+          Leer código desde una imagen
           <input
             aria-label="Imagen de código de barras"
             type="file"
@@ -164,7 +164,8 @@ export default function BarcodeScanner({
       {busy && <p role="status">Preparando lectura…</p>}
       <small>
         También puedes usar un lector USB o Bluetooth: enfoca el campo y
-        escanea. Las imágenes se procesan en este dispositivo.
+        escanea. Esta imagen solo se usa para leer el código; no se guarda como
+        foto del producto.
       </small>
     </div>
   );

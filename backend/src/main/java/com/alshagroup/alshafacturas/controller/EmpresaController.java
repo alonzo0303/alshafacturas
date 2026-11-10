@@ -35,6 +35,13 @@ public class EmpresaController {
     return empresaService.cambiarEstadoEmpresa(id, r.estado());
   }
 
+  @PutMapping("/{id}")
+  @PreAuthorize("hasRole('SUPERADMIN')")
+  public Empresa editarDatos(
+      @PathVariable Long id, @Valid @RequestBody EmpresaService.DatosRequest r) {
+    return empresaService.editarDatos(id, r);
+  }
+
   @GetMapping
   @PreAuthorize("hasRole('SUPERADMIN')")
   public List<Empresa> listarEmpresas() {

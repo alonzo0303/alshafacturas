@@ -528,6 +528,38 @@ test("Fotos, marca morada y desplazamiento con menú móvil", async ({
     .getByRole("button", { name: "Columnas anteriores", exact: true })
     .click();
   await expect.poll(() => scroll.evaluate((el) => el.scrollLeft)).toBe(0);
+  const slider = page.getByRole("slider", {
+    name: /Desplazar columnas de Código/,
+  });
+  await slider.scrollIntoViewIfNeeded();
+  const bounds = (await slider.boundingBox())!;
+  await page.mouse.move(bounds.x + 20, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    bounds.x + bounds.width - 2,
+    bounds.y + bounds.height / 2,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      scroll.evaluate(
+        (el) => el.scrollLeft / (el.scrollWidth - el.clientWidth),
+      ),
+    )
+    .toBeGreaterThan(0.9);
+  await slider.focus();
+  await slider.press("Home");
+  await expect.poll(() => scroll.evaluate((el) => el.scrollLeft)).toBe(0);
+  await slider.press("End");
+  await expect
+    .poll(() =>
+      scroll.evaluate(
+        (el) => el.scrollLeft / (el.scrollWidth - el.clientWidth),
+      ),
+    )
+    .toBeGreaterThan(0.99);
+
   await page.getByRole("button", { name: "Menú", exact: true }).click();
   await page.getByRole("link", { name: "Punto de venta", exact: true }).click();
   await expect(
@@ -588,4 +620,76 @@ test("SUPERADMIN asigna el rubro visible para el negocio", async ({ page }) => {
   await expect(
     page.getByLabel("Rubro", { exact: true }).locator("option"),
   ).toHaveText(["Todos los rubros", "Ferretería"]);
+});
+
+test("Editar negocio conserva su código y permite continuar con sus productos", async ({
+  page,
+}) => {
+  const company = await setup();
+  await page.goto("/login");
+  await page.getByLabel("Correo electrónico").fill(company.correo);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Resumen del negocio", exact: true }),
+  ).toBeVisible();
+  await post(page.request, "/productos", {
+    sku: "PERMANECE",
+    nombre: "Mercadería que se conserva",
+    precio: 10,
+    minimo: 2,
+    activo: true,
+  });
+  await page
+    .getByRole("button", { name: "Cerrar sesión", exact: true })
+    .click();
+  await page.goto("/admin/login");
+  await page
+    .getByLabel("Correo electrónico")
+    .fill(process.env.TEST_SUPERADMIN_EMAIL!);
+  await page
+    .getByLabel("Contraseña", { exact: true })
+    .fill(process.env.TEST_SUPERADMIN_PASSWORD!);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  const row = page.getByRole("row").filter({
+    has: page.getByRole("cell", { name: String(company.id), exact: true }),
+  });
+  await row.getByRole("button", { name: /Editar/ }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("heading", { name: `Editar negocio #${company.id}` }),
+  ).toBeVisible();
+  await dialog
+    .getByLabel("Nombre del negocio o razón social")
+    .fill("Negocio actualizado en prueba");
+  await dialog
+    .getByLabel("Dirección", { exact: true })
+    .fill("Dirección actualizada");
+  await dialog
+    .getByRole("button", { name: "Guardar cambios del negocio", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    row.getByRole("cell", {
+      name: "Negocio actualizado en prueba",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Cerrar sesión", exact: true })
+    .click();
+  await page.goto("/login");
+  await page.getByLabel("Correo electrónico").fill(company.correo);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Productos", exact: true }).click();
+  await expect(
+    page.getByText("Mercadería que se conserva", { exact: true }),
+  ).toBeVisible();
 });

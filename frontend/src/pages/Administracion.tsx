@@ -10,6 +10,7 @@ import {
   PageTitle,
   Table,
   Badge,
+  Modal,
 } from "../components/ui";
 import { useState } from "react";
 type Usuario = Session & { activo: boolean };
@@ -18,6 +19,8 @@ export function Empresas() {
     () => api<Empresa[]>("/empresas"),
     [],
   );
+  const [editing, setEditing] = useState<Empresa | null>(null);
+  const [message, setMessage] = useState("");
   const [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState<number | null>(null);
   async function estado(e: Empresa) {
@@ -47,6 +50,7 @@ export function Empresas() {
         description="Alta y control de acceso de las empresas de la plataforma."
       />
       <ErrorNotice message={error || actionError} />
+      <p role="status">{message}</p>
       <RubrosAcceso />
       <section className="surface">
         <h2>Nueva empresa y administrador</h2>
@@ -116,18 +120,31 @@ export function Empresas() {
                   <Badge neutral={e.estado === "ACTIVA"}>{e.estado}</Badge>
                 </td>
                 <td>
-                  {e.ruc !== "00000000000" && (
-                    <button
-                      disabled={busy !== null}
-                      onClick={() => void estado(e)}
-                    >
-                      {busy === e.id
-                        ? "Guardando…"
-                        : e.estado === "ACTIVA"
-                          ? "Suspender"
-                          : "Activar"}
-                    </button>
-                  )}
+                  <div className="row-actions">
+                    {e.ruc !== "00000000000" && (
+                      <button
+                        disabled={busy !== null}
+                        onClick={() => {
+                          setMessage("");
+                          setEditing(e);
+                        }}
+                      >
+                        Editar<span className="sr-only"> {e.razonSocial}</span>
+                      </button>
+                    )}
+                    {e.ruc !== "00000000000" && (
+                      <button
+                        disabled={busy !== null}
+                        onClick={() => void estado(e)}
+                      >
+                        {busy === e.id
+                          ? "Guardando…"
+                          : e.estado === "ACTIVA"
+                            ? "Suspender"
+                            : "Activar"}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -136,6 +153,59 @@ export function Empresas() {
           <Empty>No hay empresas registradas.</Empty>
         )}
       </section>
+      {editing && (
+        <Modal
+          title={`Editar negocio #${editing.id}`}
+          onClose={() => setEditing(null)}
+        >
+          <p className="notice">
+            Se conserva el código #{editing.id}, los productos, usuarios,
+            existencias y operaciones del negocio.
+          </p>
+          <Form
+            label="Guardar cambios del negocio"
+            onSave={(d) =>
+              api(`/empresas/${editing.id}`, "PUT", {
+                razonSocial: d.get("razonSocial"),
+                direccion: d.get("direccion"),
+              })
+            }
+            onDone={() => {
+              setEditing(null);
+              setMessage(
+                "Datos del negocio actualizados. Se conservó el mismo código.",
+              );
+              void refresh();
+            }}
+          >
+            <Field label="Nombre del negocio o razón social">
+              <input
+                name="razonSocial"
+                required
+                maxLength={200}
+                defaultValue={editing.razonSocial}
+              />
+            </Field>
+            <Field label="Dirección">
+              <input
+                name="direccion"
+                maxLength={255}
+                defaultValue={editing.direccion || ""}
+              />
+            </Field>
+            <Field label="RUC actual">
+              <input
+                readOnly
+                value={editing.ruc || "Sin RUC · Gestión interna"}
+              />
+            </Field>
+            <p className="hint">
+              Esta edición cambia nombre y dirección. El RUC, las cuentas de
+              acceso y el plan se conservan.
+            </p>
+          </Form>
+        </Modal>
+      )}
     </>
   );
 }

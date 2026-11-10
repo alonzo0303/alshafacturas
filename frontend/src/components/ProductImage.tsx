@@ -36,10 +36,12 @@ export function ImageEditor({
   initialUrl,
   onChange,
   disabled = false,
+  onBusyChange,
 }: {
   initialUrl?: string;
   onChange: (file: File | null) => void;
   disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [preview, setPreview] = useState(initialUrl || ""),
     [error, setError] = useState(""),
@@ -71,6 +73,7 @@ export function ImageEditor({
             e.target.value = "";
             if (!file) return;
             setBusy(true);
+            onBusyChange?.(true);
             setError("");
             try {
               const photo = await prepareImage(file);
@@ -82,6 +85,7 @@ export function ImageEditor({
               setError((e as Error).message);
             } finally {
               setBusy(false);
+              onBusyChange?.(false);
             }
           }}
         />
@@ -102,7 +106,7 @@ export function ImageEditor({
       <small>
         {busy
           ? "Preparando foto…"
-          : "JPG, PNG o WebP, hasta 10 MB. Se optimiza antes de guardar."}
+          : "JPG, PNG o WebP, hasta 10 MB. Elegir la foto solo muestra una vista previa; se guarda al confirmar el formulario."}
       </small>
     </div>
   );
