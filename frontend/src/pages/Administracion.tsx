@@ -1,3 +1,4 @@
+import { PlanInfo, type PlanState } from "./Planes";
 import { useData } from "../lib/useData";
 import { api, type Empresa, type Session } from "../lib/api";
 import {
@@ -141,6 +142,30 @@ export function Usuarios({ session }: { session: Session }) {
     () => api<Usuario[]>("/usuarios"),
     [],
   );
+  const plan = useData(() => api<PlanState>("/plan"), null);
+  const roles = useData(
+    () => api<{ roles: { codigo: string; nombre: string }[] }>("/roles"),
+    { roles: [] },
+  );
+  const cupo =
+    !!plan.data?.vigente &&
+    (plan.data.limiteEmpleados < 0 ||
+      plan.data.empleadosActivos < plan.data.limiteEmpleados);
+  async function reload() {
+    await Promise.all([refresh(), plan.refresh()]);
+  }
+  async function cambiarRol(u: Usuario, rol: string) {
+    setBusy(true);
+    setActionError("");
+    try {
+      await api(`/usuarios/${u.id}/rol`, "PATCH", { rol });
+      await reload();
+    } catch (e) {
+      setActionError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState(false);
   async function estado(u: Usuario) {
@@ -148,7 +173,7 @@ export function Usuarios({ session }: { session: Session }) {
     setActionError("");
     try {
       await api(`/usuarios/${u.id}/activo`, "PATCH", { activo: !u.activo });
-      await refresh();
+      await reload();
     } catch (e) {
       setActionError((e as Error).message);
     } finally {
@@ -159,40 +184,63 @@ export function Usuarios({ session }: { session: Session }) {
     <>
       <PageTitle
         title="Usuarios"
-        description="Administradores y vendedores de tu empresa."
+        description="Gestiona las cuentas, sus funciones y los cupos de tu plan."
       />
-      <ErrorNotice message={error || actionError} />
+      <ErrorNotice
+        message={error || plan.error || roles.error || actionError}
+      />
+      {plan.data && (
+        <section className="surface">
+          <PlanInfo plan={plan.data} />
+        </section>
+      )}
       <section className="surface">
         <h2>Nuevo usuario</h2>
+        {!cupo && (
+          <p className="notice">
+            No hay cupos disponibles. Revisa Mi plan o desactiva una cuenta
+            antes de agregar personal.
+          </p>
+        )}
         <Form
-          onSave={(d) => api("/usuarios", "POST", Object.fromEntries(d))}
+          onSave={(d) => {
+            if (!cupo)
+              throw new Error("No hay cupos disponibles en el plan vigente.");
+            return api("/usuarios", "POST", Object.fromEntries(d));
+          }}
           label="Crear usuario"
-          onDone={() => void refresh()}
+          onDone={() => void reload()}
         >
-          <div className="form-grid">
-            <Field label="Nombre completo">
-              <input name="nombre" required maxLength={150} />
-            </Field>
-            <Field label="Correo">
-              <input name="correo" type="email" required maxLength={150} />
-            </Field>
-            <Field label="Contraseña inicial (8 a 72 caracteres)">
-              <input
-                name="password"
-                type="password"
-                minLength={8}
-                maxLength={72}
-                autoComplete="new-password"
-                required
-              />
-            </Field>
-            <Field label="Rol">
-              <select name="rol">
-                <option value="VENDEDOR">Vendedor · Ventas y clientes</option>
-                <option value="ADMIN">Administrador · Gestión completa</option>
-              </select>
-            </Field>
-          </div>
+          <fieldset disabled={!cupo || busy}>
+            <legend className="sr-only">Datos del nuevo usuario</legend>
+            <div className="form-grid">
+              <Field label="Nombre completo">
+                <input name="nombre" required maxLength={150} />
+              </Field>
+              <Field label="Correo">
+                <input name="correo" type="email" required maxLength={150} />
+              </Field>
+              <Field label="Contraseña inicial (8 a 72 caracteres)">
+                <input
+                  name="password"
+                  type="password"
+                  minLength={8}
+                  maxLength={72}
+                  autoComplete="new-password"
+                  required
+                />
+              </Field>
+              <Field label="Rol">
+                <select name="rol">
+                  {roles.data.roles.map((r) => (
+                    <option key={r.codigo} value={r.codigo}>
+                      {r.nombre}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </fieldset>
         </Form>
       </section>
       <section className="surface">
@@ -208,13 +256,34 @@ export function Usuarios({ session }: { session: Session }) {
               <tr key={u.id}>
                 <td>{u.nombre}</td>
                 <td>{u.correo}</td>
-                <td>{u.rol}</td>
+                <td>
+                  {u.id === session.id || u.id === plan.data?.propietarioId ? (
+                    roles.data.roles.find((r) => r.codigo === u.rol)?.nombre ||
+                    u.rol
+                  ) : (
+                    <select
+                      aria-label={`Rol de ${u.nombre}`}
+                      value={u.rol}
+                      disabled={busy}
+                      onChange={(e) => void cambiarRol(u, e.target.value)}
+                    >
+                      {roles.data.roles.map((r) => (
+                        <option key={r.codigo} value={r.codigo}>
+                          {r.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </td>
                 <td>{u.activo ? "Activo" : "Inactivo"}</td>
                 <td>
-                  {u.id === session.id ? (
+                  {u.id === session.id || u.id === plan.data?.propietarioId ? (
                     "Tu cuenta"
                   ) : (
-                    <button disabled={busy} onClick={() => void estado(u)}>
+                    <button
+                      disabled={busy || (!u.activo && !cupo)}
+                      onClick={() => void estado(u)}
+                    >
                       {u.activo ? "Desactivar" : "Reactivar"}
                     </button>
                   )}

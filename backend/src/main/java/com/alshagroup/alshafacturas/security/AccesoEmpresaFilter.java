@@ -14,9 +14,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class AccesoEmpresaFilter extends OncePerRequestFilter {
   private final UsuarioRepository users;
+  private final com.alshagroup.alshafacturas.gestion.RolesService roles;
+  private final com.alshagroup.alshafacturas.gestion.PlanesService planes;
 
-  public AccesoEmpresaFilter(UsuarioRepository users) {
+  public AccesoEmpresaFilter(
+      UsuarioRepository users,
+      com.alshagroup.alshafacturas.gestion.RolesService roles,
+      com.alshagroup.alshafacturas.gestion.PlanesService planes) {
     this.users = users;
+    this.roles = roles;
+    this.planes = planes;
   }
 
   // Only run inside the security chain, after the session has been loaded.
@@ -37,19 +44,28 @@ public class AccesoEmpresaFilter extends OncePerRequestFilter {
       boolean allowed =
           user != null
               && Boolean.TRUE.equals(user.getActivo())
-              && user.getRol().equals(principal.getRol())
               && user.getEmpresa().getId().equals(principal.getEmpresaId())
               && ("SUPERADMIN".equals(user.getRol())
-                  || user.getEmpresa().getEstado() == EstadoEmpresa.ACTIVA);
+                  || (user.getEmpresa().getEstado() == EstadoEmpresa.ACTIVA
+                      && planes.permiteAcceso(user.getEmpresa().getId(), user.getId())));
       if (!allowed) {
         SecurityContextHolder.clearContext();
         var session = req.getSession(false);
         if (session != null) session.invalidate();
         res.setStatus(403);
         res.setContentType("application/json;charset=UTF-8");
-        res.getWriter().write("{\"mensaje\":\"La cuenta o la empresa no tiene acceso activo\"}");
+        res.getWriter()
+            .write(
+                "{\"codigo\":\"SESION_REVOCADA\",\"mensaje\":\"La cuenta, empresa o plan no tiene"
+                    + " acceso activo\"}");
         return;
       }
+      var refreshed =
+          new UsuarioPrincipal(user, roles.permisos(user.getEmpresa().getId(), user.getRol()));
+      SecurityContextHolder.getContext()
+          .setAuthentication(
+              new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                  refreshed, null, refreshed.getAuthorities()));
     }
     chain.doFilter(req, res);
   }

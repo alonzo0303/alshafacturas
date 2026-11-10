@@ -176,6 +176,45 @@ class SunatIntegrationTests {
   }
 
   @Test
+  void mixedTaxLinesKeepExemptAndUnaffectedAmounts() throws Exception {
+    var lines = new ArrayList<Map<String, Object>>();
+    for (String affect : List.of("GRAVADO", "EXONERADO", "INAFECTO")) {
+      var line = new HashMap<String, Object>();
+      line.put("nombre", affect);
+      line.put("sku", affect);
+      line.put("cantidad", 1);
+      line.put("precio", new BigDecimal("118"));
+      line.put("total", new BigDecimal("118"));
+      line.put("base", new BigDecimal(affect.equals("GRAVADO") ? "100" : "118"));
+      line.put("afectacion_igv", affect);
+      lines.add(line);
+    }
+    var sale = new HashMap<String, Object>();
+    sale.put("subtotal", new BigDecimal("336"));
+    sale.put("igv", new BigDecimal("18"));
+    sale.put("total", new BigDecimal("354"));
+    sale.put("cliente_documento", "20123456789");
+    var signed =
+        SunatXml.invoice(
+            configuration.cargar(RUC),
+            sale,
+            "01",
+            "F001-99999999",
+            java.time.LocalDate.now(),
+            lines);
+    var doc = SunatXml.parse(signed);
+    var codes = doc.getElementsByTagNameNS(SunatXml.CBC, "TaxExemptionReasonCode");
+    var found = new HashSet<String>();
+    for (int i = 0; i < codes.getLength(); i++) found.add(codes.item(i).getTextContent());
+    assertTrue(found.containsAll(Set.of("10", "20", "30")));
+    var amounts = doc.getElementsByTagNameNS(SunatXml.CBC, "LineExtensionAmount");
+    assertEquals("336.00", amounts.item(0).getTextContent());
+    assertEquals("100.00", amounts.item(1).getTextContent());
+    assertEquals("118.00", amounts.item(2).getTextContent());
+    assertEquals("118.00", amounts.item(3).getTextContent());
+  }
+
+  @Test
   void facturaFirmadaAceptadaYReintentoNoDuplica() throws Exception {
     accepted();
     var sale = venta("FACTURA");

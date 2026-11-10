@@ -7,7 +7,6 @@ import com.alshagroup.alshafacturas.entity.Empresa;
 import com.alshagroup.alshafacturas.entity.Usuario;
 import com.alshagroup.alshafacturas.repository.EmpresaRepository;
 import com.alshagroup.alshafacturas.repository.UsuarioRepository;
-import com.alshagroup.alshafacturas.security.Rol;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
@@ -22,16 +21,25 @@ public class UsuarioService {
   private final EmpresaRepository empresaRepository;
   private final PasswordEncoder passwordEncoder;
   private final jakarta.validation.Validator validator;
+  private final com.alshagroup.alshafacturas.gestion.RolesService roles;
+  private final com.alshagroup.alshafacturas.gestion.PlanesService planes;
+  private final org.springframework.jdbc.core.JdbcTemplate db;
 
   public UsuarioService(
       UsuarioRepository usuarioRepository,
       EmpresaRepository empresaRepository,
       PasswordEncoder passwordEncoder,
-      jakarta.validation.Validator validator) {
+      jakarta.validation.Validator validator,
+      com.alshagroup.alshafacturas.gestion.RolesService roles,
+      com.alshagroup.alshafacturas.gestion.PlanesService planes,
+      org.springframework.jdbc.core.JdbcTemplate db) {
     this.usuarioRepository = usuarioRepository;
     this.empresaRepository = empresaRepository;
     this.passwordEncoder = passwordEncoder;
     this.validator = validator;
+    this.roles = roles;
+    this.planes = planes;
+    this.db = db;
   }
 
   public List<UsuarioResponse> listarPorEmpresa(Long empresaId) {
@@ -85,21 +93,12 @@ public class UsuarioService {
 
     String rolTexto = request.rol().trim().toUpperCase(Locale.ROOT);
 
-    Rol rol;
-
-    try {
-      rol = Rol.valueOf(rolTexto);
-    } catch (IllegalArgumentException e) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El rol debe ser ADMIN o VENDEDOR");
-    }
-
-    // SUPERADMIN no puede registrarse como empleado.
-    if (rol == Rol.SUPERADMIN) {
+    if ("SUPERADMIN".equals(rolTexto))
       throw new ResponseStatusException(
           HttpStatus.FORBIDDEN, "No está permitido registrar usuarios SUPERADMIN");
-    }
-
-    usuario.setRol(rol.name());
+    if (!roles.existe(empresa.getId(), rolTexto))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El rol no existe en este negocio");
+    usuario.setRol(rolTexto);
 
     usuario.setActivo(true);
 
@@ -119,7 +118,11 @@ public class UsuarioService {
         guardado.getActivo());
   }
 
+  @org.springframework.transaction.annotation.Transactional
   public UsuarioResponse registrarEmpleado(Long empresaIdAutenticada, EmpleadoRequest request) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresaIdAutenticada);
+    planes.validarCupo(empresaIdAutenticada);
     UsuarioRequest nuevoUsuario =
         new UsuarioRequest(
             empresaIdAutenticada,
@@ -133,6 +136,7 @@ public class UsuarioService {
 
   @org.springframework.transaction.annotation.Transactional
   public UsuarioResponse cambiarActivo(Long empresaId, Long actorId, Long id, boolean activo) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresaId);
     var u =
         usuarioRepository
             .findByIdAndEmpresaId(id, empresaId)
@@ -141,9 +145,33 @@ public class UsuarioService {
     if (id.equals(actorId))
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "No puedes desactivar tu propia cuenta");
+    if (!activo && java.util.Objects.equals(id, planes.propietario(empresaId)))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "El administrador principal debe conservar acceso");
+    if (activo && !Boolean.TRUE.equals(u.getActivo())) planes.validarCupo(empresaId);
     u.setActivo(activo);
     usuarioRepository.save(u);
     return new UsuarioResponse(
         u.getId(), empresaId, u.getNombre(), u.getCorreo(), u.getRol(), u.getActivo());
+  }
+
+  @org.springframework.transaction.annotation.Transactional
+  public UsuarioResponse cambiarRol(Long empresa, Long actor, Long id, String rol) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    if (id.equals(actor) || id.equals(planes.propietario(empresa)))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "No se puede cambiar el rol del administrador principal ni el propio");
+    if (!roles.existe(empresa, rol))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rol no válido");
+    var u =
+        usuarioRepository
+            .findByIdAndEmpresaId(id, empresa)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+    u.setRol(rol);
+    usuarioRepository.save(u);
+    return new UsuarioResponse(
+        u.getId(), empresa, u.getNombre(), u.getCorreo(), u.getRol(), u.getActivo());
   }
 }

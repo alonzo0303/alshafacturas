@@ -19,8 +19,16 @@ public class UsuarioPrincipal implements UserDetails {
   private final String passwordHash;
   private final String rol;
   private final boolean activo;
+  private final List<String> permisos;
 
   public UsuarioPrincipal(Usuario usuario) {
+    this(
+        usuario,
+        com.alshagroup.alshafacturas.gestion.RolesService.predeterminados(usuario.getRol()));
+  }
+
+  public UsuarioPrincipal(Usuario usuario, List<String> permisos) {
+    this.permisos = List.copyOf(permisos);
     this.id = usuario.getId();
     this.empresaId = usuario.getEmpresa().getId();
     this.nombre = usuario.getNombre();
@@ -28,6 +36,10 @@ public class UsuarioPrincipal implements UserDetails {
     this.passwordHash = usuario.getPasswordHash();
     this.rol = usuario.getRol();
     this.activo = Boolean.TRUE.equals(usuario.getActivo());
+  }
+
+  public List<String> getPermisos() {
+    return permisos;
   }
 
   public String getRol() {
@@ -44,7 +56,10 @@ public class UsuarioPrincipal implements UserDetails {
 
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
-    return List.of(new SimpleGrantedAuthority("ROLE_" + rol));
+    var authorities = new java.util.ArrayList<GrantedAuthority>();
+    authorities.add(new SimpleGrantedAuthority("ROLE_" + rol));
+    for (String permiso : permisos) authorities.add(new SimpleGrantedAuthority(permiso));
+    return authorities;
   }
 
   @Override

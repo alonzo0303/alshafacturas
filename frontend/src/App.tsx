@@ -16,18 +16,27 @@ import Operacion from "./pages/Operacion";
 import { Ventas, Compras } from "./pages/Historial";
 import { Empresas, Usuarios } from "./pages/Administracion";
 import { ErrorNotice } from "./components/ui";
+import { SessionContext, can } from "./lib/session";
+import Roles from "./pages/Roles";
+import { MiPlan, PagosAdmin } from "./pages/Planes";
+import { CatalogoAdmin, CatalogoNegocio } from "./pages/CatalogoComun";
+import Tributacion from "./pages/Tributacion";
 const empresaLinks = [
-  ["Resumen", "/panel", true],
-  ["Punto de venta", "/panel/pos", false],
-  ["Ventas", "/panel/ventas", false],
-  ["Clientes", "/panel/clientes", false],
-  ["Productos", "/panel/productos", true],
-  ["Inventario", "/panel/inventario", true],
-  ["Registrar compra", "/panel/compra", true],
-  ["Compras", "/panel/compras", true],
-  ["Facturación electrónica", "/panel/facturacion", false],
-  ["Usuarios", "/panel/usuarios", true],
-  ["Configuración", "/panel/configuracion", true],
+  ["Resumen", "/panel", "RESUMEN_VER"],
+  ["Punto de venta", "/panel/pos", "VENTAS_GESTIONAR"],
+  ["Ventas", "/panel/ventas", "VENTAS_GESTIONAR"],
+  ["Clientes", "/panel/clientes", "CLIENTES_GESTIONAR"],
+  ["Productos", "/panel/productos", "PRODUCTOS_VER"],
+  ["Catálogo común", "/panel/catalogo", "PRODUCTOS_VER"],
+  ["Inventario", "/panel/inventario", "INVENTARIO_VER"],
+  ["Registrar compra", "/panel/compra", "COMPRAS_GESTIONAR"],
+  ["Compras", "/panel/compras", "COMPRAS_GESTIONAR"],
+  ["Facturación electrónica", "/panel/facturacion", "FACTURACION_VER"],
+  ["IGV y compras", "/panel/tributacion", "IMPUESTOS_VER"],
+  ["Usuarios", "/panel/usuarios", "ADMIN"],
+  ["Roles", "/panel/roles", "ADMIN"],
+  ["Mi plan", "/panel/plan", "ADMIN"],
+  ["Configuración", "/panel/configuracion", "ADMIN"],
 ] as const;
 function Shell({
   session,
@@ -53,18 +62,22 @@ function Shell({
     }
   }
   const links = superadmin
-    ? [["Empresas", "/admin/empresas"]]
-    : empresaLinks.filter((l) => admin || !l[2]);
+    ? [
+        ["Empresas", "/admin/empresas"],
+        ["Pagos y planes", "/admin/pagos"],
+        ["Catálogo común", "/admin/catalogo"],
+      ]
+    : empresaLinks.filter((l) =>
+        l[2] === "ADMIN" ? admin : can(session, l[2]),
+      );
+  const home = links[0]?.[1] || "/sin-acceso";
   return (
     <div className="app-shell">
       <a href="#contenido" className="skip-link">
         Saltar al contenido
       </a>
       <aside className="sidebar">
-        <NavLink
-          to={superadmin ? "/admin/empresas" : "/panel"}
-          className="wordmark"
-        >
+        <NavLink to={home} className="wordmark">
           ALSHA<span>FACTURAS</span>
         </NavLink>
         <p className="sidebar-caption">
@@ -98,56 +111,84 @@ function Shell({
             {superadmin ? (
               <>
                 <Route path="/admin/empresas" element={<Empresas />} />
-                <Route
-                  path="*"
-                  element={<Navigate to="/admin/empresas" replace />}
-                />
+                <Route path="/admin/pagos" element={<PagosAdmin />} />
+                <Route path="/admin/catalogo" element={<CatalogoAdmin />} />
               </>
             ) : (
               <>
-                <Route
-                  path="/panel"
-                  element={
-                    admin ? <Dashboard /> : <Navigate to="/panel/pos" replace />
-                  }
-                />
-                <Route path="/panel/pos" element={<Operacion />} />
-                <Route
-                  path="/panel/ventas"
-                  element={<Ventas admin={admin} />}
-                />
-                <Route path="/panel/clientes" element={<Clientes />} />
-                <Route
-                  path="/panel/facturacion"
-                  element={<Sunat admin={admin} />}
-                />
-                {admin && (
+                {can(session, "RESUMEN_VER") && (
+                  <Route path="/panel" element={<Dashboard />} />
+                )}
+                {can(session, "VENTAS_GESTIONAR") && (
+                  <>
+                    <Route path="/panel/pos" element={<Operacion />} />
+                    <Route
+                      path="/panel/ventas"
+                      element={<Ventas admin={can(session, "VENTAS_ANULAR")} />}
+                    />
+                  </>
+                )}
+                {can(session, "CLIENTES_GESTIONAR") && (
+                  <Route path="/panel/clientes" element={<Clientes />} />
+                )}
+                {can(session, "PRODUCTOS_VER") && (
                   <>
                     <Route path="/panel/productos" element={<Productos />} />
-                    <Route path="/panel/inventario" element={<Inventario />} />
+                    <Route
+                      path="/panel/catalogo"
+                      element={<CatalogoNegocio />}
+                    />
+                  </>
+                )}
+                {can(session, "INVENTARIO_VER") && (
+                  <Route path="/panel/inventario" element={<Inventario />} />
+                )}
+                {can(session, "COMPRAS_GESTIONAR") && (
+                  <>
                     <Route
                       path="/panel/compra"
                       element={<Operacion key="compra" compra />}
                     />
                     <Route path="/panel/compras" element={<Compras />} />
+                  </>
+                )}
+                {can(session, "FACTURACION_VER") && (
+                  <Route
+                    path="/panel/facturacion"
+                    element={
+                      <Sunat admin={can(session, "FACTURACION_EMITIR")} />
+                    }
+                  />
+                )}
+                {can(session, "IMPUESTOS_VER") && (
+                  <Route path="/panel/tributacion" element={<Tributacion />} />
+                )}
+                {admin && (
+                  <>
                     <Route
                       path="/panel/usuarios"
                       element={<Usuarios session={session} />}
                     />
+                    <Route path="/panel/roles" element={<Roles />} />
+                    <Route path="/panel/plan" element={<MiPlan />} />
                     <Route
                       path="/panel/configuracion"
                       element={<Configuracion />}
                     />
                   </>
                 )}
-                <Route
-                  path="*"
-                  element={
-                    <Navigate to={admin ? "/panel" : "/panel/pos"} replace />
-                  }
-                />
               </>
             )}
+            <Route
+              path="/sin-acceso"
+              element={
+                <p>
+                  Tu rol no tiene módulos habilitados. Consulta al
+                  administrador.
+                </p>
+              }
+            />
+            <Route path="*" element={<Navigate to={home} replace />} />
           </Routes>
         </main>
         <footer className="workspace-footer">
@@ -214,7 +255,11 @@ function SessionApp() {
       </main>
     );
   if (session)
-    return <Shell session={session} onLogout={() => setSession(null)} />;
+    return (
+      <SessionContext.Provider value={session}>
+        <Shell session={session} onLogout={() => setSession(null)} />
+      </SessionContext.Provider>
+    );
   return (
     <Routes>
       <Route path="/login" element={<Login onLogin={setSession} />} />

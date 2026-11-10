@@ -9,6 +9,7 @@ import unittest
 import urllib.error
 import urllib.request
 import uuid
+from datetime import date, timedelta
 
 BASE = os.environ.get('TEST_API_URL', 'http://127.0.0.1:8080/api')
 PASSWORD = 'AlshaTestUser2026'
@@ -56,13 +57,22 @@ class ApiRegression(unittest.TestCase):
         cls.vendor.login(cls.a_company['ruc'], cls.vendor_email)
 
     @classmethod
-    def company(cls, name):
+    def company(cls, name, paid=True):
         ruc = '20' + str(uuid.uuid4().int)[:9]
         email = str(uuid.uuid4()) + '@test.local'
         empresa = cls.platform.ok('/empresas/alta', 'POST', {'ruc': ruc, 'razonSocial': name, 'direccion': 'Dirección de prueba', 'administradorNombre': 'Administrador', 'administradorCorreo': email, 'administradorPassword': PASSWORD})
+        if paid:
+            cls.payment(empresa['id'], 'ILIMITADO', 70)
         client = Client()
         client.login(ruc, email)
         return empresa, email, client
+
+    @classmethod
+    def payment(cls, empresa, plan, amount):
+        today = date.today()
+        return cls.platform.ok(f'/empresas/{empresa}/pagos', 'POST', {
+            'plan': plan, 'importe': amount, 'desde': str(today - timedelta(days=1)),
+            'hasta': str(today + timedelta(days=30)), 'referencia': uuid.uuid4().hex, 'confirmado': True})
 
     def product(self, stock=0, client=None, price=11.80):
         client = client or self.a
@@ -76,6 +86,97 @@ class ApiRegression(unittest.TestCase):
 
     def stock(self, product, client=None):
         return next(p['stock'] for p in (client or self.a).ok('/productos') if p['id'] == product['id'])
+
+    def test_last_employee_slot_is_atomic(self):
+        company, email, owner = self.company('Último cupo', paid=False)
+        self.payment(company['id'], 'INICIO', 35)
+        owner.ok('/usuarios','POST',{'nombre':'Primero','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
+        clients=[Client(),Client()]
+        for client in clients: client.login(company['ruc'],email)
+        def create(client):
+            return client.request('/usuarios','POST',{'nombre':'Concurrente','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})[0]
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            self.assertEqual(sorted(pool.map(create,clients)),[201,409])
+        self.assertEqual(owner.ok('/plan')['empleadosActivos'],2)
+        invalid={'plan':'EQUIPO','importe':35,'desde':'2020-01-01','hasta':'2020-01-02','referencia':uuid.uuid4().hex,'confirmado':True}
+        self.assertEqual(self.platform.request(f"/empresas/{company['id']}/pagos",'POST',invalid)[0],409)
+
+    def test_exempt_sales_and_cost_excluding_igv(self):
+        company, _, owner = self.company('Tributación independiente')
+        p=owner.ok('/productos','POST',{'nombre':'Producto exonerado','precio':118,'minimo':0,'activo':True,'afectacionIgv':'EXONERADO'})
+        purchase=owner.ok('/compras','POST',{'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor','referencia':uuid.uuid4().hex,'tipoDocumento':'FACTURA','proveedorRuc':'20123456789','gravada':True,'costoIncluyeIgv':False,'creditoFiscal':True,'lineas':[{'productoId':p['id'],'cantidad':1,'costo':50}]})
+        self.assertEqual((purchase['subtotal'],purchase['igv'],purchase['total']),(50,9,59))
+        sale=owner.ok('/ventas','POST',self.sale(p))
+        self.assertEqual((sale['subtotal'],sale['igv'],sale['total']),(118,0,118))
+        self.assertEqual(sale['lineas'][0]['afectacion_igv'],'EXONERADO')
+        self.assertEqual(owner.ok('/tributacion/resumen')['igv_ventas_con_cdr'],0)
+
+    def test_paid_employee_limits_and_reactivation(self):
+        company, _, owner = self.company('Plan con cupos', paid=False)
+        def employee():
+            return {'nombre': 'Empleado prueba', 'correo': uuid.uuid4().hex+'@test.local', 'password': PASSWORD, 'rol': 'VENDEDOR'}
+        self.assertEqual(owner.request('/usuarios', 'POST', employee())[0], 409)
+        plan = self.payment(company['id'], 'INICIO', 35)
+        self.assertEqual(plan['limiteEmpleados'], 2)
+        first = owner.ok('/usuarios', 'POST', employee())
+        owner.ok('/usuarios', 'POST', employee())
+        self.assertEqual(owner.request('/usuarios', 'POST', employee())[0], 409)
+        owner.ok(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': False})
+        owner.ok('/usuarios', 'POST', employee())
+        self.assertEqual(owner.request(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': True})[0], 409)
+        self.assertEqual(owner.ok('/plan')['empleadosActivos'], 2)
+        self.assertEqual(owner.request(f"/empresas/{company['id']}/pagos", 'POST', {})[0], 403)
+        other, _, _ = self.company('Plan tres', paid=False)
+        self.assertEqual(self.payment(other['id'], 'EQUIPO', 50)['limiteEmpleados'], 3)
+
+    def test_custom_roles_refresh_permissions_and_isolation(self):
+        company, _, owner = self.company('Roles personalizados')
+        code = 'R_'+uuid.uuid4().hex[:16].upper()
+        owner.ok('/roles', 'POST', {'codigo': code, 'nombre': 'Control de almacén', 'permisos':['INVENTARIO_VER']})
+        email = uuid.uuid4().hex+'@test.local'
+        user = owner.ok('/usuarios', 'POST', {'nombre':'Control', 'correo':email, 'password':PASSWORD, 'rol':code})
+        client = Client(); client.login(company['ruc'], email)
+        self.assertEqual(client.request('/inventario')[0], 200)
+        self.assertEqual(client.request('/productos')[0], 200)
+        self.assertEqual(client.request('/compras')[0], 403)
+        self.assertEqual(client.request('/inventario/ajustes','POST',{'productoId':1,'cantidad':1,'motivo':'No permitido'})[0], 403)
+        owner.ok('/roles','POST',{'codigo':code,'nombre':'Control de almacén','permisos':['CLIENTES_GESTIONAR']})
+        self.assertEqual(client.request('/inventario')[0],403)
+        self.assertEqual(client.request('/clientes')[0],200)
+        self.assertEqual(self.b.request('/usuarios','POST',{'nombre':'No permitido','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':code})[0],400)
+        self.assertEqual(owner.request('/roles','POST',{'codigo':'R_BAD','nombre':'Escalar','permisos':['ADMIN']})[0],400)
+        self.assertEqual(owner.request(f"/usuarios/{owner.ok('/auth/me')['id']}/rol",'PATCH',{'rol':'VENDEDOR'})[0],409)
+
+    def test_shared_catalog_barcode_brand_and_draft_price(self):
+        template = self.platform.ok('/catalogo-comun','POST',{'nombre':'Artículo común','rubro':'Ferretería','descripcion':'Base de catálogo','activo':True})
+        self.assertEqual(self.a.request('/catalogo-comun','POST',{'nombre':'No permitido','rubro':'General','activo':True})[0],403)
+        body = {'nombre':'Artículo propio','marca':'Mi marca','categoria':'Ferretería','presentacion':'Caja','codigoBarras':uuid.uuid4().hex,'precio':118,'minimo':3,'activo':True,'afectacionIgv':'GRAVADO'}
+        product = self.a.ok(f"/catalogo-comun/{template['id']}/incorporar",'POST',body)
+        self.assertEqual(product['marca'],'Mi marca')
+        self.assertTrue(product['sku'].startswith('P-'))
+        self.assertEqual(self.a.request('/productos','POST',body)[0],409)
+        self.assertEqual(self.b.ok('/productos','POST',body)['codigo_barras'],body['codigoBarras'])
+        draft = self.a.ok('/productos','POST',{**body,'codigoBarras':uuid.uuid4().hex,'precio':0})
+        self.a.ok('/inventario/ajustes','POST',{'productoId':draft['id'],'cantidad':1,'motivo':'Prueba borrador'})
+        self.assertEqual(self.a.request('/ventas','POST',self.sale(draft))[0],400)
+
+    def test_purchase_net_cost_and_potential_tax_credit(self):
+        product = self.product(price=118)
+        body = {'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor prueba','referencia':uuid.uuid4().hex,'proveedorRuc':'20123456789','tipoDocumento':'FACTURA','gravada':True,'costoIncluyeIgv':True,'creditoFiscal':True,'lineas':[{'productoId':product['id'],'cantidad':2,'costo':59}]}
+        purchase = self.a.ok('/compras','POST',body)
+        self.assertEqual(purchase['subtotal'],100)
+        self.assertEqual(purchase['igv'],18)
+        self.assertEqual(purchase['total'],118)
+        updated = next(p for p in self.a.ok('/productos') if p['id']==product['id'])
+        self.assertEqual(updated['precio'],118)
+        self.assertEqual(updated['ultimo_costo'],50)
+        self.assertNotIn('ultimo_costo',next(p for p in self.vendor.ok('/productos') if p['id']==product['id']))
+        self.assertEqual(self.a.request('/compras','POST',{**body,'creditoFiscal':False})[0],409)
+        self.assertEqual(self.a.request('/compras','POST',{**body,'idempotencia':str(uuid.uuid4()),'proveedorRuc':None})[0],400)
+        sale = self.a.ok('/ventas','POST',self.sale(product))
+        self.assertEqual((sale['subtotal'],sale['igv']),(100,18))
+        report = self.a.ok('/tributacion/resumen')
+        self.assertGreaterEqual(report['credito_fiscal_potencial'],18)
 
     def test_anonymous_csrf_and_login(self):
         client = Client()
@@ -101,7 +202,7 @@ class ApiRegression(unittest.TestCase):
         self.assertEqual(self.a.request('/empresas')[0], 403)
         self.assertEqual(self.vendor.request('/usuarios')[0], 403)
         self.assertEqual(self.vendor.request('/compras')[0], 403)
-        self.assertEqual(self.vendor.request('/inventario')[0], 403)
+        self.assertEqual(self.vendor.request('/inventario')[0], 200)
         self.assertEqual(self.platform.request('/productos')[0], 403)
         status, _ = self.a.request('/usuarios', 'POST', {'nombre': 'Intruso', 'correo': 'bad@test.local', 'password': PASSWORD, 'rol': 'SUPERADMIN'})
         self.assertEqual(status, 403)

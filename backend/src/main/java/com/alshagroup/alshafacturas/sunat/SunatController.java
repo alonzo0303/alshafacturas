@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/sunat")
+@PreAuthorize("hasAuthority('FACTURACION_VER')")
 public class SunatController {
   private final SunatService service;
 
@@ -27,21 +28,21 @@ public class SunatController {
   }
 
   @PostMapping("/ventas/{id}/emitir")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('FACTURACION_EMITIR')")
   public Map<String, Object> emitir(
       @AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
     return service.emitir(p, id);
   }
 
   @PostMapping("/comprobantes/{id}/consultar")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('FACTURACION_EMITIR')")
   public Map<String, Object> consultar(
       @AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
     return service.consultar(p, id);
   }
 
   @PostMapping("/comprobantes/{id}/reintentar")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('FACTURACION_EMITIR')")
   public Map<String, Object> reintentar(
       @AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
     return service.reintentar(p, id);

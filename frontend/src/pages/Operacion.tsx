@@ -1,5 +1,5 @@
-import { useData } from "../lib/useData";
 import { useRef, useState, type FormEvent } from "react";
+import { useData } from "../lib/useData";
 import {
   api,
   money,
@@ -8,9 +8,15 @@ import {
   type Venta,
   type Empresa,
 } from "../lib/api";
-import { Field, ErrorNotice, Empty, PageTitle, Table } from "../components/ui";
+import { can, useSession } from "../lib/session";
+import { Field, ErrorNotice, Empty, PageTitle, Modal } from "../components/ui";
+import BarcodeScanner from "../components/BarcodeScanner";
+import ProductEditor, { type Plantilla } from "../components/ProductEditor";
+import OperationCart, { type CartLine } from "../components/OperationCart";
+import PurchaseFields from "../components/PurchaseFields";
+import { emptyPurchaseTax, type PurchaseTax } from "../lib/purchase";
+import { CatalogoPicker } from "./CatalogoComun";
 import Recibo from "./Recibo";
-type Linea = { producto: Producto; cantidad: number; costo: number };
 export default function Operacion({ compra = false }: { compra?: boolean }) {
   const { data, loading, error, refresh } = useData<{
     productos: Producto[];
@@ -22,46 +28,101 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
       clientes: compra ? [] : await api<Cliente[]>("/clientes"),
       empresa: await api<Empresa>("/empresas/mi-empresa"),
     }),
-    { productos: [], clientes: [], empresa: null as Empresa | null },
+    { productos: [], clientes: [], empresa: null },
   );
-  const [cart, setCart] = useState<Linea[]>([]),
+  const [cart, setCart] = useState<CartLine[]>([]),
     [search, setSearch] = useState(""),
     [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState(false),
     [success, setSuccess] = useState(""),
-    [receipt, setReceipt] = useState<Venta | null>(null);
-  const key = useRef(crypto.randomUUID());
+    [receipt, setReceipt] = useState<Venta | null>(null),
+    [editor, setEditor] = useState<{
+      template?: Plantilla;
+      barcode?: string;
+    } | null>(null),
+    [catalog, setCatalog] = useState(false),
+    [tax, setTax] = useState<PurchaseTax>(emptyPurchaseTax);
+  const session = useSession(),
+    key = useRef(crypto.randomUUID()),
+    round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const products = data.productos.filter(
     (p) =>
       p.activo &&
-      `${p.nombre} ${p.sku}`.toLowerCase().includes(search.toLowerCase()),
+      `${p.nombre} ${p.sku} ${p.codigo_barras || ""} ${p.marca}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
   );
-  const total =
-    cart.reduce(
-      (sum, l) =>
-        sum +
-        Math.round((compra ? l.costo : l.producto.precio) * l.cantidad * 100),
-      0,
-    ) / 100;
-  function add(producto: Producto) {
+  const totals = cart.reduce(
+    (sum, l) => {
+      const amount = round((compra ? l.costo : l.producto.precio) * l.cantidad);
+      const gravada = compra
+        ? tax.gravada
+        : l.producto.afectacion_igv === "GRAVADO";
+      const included = compra ? tax.incluye : true;
+      const base = gravada && included ? round(amount / 1.18) : amount;
+      const igv = gravada
+        ? included
+          ? round(amount - base)
+          : round(base * 0.18)
+        : 0;
+      return {
+        base: round(sum.base + base),
+        igv: round(sum.igv + igv),
+        total: round(sum.total + base + igv),
+      };
+    },
+    { base: 0, igv: 0, total: 0 },
+  );
+  function add(
+    producto: Producto,
+    initial?: { cantidad: number; costo: number },
+  ) {
+    if (busy) return;
+    if (!compra && producto.precio <= 0) {
+      setActionError("Define el precio de venta del producto antes de vender.");
+      return;
+    }
     setSuccess("");
+    setActionError("");
     setCart((items) => {
       const exists = items.find((l) => l.producto.id === producto.id);
       return exists
         ? items.map((l) =>
-            l === exists ? { ...l, cantidad: l.cantidad + 1 } : l,
+            l === exists
+              ? { ...l, cantidad: l.cantidad + (initial?.cantidad || 1) }
+              : l,
           )
-        : [...items, { producto, cantidad: 1, costo: producto.precio }];
+        : [
+            ...items,
+            {
+              producto,
+              cantidad: initial?.cantidad || 1,
+              costo: initial?.costo || 0,
+            },
+          ];
     });
   }
-  function change(id: number, field: "cantidad" | "costo", value: number) {
-    setCart((items) =>
-      items.map((l) => (l.producto.id === id ? { ...l, [field]: value } : l)),
+  function scan(code: string) {
+    setSearch(code);
+    const product = data.productos.find(
+      (p) =>
+        p.activo &&
+        (p.codigo_barras === code ||
+          p.sku.toUpperCase() === code.toUpperCase()),
     );
+    if (product) {
+      add(product);
+      setSearch("");
+    } else {
+      setActionError(
+        "Código no encontrado en tu negocio. Puedes buscar por nombre" +
+          (compra ? " o agregar la mercadería desde aquí." : "."),
+      );
+    }
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!cart.length) return;
+    if (!cart.length || busy) return;
     const form = e.currentTarget,
       values = new FormData(form);
     setBusy(true);
@@ -73,6 +134,12 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         cantidad: l.cantidad,
         ...(compra ? { costo: l.costo } : {}),
       }));
+      const eligible = Boolean(
+        data.empresa?.ruc &&
+        tax.tipo === "FACTURA" &&
+        tax.gravada &&
+        /^\d{11}$/.test(tax.ruc),
+      );
       const result = await api<Venta>(compra ? "/compras" : "/ventas", "POST", {
         idempotencia: key.current,
         lineas,
@@ -80,6 +147,11 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
           ? {
               proveedor: values.get("proveedor"),
               referencia: values.get("referencia"),
+              proveedorRuc: tax.ruc || null,
+              tipoDocumento: tax.tipo,
+              gravada: tax.gravada,
+              costoIncluyeIgv: tax.incluye,
+              creditoFiscal: eligible && tax.credito,
             }
           : {
               clienteId: values.get("clienteId")
@@ -91,6 +163,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
       });
       key.current = crypto.randomUUID();
       setCart([]);
+      setTax(emptyPurchaseTax);
       form.reset();
       setSuccess(
         compra
@@ -111,10 +184,8 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         title={compra ? "Registrar compra" : "Punto de venta"}
         description={
           compra
-            ? "Registra mercadería recibida y actualiza tus existencias."
-            : data.empresa?.ruc
-              ? "Selecciona productos y confirma tu venta. Precios incluyen IGV."
-              : "Selecciona productos y registra una venta interna sin comprobante fiscal."
+            ? "Registra el costo real de la mercadería recibida. El costo es independiente de tu precio de venta."
+            : "Escanea o selecciona mercadería y registra la venta."
         }
       />
       <ErrorNotice message={error || actionError} />
@@ -122,19 +193,30 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
       <div className="pos-grid">
         <section className="surface">
           <div className="section-toolbar">
-            <h2>Productos</h2>
+            <h2>Mercadería</h2>
             <button disabled={busy} onClick={() => void refresh()}>
               Actualizar
             </button>
           </div>
-          <input
-            className="full"
-            aria-label="Buscar producto"
-            type="search"
-            placeholder="Buscar por nombre o SKU"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <BarcodeScanner value={search} onChange={setSearch} onScan={scan} />
+          {compra && can(session, "PRODUCTOS_EDITAR") && (
+            <div className="section-toolbar">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setEditor({ barcode: search })}
+              >
+                Agregar mercadería
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setCatalog(true)}
+              >
+                Elegir del catálogo común
+              </button>
+            </div>
+          )}
           {loading ? (
             <p role="status">Cargando catálogo…</p>
           ) : products.length ? (
@@ -143,122 +225,63 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
                 <button
                   className="product-option"
                   key={p.id}
-                  disabled={busy || (!compra && p.stock === 0)}
+                  disabled={
+                    busy || (!compra && (p.stock === 0 || p.precio <= 0))
+                  }
                   onClick={() => add(p)}
                 >
                   <span>
                     <strong>{p.nombre}</strong>
                     <small>
-                      {p.sku} · {p.stock} disponibles
+                      {p.marca} · {p.presentacion || p.sku} · {p.stock}{" "}
+                      disponibles
                     </small>
                   </span>
                   <span>
-                    {money(p.precio)} <span aria-hidden="true">+</span>
+                    {compra
+                      ? "Añadir"
+                      : p.precio > 0
+                        ? money(p.precio)
+                        : "Precio por definir"}{" "}
+                    <span aria-hidden="true">+</span>
                   </span>
                 </button>
               ))}
             </div>
           ) : (
             <Empty>
-              No hay productos disponibles. Regístralos desde Productos.
+              No hay coincidencias.{" "}
+              {compra
+                ? "Puedes agregar la mercadería aquí mismo."
+                : "Revisa el catálogo y las existencias."}
             </Empty>
           )}
         </section>
         <section className="surface">
           <h2>{compra ? "Detalle de compra" : "Detalle de venta"}</h2>
           <form className="form" onSubmit={submit}>
-            {cart.length ? (
-              <Table
-                headers={[
-                  "Producto",
-                  "Cantidad",
-                  compra ? "Costo unitario" : "Importe",
-                  "",
-                ]}
-              >
-                {cart.map((l) => (
-                  <tr key={l.producto.id}>
-                    <td>{l.producto.nombre}</td>
-                    <td>
-                      <input
-                        aria-label={`Cantidad de ${l.producto.nombre}`}
-                        className="quantity"
-                        type="number"
-                        required
-                        min="1"
-                        max="100000"
-                        value={l.cantidad || ""}
-                        onChange={(e) =>
-                          change(
-                            l.producto.id,
-                            "cantidad",
-                            Number(e.target.value),
-                          )
-                        }
-                        disabled={busy}
-                      />
-                    </td>
-                    <td>
-                      {compra ? (
-                        <input
-                          aria-label={`Costo de ${l.producto.nombre}`}
-                          className="cost"
-                          type="number"
-                          required
-                          min="0.01"
-                          max="999999999.99"
-                          step="0.01"
-                          value={l.costo || ""}
-                          onChange={(e) =>
-                            change(
-                              l.producto.id,
-                              "costo",
-                              Number(e.target.value),
-                            )
-                          }
-                          disabled={busy}
-                        />
-                      ) : (
-                        money(l.cantidad * l.producto.precio)
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        aria-label={`Quitar ${l.producto.nombre}`}
-                        onClick={() =>
-                          setCart((items) => items.filter((i) => i !== l))
-                        }
-                      >
-                        Quitar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </Table>
-            ) : (
-              <Empty>Añade productos del catálogo para empezar.</Empty>
-            )}
+            <OperationCart
+              lines={cart}
+              purchase={compra}
+              busy={busy}
+              onChange={(id, field, value) =>
+                setCart((items) =>
+                  items.map((l) =>
+                    l.producto.id === id ? { ...l, [field]: value } : l,
+                  ),
+                )
+              }
+              onRemove={(id) =>
+                setCart((items) => items.filter((l) => l.producto.id !== id))
+              }
+            />
             {compra ? (
-              <>
-                <Field label="Proveedor">
-                  <input
-                    name="proveedor"
-                    maxLength={200}
-                    required
-                    disabled={busy}
-                  />
-                </Field>
-                <Field label="Referencia del documento de compra">
-                  <input
-                    name="referencia"
-                    maxLength={100}
-                    required
-                    disabled={busy}
-                  />
-                </Field>
-              </>
+              <PurchaseFields
+                tax={tax}
+                onChange={setTax}
+                busy={busy}
+                rucNegocio={data.empresa?.ruc || null}
+              />
             ) : (
               <>
                 <Field label="Cliente">
@@ -301,9 +324,21 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
                 </p>
               </>
             )}
+            {(compra ? tax.gravada : Boolean(data.empresa?.ruc)) && (
+              <dl className="totals">
+                <div>
+                  <dt>Base / importe neto</dt>
+                  <dd>{money(totals.base)}</dd>
+                </div>
+                <div>
+                  <dt>IGV registrado</dt>
+                  <dd>{money(totals.igv)}</dd>
+                </div>
+              </dl>
+            )}
             <div className="checkout-total">
               <span>Total</span>
-              <strong>{money(total)}</strong>
+              <strong>{money(totals.total)}</strong>
             </div>
             <button className="primary" disabled={busy || !cart.length}>
               {busy
@@ -315,6 +350,41 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
           </form>
         </section>
       </div>
+      {editor && (
+        <Modal
+          title={
+            editor.template
+              ? "Incorporar mercadería del catálogo"
+              : "Agregar mercadería a esta compra"
+          }
+          onClose={() => setEditor(null)}
+        >
+          <ProductEditor
+            template={editor.template}
+            barcode={editor.barcode}
+            purchase
+            onSaved={(p, initial) => {
+              add(p, initial);
+              setEditor(null);
+              setSearch("");
+              void refresh();
+            }}
+          />
+        </Modal>
+      )}
+      {catalog && (
+        <Modal
+          title="Elegir mercadería común"
+          onClose={() => setCatalog(false)}
+        >
+          <CatalogoPicker
+            onChoose={(p) => {
+              setCatalog(false);
+              setEditor({ template: p });
+            }}
+          />
+        </Modal>
+      )}
       {receipt && <Recibo venta={receipt} onClose={() => setReceipt(null)} />}
     </>
   );

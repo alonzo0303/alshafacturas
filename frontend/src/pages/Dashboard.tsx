@@ -1,3 +1,4 @@
+import { ConfigTributaria } from "./Tributacion";
 import { useData } from "../lib/useData";
 import { Link } from "react-router-dom";
 import {
@@ -68,7 +69,14 @@ export default function Dashboard() {
                   detail: "A precio de venta",
                 },
               ].map((m) => (
-                <article key={m.label}>
+                <article
+                  key={m.label}
+                  className={
+                    m.label === "Stock bajo" && data.resumen!.stock_bajo > 0
+                      ? "metric-alert"
+                      : undefined
+                  }
+                >
                   <p>{m.label}</p>
                   <strong>{m.value}</strong>
                   <small>{m.detail}</small>
@@ -97,7 +105,11 @@ export default function Dashboard() {
                       <tr key={p.id}>
                         <td className="mono">{p.sku}</td>
                         <td>{p.nombre}</td>
-                        <td className="number">{p.stock}</td>
+                        <td className="number">
+                          <span className="stock-alert">
+                            {p.stock} · Stock bajo
+                          </span>
+                        </td>
                         <td className="number">{p.minimo}</td>
                       </tr>
                     ))}
@@ -152,11 +164,12 @@ export function Configuracion() {
         )}
         <button onClick={() => void refresh()}>Actualizar</button>
       </section>
+      <ConfigTributaria />
       <section className="surface">
         <h2>Operación comercial</h2>
         <p>
           {data?.ruc
-            ? "Moneda: soles (PEN). Precios con IGV del 18%. NV01 son notas internas. Otros regímenes requieren configuración."
+            ? "Moneda: soles (PEN). Cada producto indica si está gravado, exonerado o inafecto. NV01 son notas internas."
             : "Gestión interna sin RUC. Moneda: soles (PEN). Inventario y notas internas sin desglose fiscal; no se emiten comprobantes electrónicos."}
         </p>
         <p>

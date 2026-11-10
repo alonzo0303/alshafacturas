@@ -32,3 +32,15 @@ Verificado el alta de varios negocios sin RUC (NULL o vacío), acceso con correo
 Resultado de la actualización: 7 pruebas backend, 15 de API y 3 de navegador aprobadas; compilación y lint aprobados. Las 2 pruebas optativas de red permanecieron desactivadas. Esta actualización se verificó con servidores locales y PostgreSQL de pruebas, sin reconstruir las imágenes Docker.
 
 La espera de arranque en CI ahora comprueba un acceso SUPERADMIN válido antes de comenzar las pruebas, en lugar de considerar suficiente que el puerto HTTP esté abierto.
+
+## Actualización: planes, catálogo común, compras y permisos
+
+Verificación del 10 de noviembre de 2026 en instancia local con PostgreSQL de pruebas:
+
+- Backend: 8 pruebas ejecutadas y aprobadas; 2 pruebas externas de SUNAT omitidas. Incluye XML firmado con líneas gravadas, exoneradas e inafectas.
+- API: 21 pruebas aprobadas. Incluye planes de 35/50/70 soles, cupos de personal y reactivación, dos solicitudes para el último cupo (una creación y un rechazo), roles personalizados con cambios de permisos sobre una sesión abierta, aislamiento entre negocios, catálogo compartido, marcas y códigos de barras, costo de compra independiente y crédito fiscal potencial.
+- Frontend: compilación TypeScript/Vite y lint aprobados sin advertencias de código. El lector de imagen se carga al solicitarlo.
+- Navegador: recorrido de venta e impresión, alta sin RUC, compras con nueva mercancía, catálogo común, planes/roles y vendedor con inventario en consulta. Se verifican el rojo de stock bajo y la alineación numérica; vistas de 320, 768, 1024 y 1440 px en los recorridos aplicables.
+- Escaneo: escritura de código con Enter y decodificación local de imagen de prueba; permiso de cámara denegado con mensaje recuperable. No se ha probado cámara/lector físico en teléfono o tablet.
+
+No se reconstruyeron contenedores ni se enviaron documentos a SUNAT en esta actualización. El registro de pago es manual, con fechas explícitas; no implica un depósito real ni un cobro automático. Los datos de integración son ficticios. Los nuevos tratamientos fiscales requieren la validación del emisor antes de producción.

@@ -118,18 +118,52 @@ public final class SunatXml {
   }
 
   static void tax(Node parent, BigDecimal base, BigDecimal igv, boolean line) {
-    var t = add(parent, "cac:TaxTotal", null);
-    money(t, "cbc:TaxAmount", igv);
-    var sub = add(t, "cac:TaxSubtotal", null);
+    tax(parent, base, igv, line, "GRAVADO");
+  }
+
+  static void subtotal(Node tax, BigDecimal base, BigDecimal igv, boolean line, String afectacion) {
+    var sub = add(tax, "cac:TaxSubtotal", null);
     money(sub, "cbc:TaxableAmount", base);
     money(sub, "cbc:TaxAmount", igv);
     var cat = add(sub, "cac:TaxCategory", null);
-    add(cat, "cbc:Percent", "18.00");
-    if (line) add(cat, "cbc:TaxExemptionReasonCode", "10");
+    boolean gravado = "GRAVADO".equals(afectacion);
+    boolean exonerado = "EXONERADO".equals(afectacion);
+    add(cat, "cbc:Percent", gravado ? "18.00" : "0.00");
+    if (line) add(cat, "cbc:TaxExemptionReasonCode", gravado ? "10" : exonerado ? "20" : "30");
     var scheme = add(cat, "cac:TaxScheme", null);
-    add(scheme, "cbc:ID", "1000");
-    add(scheme, "cbc:Name", "IGV");
-    add(scheme, "cbc:TaxTypeCode", "VAT");
+    add(scheme, "cbc:ID", gravado ? "1000" : exonerado ? "9997" : "9998");
+    add(scheme, "cbc:Name", gravado ? "IGV" : exonerado ? "EXO" : "INA");
+    add(scheme, "cbc:TaxTypeCode", gravado || exonerado ? "VAT" : "FRE");
+  }
+
+  static void tax(Node parent, BigDecimal base, BigDecimal igv, boolean line, String afectacion) {
+    var t = add(parent, "cac:TaxTotal", null);
+    money(t, "cbc:TaxAmount", igv);
+    subtotal(t, base, igv, line, afectacion);
+  }
+
+  static BigDecimal lineBase(Map<String, Object> line) {
+    return line.get("base") != null
+        ? amount(line, "base")
+        : "GRAVADO".equals(text(line, "afectacion_igv", "GRAVADO"))
+            ? amount(line, "total").divide(new BigDecimal("1.18"), 2, RoundingMode.HALF_UP)
+            : amount(line, "total");
+  }
+
+  static Map<String, BigDecimal[]> groups(List<Map<String, Object>> lines) {
+    var groups = new LinkedHashMap<String, BigDecimal[]>();
+    for (var l : lines) {
+      String af = text(l, "afectacion_igv", "GRAVADO");
+      if ("SIN_IGV".equals(af))
+        throw new IllegalArgumentException(
+            "Configura la afectación fiscal de todas las líneas antes de emitir");
+      var values =
+          groups.computeIfAbsent(af, k -> new BigDecimal[] {BigDecimal.ZERO, BigDecimal.ZERO});
+      var base = lineBase(l);
+      values[0] = values[0].add(base);
+      values[1] = values[1].add(amount(l, "total").subtract(base));
+    }
+    return groups;
   }
 
   public static byte[] invoice(
@@ -163,16 +197,16 @@ public final class SunatXml {
     var payment = add(e, "cac:PaymentTerms", null);
     add(payment, "cbc:ID", "FormaPago");
     add(payment, "cbc:PaymentMeansID", "Contado");
-    tax(e, amount(venta, "subtotal"), amount(venta, "igv"), false);
+    var taxTotal = add(e, "cac:TaxTotal", null);
+    money(taxTotal, "cbc:TaxAmount", amount(venta, "igv"));
+    groups(lineas).forEach((af, values) -> subtotal(taxTotal, values[0], values[1], false, af));
     var totals = add(e, "cac:LegalMonetaryTotal", null);
     money(totals, "cbc:LineExtensionAmount", amount(venta, "subtotal"));
     money(totals, "cbc:TaxInclusiveAmount", amount(venta, "total"));
     money(totals, "cbc:PayableAmount", amount(venta, "total"));
     int index = 0;
     for (var l : lineas) {
-      BigDecimal total = amount(l, "total"),
-          base = total.divide(new BigDecimal("1.18"), 2, RoundingMode.HALF_UP),
-          unit = amount(l, "precio");
+      BigDecimal total = amount(l, "total"), base = lineBase(l), unit = amount(l, "precio");
       var line = add(e, "cac:InvoiceLine", null);
       add(line, "cbc:ID", String.valueOf(++index));
       var qty = add(line, "cbc:InvoicedQuantity", l.get("cantidad").toString());
@@ -182,7 +216,7 @@ public final class SunatXml {
           add(add(line, "cac:PricingReference", null), "cac:AlternativeConditionPrice", null);
       money(pricing, "cbc:PriceAmount", unit);
       add(pricing, "cbc:PriceTypeCode", "01");
-      tax(line, base, total.subtract(base), true);
+      tax(line, base, total.subtract(base), true, text(l, "afectacion_igv", "GRAVADO"));
       var item = add(line, "cac:Item", null);
       add(item, "cbc:Description", l.get("nombre").toString());
       add(add(item, "cac:SellersItemIdentification", null), "cbc:ID", l.get("sku").toString());
@@ -190,7 +224,9 @@ public final class SunatXml {
           add(
               add(line, "cac:Price", null),
               "cbc:PriceAmount",
-              unit.divide(new BigDecimal("1.18"), 10, RoundingMode.HALF_UP)
+              ("GRAVADO".equals(text(l, "afectacion_igv", "GRAVADO"))
+                      ? unit.divide(new BigDecimal("1.18"), 10, RoundingMode.HALF_UP)
+                      : unit)
                   .stripTrailingZeros()
                   .toPlainString());
       price.setAttribute("currencyID", "PEN");
@@ -248,10 +284,22 @@ public final class SunatXml {
     total.setAttribute("currencyID", "PEN");
     total.setTextContent(amount(venta, "total").toPlainString());
     line.appendChild(total);
-    var payment = d.createElementNS(line.getNamespaceURI(), "sac:BillingPayment");
-    line.appendChild(payment);
-    money(payment, "cbc:PaidAmount", amount(venta, "subtotal"));
-    add(payment, "cbc:InstructionID", "01");
+    @SuppressWarnings("unchecked")
+    var sourceLines = (List<Map<String, Object>>) venta.get("lineas");
+    var totals =
+        sourceLines == null
+            ? Map.of("GRAVADO", new BigDecimal[] {amount(venta, "subtotal"), amount(venta, "igv")})
+            : groups(sourceLines);
+    totals.forEach(
+        (af, values) -> {
+          var payment = d.createElementNS(line.getNamespaceURI(), "sac:BillingPayment");
+          line.appendChild(payment);
+          money(payment, "cbc:PaidAmount", values[0]);
+          add(
+              payment,
+              "cbc:InstructionID",
+              "GRAVADO".equals(af) ? "01" : "EXONERADO".equals(af) ? "02" : "03");
+        });
     tax(line, amount(venta, "subtotal"), amount(venta, "igv"), false);
     return sign(d, cfg);
   }

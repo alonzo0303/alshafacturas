@@ -8,7 +8,7 @@ Esta versión integra la gestión de empresas y usuarios con productos, clientes
 
 - SUPERADMIN creado mediante variables de entorno. Alta transaccional de empresa con su primer administrador; activación y suspensión.
 - Sesiones HTTP, BCrypt, protección CSRF y cierre de sesión. La suspensión de una empresa o desactivación de un usuario revoca el acceso de sus sesiones en la siguiente solicitud.
-- ADMIN: catálogo, precios, usuarios, inventario, compras, ventas, reportes y datos de empresa. VENDEDOR: ventas, clientes y consulta del catálogo para vender.
+- ADMIN: catálogo, precios, usuarios, inventario, compras, ventas, reportes y datos de empresa. VENDEDOR: ventas, clientes, catálogo e inventario en consulta. Roles adicionales de almacén y compras, y roles personalizados con permisos.
 - Productos editables, SKU único por empresa, activación/desactivación y alerta de stock mínimo.
 - Clientes con DNI o RUC; edición y búsqueda.
 - Compras con proveedor, referencia y detalle; ingreso automático de existencias. No registra cuentas por pagar.
@@ -26,9 +26,9 @@ Se implementó el envío directo de facturas UBL 2.1 y resúmenes de boletas, fi
 
 Las notas NV01 son internas. Las solicitudes de factura/boleta se preparan y envían desde Facturación electrónica después de configurar la empresa en el servidor. La aplicación conserva XML/CDR; un resultado BETA nunca tiene validez tributaria. La nota imprimible incluida sigue siendo interna. No están implementados QR/PDF fiscal, recuperación automática de CDR perdido, corrección de documentos rechazados ni notas de crédito/bajas. Por ello aún no corresponde operar fiscalmente en producción.
 
-Se asume moneda PEN, productos por unidades enteras y precios gravados con IGV incluido del 18%. Otros regímenes, exoneraciones, descuentos, detracciones, notas de crédito, guías y múltiples almacenes requieren reglas adicionales. El medio de pago registra información; no cobra mediante un banco o pasarela.
+Se usa moneda PEN y cantidades enteras. Cada producto puede estar gravado al 18%, exonerado o inafecto; sin RUC se usa gestión interna sin desglose fiscal. Los precios finales se conservan separados del costo de compra. Descuentos, detracciones, notas de crédito, guías y múltiples almacenes requieren reglas adicionales. El medio de pago registra información; no cobra mediante un banco o pasarela.
 
-No incluye cobro de suscripciones SaaS, recuperación/cambio de contraseña, MFA ni un servicio de soporte. Las listas de ventas, compras y movimientos muestran las últimas 500 operaciones; el resumen considera todo el historial. Consulta [pendientes de producción](docs/PRODUCCION.md).
+Incluye registro manual de pagos de planes y control de cupos; no cobra con una pasarela. No incluye recuperación/cambio de contraseña, MFA ni un servicio de soporte. Las listas de ventas, compras y movimientos muestran las últimas 500 operaciones; el resumen considera todo el historial. Consulta [pendientes de producción](docs/PRODUCCION.md).
 
 ## Requisitos
 
@@ -70,3 +70,7 @@ La CI configura PostgreSQL e instancias de prueba aisladas. No publica el sistem
 El alta permite dejar el RUC vacío. Cada negocio conserva su código interno y su inventario aislado. El correo y contraseña permiten ingresar; si coinciden en varios negocios, se solicita el código del negocio o RUC para identificar la cuenta. Las cuentas existentes pueden seguir ingresando con RUC.
 
 Sin RUC se permiten catálogo, clientes, compras, inventario, usuarios y notas de venta internas. No se permite solicitar ni emitir boletas/facturas. La migración V6 hace nullable el RUC sin modificar los existentes y conserva su validación y unicidad cuando se proporciona. El alta sigue gestionándose desde SUPERADMIN; este cambio no incorpora autorregistro público.
+
+## Planes, roles, catálogo y compras
+
+Consulta la [guía de operación](docs/PLANES_Y_CATALOGO.md) para registrar pagos de S/35, S/50 o S/70, gestionar empleados y roles, incorporar productos comunes, escanear códigos y distinguir el IGV de ventas del crédito fiscal potencial.

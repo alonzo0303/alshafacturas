@@ -194,6 +194,11 @@ type Compra = {
   proveedor: string;
   referencia: string;
   total: number;
+  subtotal: number;
+  igv: number;
+  tipo_documento: string;
+  proveedor_ruc?: string;
+  credito_fiscal: boolean;
 };
 export function Compras() {
   const { data, loading, error, refresh } = useData(
@@ -215,8 +220,24 @@ export function Compras() {
             onClick={() =>
               exportCsv(
                 "compras.csv",
-                ["Fecha", "Proveedor", "Referencia", "Total PEN"],
-                data.map((c) => [c.fecha, c.proveedor, c.referencia, c.total]),
+                [
+                  "Fecha",
+                  "Proveedor",
+                  "Referencia",
+                  "Base PEN",
+                  "IGV PEN",
+                  "Total PEN",
+                  "Crédito fiscal potencial",
+                ],
+                data.map((c) => [
+                  c.fecha,
+                  c.proveedor,
+                  c.referencia,
+                  c.subtotal,
+                  c.igv,
+                  c.total,
+                  c.credito_fiscal ? "Por validar" : "No marcado",
+                ]),
               )
             }
           >
@@ -226,13 +247,34 @@ export function Compras() {
         {loading ? (
           <p role="status">Cargando compras…</p>
         ) : data.length ? (
-          <Table headers={["Fecha", "Proveedor", "Referencia", "Total"]}>
+          <Table
+            headers={[
+              "Fecha",
+              "Proveedor",
+              "Documento",
+              "Base",
+              "IGV",
+              "Total",
+              "Crédito fiscal potencial",
+            ]}
+          >
             {data.map((c) => (
               <tr key={c.id}>
                 <td>{date(c.fecha)}</td>
-                <td>{c.proveedor}</td>
-                <td>{c.referencia}</td>
+                <td>
+                  {c.proveedor}
+                  <small>{c.proveedor_ruc}</small>
+                </td>
+                <td>
+                  {c.tipo_documento}
+                  <small>{c.referencia}</small>
+                </td>
+                <td>{money(c.subtotal)}</td>
+                <td>{money(c.igv)}</td>
                 <td className="number">{money(c.total)}</td>
+                <td>
+                  {c.credito_fiscal ? "Por validar con contador" : "No marcado"}
+                </td>
               </tr>
             ))}
           </Table>

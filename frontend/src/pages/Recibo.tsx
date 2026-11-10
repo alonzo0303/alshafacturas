@@ -1,3 +1,4 @@
+import { taxLabels } from "../lib/session";
 import { useEffect, useRef } from "react";
 import { money, date, type Venta } from "../lib/api";
 export default function Recibo({
@@ -61,15 +62,20 @@ export default function Recibo({
           <thead>
             <tr>
               <th>Producto</th>
-              <th>Cant.</th>
-              <th>Precio</th>
-              <th>Total</th>
+              <th className="number">Cant.</th>
+              <th className="number">Precio</th>
+              <th className="number">Total</th>
             </tr>
           </thead>
           <tbody>
             {v.lineas?.map((l) => (
               <tr key={l.id}>
-                <td>{l.nombre}</td>
+                <td>
+                  {l.nombre}
+                  {v.ruc && l.afectacion_igv && (
+                    <small>{taxLabels[l.afectacion_igv]}</small>
+                  )}
+                </td>
                 <td className="number">{l.cantidad}</td>
                 <td className="number">{money(l.precio)}</td>
                 <td className="number">{money(l.total)}</td>
@@ -81,7 +87,7 @@ export default function Recibo({
           {v.ruc && (
             <>
               <div>
-                <dt>Base imponible</dt>
+                <dt>Importe sin IGV</dt>
                 <dd>{money(v.subtotal)}</dd>
               </div>
               <div>
@@ -97,7 +103,7 @@ export default function Recibo({
         </dl>
         <p>
           {v.ruc
-            ? "Moneda: soles (PEN). Precios incluyen IGV."
+            ? "Moneda: soles (PEN). Precios finales. El IGV se desglosa solo en operaciones gravadas."
             : "Moneda: soles (PEN). Importes de gestión interna sin desglose fiscal."}
         </p>
       </article>

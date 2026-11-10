@@ -49,4 +49,15 @@ public class UsuarioController {
       @Valid @RequestBody ActivoRequest r) {
     return usuarioService.cambiarActivo(p.getEmpresaId(), p.getId(), id, r.activo());
   }
+
+  public record RolRequest(@jakarta.validation.constraints.NotBlank String rol) {}
+
+  @PatchMapping("/{id}/rol")
+  @PreAuthorize("hasRole('ADMIN')")
+  public UsuarioResponse rol(
+      @AuthenticationPrincipal UsuarioPrincipal p,
+      @PathVariable Long id,
+      @Valid @RequestBody RolRequest r) {
+    return usuarioService.cambiarRol(p.getEmpresaId(), p.getId(), id, r.rol());
+  }
 }

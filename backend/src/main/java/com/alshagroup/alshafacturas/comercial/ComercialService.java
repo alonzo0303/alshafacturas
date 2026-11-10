@@ -37,34 +37,72 @@ public class ComercialService {
 
   public List<Map<String, Object>> productos(Long empresa) {
     return db.queryForList(
-        "SELECT * FROM productos WHERE empresa_id=? ORDER BY nombre,id", empresa);
+        "SELECT p.*,CASE WHEN afectacion_igv='GRAVADO' THEN round(precio/1.18,2) ELSE precio END AS"
+            + " precio_sin_igv FROM productos p WHERE empresa_id=? ORDER BY nombre,id",
+        empresa);
+  }
+
+  private String normalized(String value, String fallback) {
+    return value == null || value.isBlank() ? fallback : value.trim();
   }
 
   @Transactional
   public Map<String, Object> producto(Long empresa, Long id, ProductoRequest r) {
     lock(empresa);
+    var e = one("SELECT ruc,afectacion_default FROM empresas WHERE id=?", empresa);
+    String afectacion =
+        e.get("ruc") == null
+            ? "SIN_IGV"
+            : normalized(r.afectacionIgv(), e.get("afectacion_default").toString());
+    if (e.get("ruc") != null && "SIN_IGV".equals(afectacion))
+      throw error(
+          "Selecciona el tratamiento tributario del producto: gravado, exonerado o inafecto");
+    BigDecimal precio = r.precio();
+    if ("GRAVADO".equals(afectacion) && Boolean.FALSE.equals(r.precioIncluyeIgv()))
+      precio = precio.multiply(new BigDecimal("1.18")).setScale(2, RoundingMode.HALF_UP);
+    if (precio.compareTo(new BigDecimal("999999999.99")) > 0)
+      throw error("El precio final excede el máximo permitido");
+    String sku =
+        normalized(r.sku(), "P-" + UUID.randomUUID().toString().substring(0, 12))
+            .toUpperCase(Locale.ROOT);
+    if (r.catalogoId() != null)
+      one("SELECT id FROM catalogo_comun WHERE id=? AND activo=true", r.catalogoId());
     if (id == null)
       id =
           db.queryForObject(
-              "INSERT INTO productos(empresa_id,sku,nombre,precio,minimo,activo) VALUES"
-                  + " (?,?,?,?,?,?) RETURNING id",
+              "INSERT INTO"
+                  + " productos(empresa_id,sku,nombre,precio,minimo,activo,marca,categoria,presentacion,codigo_barras,catalogo_id,afectacion_igv)"
+                  + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
               Long.class,
               empresa,
-              r.sku().trim().toUpperCase(Locale.ROOT),
+              sku,
               r.nombre().trim(),
-              r.precio(),
+              precio,
               r.minimo(),
-              r.activo());
+              r.activo(),
+              normalized(r.marca(), "Genérico"),
+              normalized(r.categoria(), "General"),
+              normalized(r.presentacion(), ""),
+              normalized(r.codigoBarras(), null),
+              r.catalogoId(),
+              afectacion);
     else {
       one("SELECT id FROM productos WHERE empresa_id=? AND id=?", empresa, id);
       db.update(
-          "UPDATE productos SET sku=?,nombre=?,precio=?,minimo=?,activo=? WHERE empresa_id=? AND"
-              + " id=?",
-          r.sku().trim().toUpperCase(Locale.ROOT),
+          "UPDATE productos SET"
+              + " sku=?,nombre=?,precio=?,minimo=?,activo=?,marca=?,categoria=?,presentacion=?,codigo_barras=?,catalogo_id=?,afectacion_igv=?"
+              + " WHERE empresa_id=? AND id=?",
+          sku,
           r.nombre().trim(),
-          r.precio(),
+          precio,
           r.minimo(),
           r.activo(),
+          normalized(r.marca(), "Genérico"),
+          normalized(r.categoria(), "General"),
+          normalized(r.presentacion(), ""),
+          normalized(r.codigoBarras(), null),
+          r.catalogoId(),
+          afectacion,
           empresa,
           id);
     }
@@ -222,12 +260,20 @@ public class ComercialService {
               "SELECT * FROM productos WHERE empresa_id=? AND id=? AND activo=true FOR UPDATE",
               empresa,
               l.productoId());
+      if (((BigDecimal) prod.get("precio")).signum() <= 0)
+        throw error("Define el precio de venta de " + prod.get("nombre") + " antes de vender");
       if (((Number) prod.get("stock")).intValue() < l.cantidad())
         throw error("Stock insuficiente para " + prod.get("nombre"));
       BigDecimal amount =
           ((BigDecimal) prod.get("precio"))
               .multiply(BigDecimal.valueOf(l.cantidad()))
               .setScale(2, RoundingMode.HALF_UP);
+      BigDecimal base =
+          "GRAVADO".equals(prod.get("afectacion_igv"))
+              ? amount.divide(new BigDecimal("1.18"), 2, RoundingMode.HALF_UP)
+              : amount;
+      prod.put("base_linea", base);
+      prod.put("igv_linea", amount.subtract(base));
       prod.put("cantidad", l.cantidad());
       prod.put("importe", amount);
       lineas.add(prod);
@@ -236,13 +282,8 @@ public class ComercialService {
     checkTotal(total);
     BigDecimal subtotal =
         lineas.stream()
-            .map(
-                l ->
-                    ((BigDecimal) l.get("importe"))
-                        .divide(new BigDecimal("1.18"), 2, RoundingMode.HALF_UP))
+            .map(l -> (BigDecimal) l.get("base_linea"))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    if (db.queryForObject("SELECT ruc FROM empresas WHERE id=?", String.class, empresa) == null)
-      subtotal = total;
     long seq =
         db.queryForObject(
             "INSERT INTO correlativos(empresa_id,tipo,ultimo) VALUES (?,'VENTA',1) ON"
@@ -272,15 +313,19 @@ public class ComercialService {
       Long producto = ((Number) l.get("id")).longValue();
       int cantidad = ((Number) l.get("cantidad")).intValue();
       db.update(
-          "INSERT INTO venta_detalles(venta_id,producto_id,sku,nombre,cantidad,precio,total) VALUES"
-              + " (?,?,?,?,?,?,?)",
+          "INSERT INTO"
+              + " venta_detalles(venta_id,producto_id,sku,nombre,cantidad,precio,total,base,igv,afectacion_igv)"
+              + " VALUES (?,?,?,?,?,?,?,?,?,?)",
           id,
           producto,
           l.get("sku"),
           l.get("nombre"),
           cantidad,
           l.get("precio"),
-          l.get("importe"));
+          l.get("importe"),
+          l.get("base_linea"),
+          l.get("igv_linea"),
+          l.get("afectacion_igv"));
       mover(p, producto, -cantidad, "VENTA", numero);
     }
     return venta(empresa, id);
@@ -342,6 +387,13 @@ public class ComercialService {
       boolean same =
           r.proveedor().trim().equals(previous.get("proveedor"))
               && r.referencia().trim().equals(previous.get("referencia"))
+              && Objects.equals(previous.get("proveedor_ruc"), normalized(r.proveedorRuc(), null))
+              && previous.get("tipo_documento").equals(normalized(r.tipoDocumento(), "INTERNO"))
+              && previous.get("gravada").equals(Boolean.TRUE.equals(r.gravada()))
+              && previous
+                  .get("costo_incluye_igv")
+                  .equals(!Boolean.FALSE.equals(r.costoIncluyeIgv()))
+              && previous.get("credito_fiscal").equals(Boolean.TRUE.equals(r.creditoFiscal()))
               && previousLines.size() == r.lineas().size()
               && r.lineas().stream()
                   .allMatch(
@@ -361,31 +413,79 @@ public class ComercialService {
                 + " crear una nueva operación");
       return previous;
     }
-    BigDecimal total = BigDecimal.ZERO;
+    boolean gravada = Boolean.TRUE.equals(r.gravada());
+    boolean incluye = !Boolean.FALSE.equals(r.costoIncluyeIgv());
+    String tipo = normalized(r.tipoDocumento(), "INTERNO");
+    String proveedorRuc = normalized(r.proveedorRuc(), null);
+    if ("FACTURA".equals(tipo) && proveedorRuc == null)
+      throw error("La factura de compra requiere RUC del proveedor");
+    if (Boolean.TRUE.equals(r.creditoFiscal())
+        && (!gravada
+            || !"FACTURA".equals(tipo)
+            || proveedorRuc == null
+            || db.queryForObject("SELECT ruc FROM empresas WHERE id=?", String.class, empresa)
+                == null))
+      throw error(
+          "El crédito fiscal potencial requiere factura, RUC del proveedor y del negocio, y compra"
+              + " gravada");
+    BigDecimal base = BigDecimal.ZERO, igv = BigDecimal.ZERO, total = BigDecimal.ZERO;
     Set<Long> ids = new HashSet<>();
     for (var l : r.lineas()) {
       if (!ids.add(l.productoId())) throw error("Producto repetido en la compra");
       one("SELECT id FROM productos WHERE empresa_id=? AND id=?", empresa, l.productoId());
-      total = total.add(l.costo().multiply(BigDecimal.valueOf(l.cantidad())));
+      BigDecimal amount =
+          l.costo().multiply(BigDecimal.valueOf(l.cantidad())).setScale(2, RoundingMode.HALF_UP);
+      BigDecimal net =
+          !gravada
+              ? amount
+              : incluye ? amount.divide(new BigDecimal("1.18"), 2, RoundingMode.HALF_UP) : amount;
+      BigDecimal tax =
+          !gravada
+              ? BigDecimal.ZERO
+              : incluye
+                  ? amount.subtract(net)
+                  : net.multiply(new BigDecimal("0.18")).setScale(2, RoundingMode.HALF_UP);
+      base = base.add(net);
+      igv = igv.add(tax);
+      total = total.add(net).add(tax);
     }
     checkTotal(total);
     Long id =
         db.queryForObject(
-            "INSERT INTO compras(empresa_id,proveedor,referencia,total,idempotencia) VALUES"
-                + " (?,?,?,?,?) RETURNING id",
+            "INSERT INTO"
+                + " compras(empresa_id,proveedor,referencia,total,idempotencia,subtotal,igv,proveedor_ruc,tipo_documento,credito_fiscal,gravada,costo_incluye_igv)"
+                + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
             Long.class,
             empresa,
             r.proveedor().trim(),
             r.referencia().trim(),
             total,
-            r.idempotencia());
+            r.idempotencia(),
+            base,
+            igv,
+            proveedorRuc,
+            tipo,
+            Boolean.TRUE.equals(r.creditoFiscal()),
+            gravada,
+            incluye);
     for (var l : r.lineas()) {
+      BigDecimal costoNeto =
+          gravada && incluye
+              ? l.costo().divide(new BigDecimal("1.18"), 6, RoundingMode.HALF_UP)
+              : l.costo();
       db.update(
-          "INSERT INTO compra_detalles(compra_id,producto_id,cantidad,costo) VALUES (?,?,?,?)",
+          "INSERT INTO compra_detalles(compra_id,producto_id,cantidad,costo,costo_neto) VALUES"
+              + " (?,?,?,?,?)",
           id,
           l.productoId(),
           l.cantidad(),
-          l.costo());
+          l.costo(),
+          costoNeto);
+      db.update(
+          "UPDATE productos SET ultimo_costo=? WHERE empresa_id=? AND id=?",
+          costoNeto,
+          empresa,
+          l.productoId());
       mover(p, l.productoId(), l.cantidad(), "COMPRA", r.referencia());
     }
     return one("SELECT * FROM compras WHERE empresa_id=? AND id=?", empresa, id);

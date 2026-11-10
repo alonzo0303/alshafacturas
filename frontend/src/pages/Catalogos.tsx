@@ -1,6 +1,7 @@
 import { useData } from "../lib/useData";
 import { useState } from "react";
 import { api, money, type Producto, type Cliente } from "../lib/api";
+import { can, useSession, taxLabels } from "../lib/session";
 import {
   Field,
   Form,
@@ -9,110 +10,45 @@ import {
   PageTitle,
   Table,
   Badge,
+  Modal,
 } from "../components/ui";
+import ProductEditor from "../components/ProductEditor";
+import BarcodeScanner from "../components/BarcodeScanner";
 export function Productos() {
   const { data, error, loading, refresh } = useData(
-    () => api<Producto[]>("/productos"),
-    [],
-  );
-  const [editing, setEditing] = useState<Producto | null>(null),
-    [search, setSearch] = useState("");
+      () => api<Producto[]>("/productos"),
+      [],
+    ),
+    [editing, setEditing] = useState<Producto | null>(null),
+    [create, setCreate] = useState(false),
+    [search, setSearch] = useState(""),
+    session = useSession();
   const list = data.filter((p) =>
-    `${p.sku} ${p.nombre}`.toLowerCase().includes(search.toLowerCase()),
+    `${p.sku} ${p.nombre} ${p.marca} ${p.codigo_barras || ""}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
   );
   return (
     <>
       <PageTitle
         title="Productos"
-        description="Catálogo y precios de venta de tu negocio."
-      />
+        description="Mercadería propia con marca, código de barras y precio de venta."
+      >
+        {can(session, "PRODUCTOS_EDITAR") && (
+          <button className="primary" onClick={() => setCreate(true)}>
+            Nuevo producto
+          </button>
+        )}
+      </PageTitle>
       <ErrorNotice message={error} />
       <section className="surface">
-        <h2>{editing ? "Editar producto" : "Nuevo producto"}</h2>
-        <Form
-          key={editing?.id ?? "new"}
-          onSave={(d) =>
-            api(
-              `/productos${editing ? "/" + editing.id : ""}`,
-              editing ? "PUT" : "POST",
-              {
-                sku: d.get("sku"),
-                nombre: d.get("nombre"),
-                precio: Number(d.get("precio")),
-                minimo: Number(d.get("minimo")),
-                activo: d.get("activo") === "on",
-              },
-            )
-          }
-          onDone={() => {
-            setEditing(null);
-            void refresh();
-          }}
-        >
-          <div className="form-grid">
-            <Field label="Código / SKU">
-              <input
-                name="sku"
-                required
-                maxLength={60}
-                defaultValue={editing?.sku}
-              />
-            </Field>
-            <Field label="Nombre">
-              <input
-                name="nombre"
-                required
-                maxLength={200}
-                defaultValue={editing?.nombre}
-              />
-            </Field>
-            <Field label="Precio de venta (S/)">
-              <input
-                name="precio"
-                type="number"
-                min="0.01"
-                max="999999999.99"
-                step="0.01"
-                required
-                defaultValue={editing?.precio}
-              />
-            </Field>
-            <Field label="Stock mínimo">
-              <input
-                name="minimo"
-                type="number"
-                min="0"
-                max="1000000"
-                required
-                defaultValue={editing?.minimo ?? 5}
-              />
-            </Field>
-          </div>
-          <label className="check">
-            <input
-              name="activo"
-              type="checkbox"
-              defaultChecked={editing?.activo ?? true}
-            />
-            Disponible para venta
-          </label>
-          {editing && (
-            <button type="button" onClick={() => setEditing(null)}>
-              Cancelar edición
-            </button>
-          )}
-        </Form>
-      </section>
-      <section className="surface">
+        <BarcodeScanner
+          value={search}
+          onChange={setSearch}
+          onScan={setSearch}
+        />
         <div className="section-toolbar">
           <h2>Catálogo ({data.length})</h2>
-          <input
-            aria-label="Buscar productos"
-            type="search"
-            placeholder="Buscar por nombre o código"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
           <button onClick={() => void refresh()}>Actualizar</button>
         </div>
         {loading ? (
@@ -121,33 +57,47 @@ export function Productos() {
           <Table
             headers={[
               "Código",
-              "Producto",
-              "Precio",
+              "Producto / Marca",
+              "Precio final",
               "Stock",
+              "Mínimo",
               "Estado",
               "Acciones",
             ]}
           >
             {list.map((p) => (
               <tr key={p.id}>
-                <td className="mono">{p.sku}</td>
-                <td>{p.nombre}</td>
-                <td className="number">{money(p.precio)}</td>
+                <td className="mono">
+                  {p.sku}
+                  <small>{p.codigo_barras || "Sin código de barras"}</small>
+                </td>
                 <td>
-                  <Badge neutral={p.stock > p.minimo}>
-                    {p.stock} unidades{p.stock <= p.minimo ? " · Bajo" : ""}
+                  {p.nombre}
+                  <small>
+                    {p.marca} · {p.presentacion || p.categoria}
+                  </small>
+                </td>
+                <td>
+                  {p.precio > 0 ? money(p.precio) : "Por definir"}
+                  <small>{taxLabels[p.afectacion_igv]}</small>
+                </td>
+                <td>
+                  <Badge
+                    neutral={p.stock > p.minimo}
+                    danger={p.stock <= p.minimo}
+                  >
+                    {p.stock}
+                    {p.stock <= p.minimo ? " · Stock bajo" : ""}
                   </Badge>
                 </td>
+                <td>{p.minimo}</td>
                 <td>{p.activo ? "Activo" : "Inactivo"}</td>
                 <td>
-                  <button
-                    onClick={() => {
-                      setEditing(p);
-                      window.scrollTo({ top: 0 });
-                    }}
-                  >
-                    Editar<span className="sr-only"> {p.nombre}</span>
-                  </button>
+                  {can(session, "PRODUCTOS_EDITAR") && (
+                    <button onClick={() => setEditing(p)}>
+                      Editar<span className="sr-only"> {p.nombre}</span>
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -156,10 +106,28 @@ export function Productos() {
           <Empty>
             {search
               ? "No se encontraron coincidencias."
-              : "Registra tu primer producto. Añade existencias desde Compras o Inventario."}
+              : "Registra tu primera mercadería o incorpora una plantilla del catálogo común."}
           </Empty>
         )}
       </section>
+      {(create || editing) && (
+        <Modal
+          title={editing ? "Editar producto" : "Nuevo producto"}
+          onClose={() => {
+            setEditing(null);
+            setCreate(false);
+          }}
+        >
+          <ProductEditor
+            product={editing || undefined}
+            onSaved={() => {
+              setEditing(null);
+              setCreate(false);
+              void refresh();
+            }}
+          />
+        </Modal>
+      )}
     </>
   );
 }

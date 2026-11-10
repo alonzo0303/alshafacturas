@@ -3,7 +3,8 @@ export type Session = {
   empresaId: number;
   nombre: string;
   correo: string;
-  rol: "SUPERADMIN" | "ADMIN" | "VENDEDOR";
+  rol: string;
+  permisos: string[];
 };
 export class ApiError extends Error {
   status: number;
@@ -64,7 +65,11 @@ export async function api<T>(
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    if ((res.status === 401 || res.status === 403) && !path.includes("/login"))
+    if (
+      (res.status === 401 ||
+        (res.status === 403 && data.codigo === "SESION_REVOCADA")) &&
+      !path.includes("/login")
+    )
       window.dispatchEvent(new Event("session-invalid"));
     throw new ApiError(
       data.mensaje ||
@@ -93,6 +98,14 @@ export type Producto = {
   stock: number;
   minimo: number;
   activo: boolean;
+  marca: string;
+  categoria: string;
+  presentacion: string;
+  codigo_barras: string | null;
+  catalogo_id: number | null;
+  ultimo_costo?: number | null;
+  afectacion_igv: string;
+  precio_sin_igv: number;
 };
 export type Cliente = {
   id: number;
@@ -130,6 +143,9 @@ export type Venta = {
     cantidad: number;
     precio: number;
     total: number;
+    afectacion_igv?: string;
+    base?: number;
+    igv?: number;
   }[];
 };
 export function exportCsv(name: string, headers: string[], rows: unknown[][]) {

@@ -118,7 +118,7 @@ public class AuthController {
 
   private LoginResponse response(UsuarioPrincipal p) {
     return new LoginResponse(
-        p.getId(), p.getEmpresaId(), p.getNombre(), p.getUsername(), p.getRol());
+        p.getId(), p.getEmpresaId(), p.getNombre(), p.getUsername(), p.getRol(), p.getPermisos());
   }
 
   private ResponseStatusException bad() {

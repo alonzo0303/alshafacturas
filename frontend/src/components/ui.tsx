@@ -1,5 +1,8 @@
 import {
   cloneElement,
+  Children,
+  useEffect,
+  useRef,
   isValidElement,
   useId,
   useState,
@@ -60,19 +63,44 @@ export function Table({
   headers: string[];
   children: ReactNode;
 }) {
+  const numeric = headers.map((h) =>
+    /^(Stock|Mínimo|Precio|Cantidad|Cant\.|Saldo|Total|Costo|Importe|Base|IGV)/i.test(
+      h,
+    ),
+  );
   return (
     <div className="table-scroll">
       <table>
         <thead>
           <tr>
-            {headers.map((h) => (
-              <th key={h} scope="col">
+            {headers.map((h, i) => (
+              <th
+                key={h || i}
+                className={numeric[i] ? "number" : undefined}
+                scope="col"
+              >
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>{children}</tbody>
+        <tbody>
+          {Children.map(children, (row) => {
+            if (!isValidElement(row)) return row;
+            const tr = row as ReactElement<{ children: ReactNode }>;
+            return cloneElement(tr, {
+              children: Children.map(tr.props.children, (cell, i) => {
+                if (!isValidElement(cell)) return cell;
+                const td = cell as ReactElement<{ className?: string }>;
+                return cloneElement(td, {
+                  className: [td.props.className, numeric[i] ? "number" : ""]
+                    .filter(Boolean)
+                    .join(" "),
+                });
+              }),
+            });
+          })}
+        </tbody>
       </table>
     </div>
   );
@@ -80,12 +108,16 @@ export function Table({
 export function Badge({
   children,
   neutral = false,
+  danger = false,
 }: {
   children: ReactNode;
   neutral?: boolean;
+  danger?: boolean;
 }) {
   return (
-    <span className={`badge ${neutral ? "neutral" : ""}`}>{children}</span>
+    <span className={`badge ${danger ? "danger" : neutral ? "neutral" : ""}`}>
+      {children}
+    </span>
   );
 }
 export function Form({
@@ -130,5 +162,39 @@ export function Form({
         <span role="status">{success}</span>
       </div>
     </form>
+  );
+}
+
+export function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null),
+    titleId = useId();
+  useEffect(() => {
+    const dialog = ref.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="editor-dialog"
+      aria-labelledby={titleId}
+      onCancel={onClose}
+    >
+      <div className="section-toolbar">
+        <h2 id={titleId}>{title}</h2>
+        <button type="button" onClick={onClose}>
+          Cerrar
+        </button>
+      </div>
+      {children}
+    </dialog>
   );
 }
