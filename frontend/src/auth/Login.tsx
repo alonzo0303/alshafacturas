@@ -22,7 +22,10 @@ export default function Login({
           admin ? "/auth/admin/login" : "/auth/login",
           "POST",
           {
-            ruc: data.get("ruc"),
+            ruc: data.get("ruc") || null,
+            empresaId: data.get("empresaId")
+              ? Number(data.get("empresaId"))
+              : null,
             correo: data.get("correo"),
             password: data.get("password"),
           },
@@ -50,22 +53,10 @@ export default function Login({
         <p>
           {admin
             ? "Gestiona las empresas de AlshaFacturas."
-            : "Ingresa con los datos de tu empresa."}
+            : "Ingresa con tu correo y contraseña. No necesitas RUC."}
         </p>
         <form className="form" onSubmit={submit}>
           <ErrorNotice message={error} />
-          {!admin && (
-            <Field label="RUC de la empresa">
-              <input
-                name="ruc"
-                inputMode="numeric"
-                pattern="[0-9]{11}"
-                maxLength={11}
-                required
-                autoComplete="organization"
-              />
-            </Field>
-          )}
           <Field label="Correo electrónico">
             <input
               name="correo"
@@ -82,6 +73,26 @@ export default function Login({
               autoComplete="current-password"
             />
           </Field>
+          {!admin && (
+            <details>
+              <summary>¿Tu correo pertenece a varios negocios?</summary>
+              <p className="hint">
+                Indica uno de estos datos solo si necesitas identificar tu
+                negocio.
+              </p>
+              <Field label="Código de negocio (opcional)">
+                <input name="empresaId" type="number" min="1" step="1" />
+              </Field>
+              <Field label="RUC de la empresa (opcional)">
+                <input
+                  name="ruc"
+                  inputMode="numeric"
+                  pattern="[0-9]{11}"
+                  maxLength={11}
+                />
+              </Field>
+            </details>
+          )}
           <button className="primary" disabled={busy}>
             {busy ? "Verificando…" : "Iniciar sesión"}
           </button>

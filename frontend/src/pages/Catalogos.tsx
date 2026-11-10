@@ -24,7 +24,7 @@ export function Productos() {
     <>
       <PageTitle
         title="Productos"
-        description="Catálogo y precios de venta, incluidos los impuestos."
+        description="Catálogo y precios de venta de tu negocio."
       />
       <ErrorNotice message={error} />
       <section className="surface">
@@ -66,7 +66,7 @@ export function Productos() {
                 defaultValue={editing?.nombre}
               />
             </Field>
-            <Field label="Precio de venta (S/) con IGV">
+            <Field label="Precio de venta (S/)">
               <input
                 name="precio"
                 type="number"

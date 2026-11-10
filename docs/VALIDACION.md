@@ -24,3 +24,11 @@ Las pruebas de SUNAT sin red verifican firma digital válida, XML escapado, CDR 
 El recorrido del navegador verifica acceso empresarial, producto, ajuste de inventario, venta, impresión, anulación, persistencia de sesión al recargar, configuración de SUNAT ausente, cierre de sesión, acceso SUPERADMIN y redirección por rol. No sustituye una auditoría completa de accesibilidad ni pruebas en dispositivos físicos.
 
 Los datos y contraseñas de las pruebas pertenecen exclusivamente a instancias desechables. La CI no habilita las pruebas de red ni utiliza credenciales reales. La [evidencia del servicio beta](evidencias/sunat-beta/README.md) no tiene validez tributaria y no acredita aceptación en producción.
+
+## Actualización: gestión interna sin RUC
+
+Verificado el alta de varios negocios sin RUC (NULL o vacío), acceso con correo y contraseña, selección por código en cuentas coincidentes, aislamiento entre negocios, notas internas sin desglose fiscal y rechazo de solicitudes/emisiones fiscales sin RUC. Las cuentas con RUC conservan el acceso anterior.
+
+Resultado de la actualización: 7 pruebas backend, 15 de API y 3 de navegador aprobadas; compilación y lint aprobados. Las 2 pruebas optativas de red permanecieron desactivadas. Esta actualización se verificó con servidores locales y PostgreSQL de pruebas, sin reconstruir las imágenes Docker.
+
+La espera de arranque en CI ahora comprueba un acceso SUPERADMIN válido antes de comenzar las pruebas, en lugar de considerar suficiente que el puerto HTTP esté abierto.

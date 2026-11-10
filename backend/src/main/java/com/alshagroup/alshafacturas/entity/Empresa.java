@@ -20,9 +20,8 @@ public class Empresa {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @NotBlank(message = "El RUC es obligatorio")
   @Pattern(regexp = "^[0-9]{11}$", message = "El RUC debe contener exactamente 11 digitos")
-  @Column(nullable = false, length = 11, unique = true)
+  @Column(length = 11, unique = true)
   private String ruc;
 
   @NotBlank(message = "La razon social es obligatoria")
@@ -48,7 +47,7 @@ public class Empresa {
   }
 
   public void setRuc(String ruc) {
-    this.ruc = ruc;
+    this.ruc = ruc == null || ruc.isBlank() ? null : ruc.trim();
   }
 
   public String getRazonSocial() {

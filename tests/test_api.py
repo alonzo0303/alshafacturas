@@ -198,6 +198,52 @@ class ApiRegression(unittest.TestCase):
         self.assertEqual(client.request('/productos')[0], 403)
         self.assertEqual(self.a.request('/usuarios/' + str(self.a.ok('/auth/me')['id']) + '/activo', 'PATCH', {'activo': False})[0], 409)
 
+    def without_ruc(self, ruc=None, email=None):
+        email = email or str(uuid.uuid4()) + '@test.local'
+        payload = {'razonSocial': 'Negocio sin RUC', 'administradorNombre': 'Responsable', 'administradorCorreo': email, 'administradorPassword': PASSWORD}
+        if ruc is not None:
+            payload['ruc'] = ruc
+        company = self.platform.ok('/empresas/alta', 'POST', payload)
+        self.assertIsNone(company['ruc'])
+        return company, email
+
+    def test_no_ruc_registration_login_and_internal_sales(self):
+        company, email = self.without_ruc()
+        other, _ = self.without_ruc('')
+        self.assertNotEqual(company['id'], other['id'])
+        client = Client()
+        user = client.ok('/auth/login', 'POST', {'correo': email.upper(), 'password': PASSWORD})
+        self.assertEqual(user['empresaId'], company['id'])
+        self.assertIsNone(client.ok('/empresas/mi-empresa')['ruc'])
+        product = self.product(4, client=client)
+        sale = client.ok('/ventas', 'POST', self.sale(product))
+        self.assertEqual(sale['estado_fiscal'], 'NO_APLICA')
+        self.assertIsNone(sale['ruc'])
+        self.assertEqual(sale['igv'], 0)
+        self.assertEqual(sale['subtotal'], sale['total'])
+        self.assertEqual(self.stock(product, client), 3)
+        self.assertEqual(client.request('/ventas', 'POST', self.sale(product, tipo='BOLETA'))[0], 400)
+        self.assertEqual(client.request('/ventas', 'POST', self.sale(product, tipo='FACTURA'))[0], 400)
+        self.assertEqual(self.stock(product, client), 3)
+        self.assertFalse(client.ok('/sunat/configuracion')['configurado'])
+        self.assertEqual(client.request('/sunat/ventas/' + str(sale['id']) + '/emitir', 'POST')[0], 412)
+
+    def test_shared_email_requires_business_code_without_creating_session(self):
+        email = str(uuid.uuid4()) + '@test.local'
+        first, _ = self.without_ruc(email=email)
+        second, _ = self.without_ruc(email=email)
+        client = Client()
+        self.assertEqual(client.request('/auth/login', 'POST', {'correo': email, 'password': 'wrong'})[0], 401)
+        self.assertEqual(client.request('/auth/login', 'POST', {'correo': email, 'password': PASSWORD})[0], 409)
+        self.assertEqual(client.request('/auth/me')[0], 401)
+        user = client.ok('/auth/login', 'POST', {'empresaId': first['id'], 'correo': email, 'password': PASSWORD})
+        self.assertEqual(user['empresaId'], first['id'])
+        product = self.product(1, client=client)
+        another = Client()
+        user = another.ok('/auth/login', 'POST', {'empresaId': second['id'], 'correo': email, 'password': PASSWORD})
+        self.assertEqual(user['empresaId'], second['id'])
+        self.assertNotIn(product['id'], [p['id'] for p in another.ok('/productos')])
+
     def test_sunat_configuration_and_permissions(self):
         config = self.a.ok('/sunat/configuracion')
         self.assertFalse(config['configurado'])

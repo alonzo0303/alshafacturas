@@ -31,7 +31,7 @@ export default function Recibo({
         <h1 id="receipt-title">Nota de venta interna</h1>
         <h2>{v.razon_social}</h2>
         <p>
-          RUC {v.ruc}
+          {v.ruc ? `RUC ${v.ruc}` : "Gestión interna · Sin RUC"}
           <br />
           {v.direccion}
         </p>
@@ -78,20 +78,28 @@ export default function Recibo({
           </tbody>
         </table>
         <dl className="totals">
-          <div>
-            <dt>Base imponible</dt>
-            <dd>{money(v.subtotal)}</dd>
-          </div>
-          <div>
-            <dt>IGV 18%</dt>
-            <dd>{money(v.igv)}</dd>
-          </div>
+          {v.ruc && (
+            <>
+              <div>
+                <dt>Base imponible</dt>
+                <dd>{money(v.subtotal)}</dd>
+              </div>
+              <div>
+                <dt>IGV 18%</dt>
+                <dd>{money(v.igv)}</dd>
+              </div>
+            </>
+          )}
           <div className="total">
             <dt>Total</dt>
             <dd>{money(v.total)}</dd>
           </div>
         </dl>
-        <p>Moneda: soles (PEN). Precios incluyen IGV.</p>
+        <p>
+          {v.ruc
+            ? "Moneda: soles (PEN). Precios incluyen IGV."
+            : "Moneda: soles (PEN). Importes de gestión interna sin desglose fiscal."}
+        </p>
       </article>
     </dialog>
   );

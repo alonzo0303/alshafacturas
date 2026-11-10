@@ -53,10 +53,30 @@ public class AuthController {
   public LoginResponse login(
       @Valid @RequestBody LoginRequest r, HttpServletRequest req, HttpServletResponse res) {
     Long id = r.empresaId();
-    if (r.ruc() != null)
+    if (r.ruc() != null && !r.ruc().isBlank())
       id = empresas.findByRuc(r.ruc()).map(e -> e.getId()).orElseThrow(() -> bad());
-    if (id == null) throw bad();
-    return authenticate(id, r, req, res, false);
+    if (id != null) return authenticate(id, r, req, res, false);
+    Authentication selected = null;
+    for (var user : users.findByCorreoAndActivoTrue(r.correo().trim().toLowerCase(Locale.ROOT))) {
+      if ("SUPERADMIN".equals(user.getRol())) continue;
+      Authentication candidate;
+      try {
+        candidate =
+            manager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                    user.getEmpresa().getId() + ":" + r.correo(), r.password()));
+      } catch (AuthenticationException e) {
+        continue;
+      }
+      if (selected != null)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "El correo coincide con varias cuentas. Indica el código de negocio o RUC para"
+                + " ingresar");
+      selected = candidate;
+    }
+    if (selected == null) throw bad();
+    return establish(selected, req, res);
   }
 
   @PostMapping("/admin/login")
@@ -82,6 +102,12 @@ public class AuthController {
     }
     var p = (UsuarioPrincipal) auth.getPrincipal();
     if (admin != "SUPERADMIN".equals(p.getRol())) throw bad();
+    return establish(auth, req, res);
+  }
+
+  private LoginResponse establish(
+      Authentication auth, HttpServletRequest req, HttpServletResponse res) {
+    var p = (UsuarioPrincipal) auth.getPrincipal();
     sessions.onAuthentication(auth, req, res);
     var context = SecurityContextHolder.createEmptyContext();
     context.setAuthentication(auth);

@@ -103,7 +103,7 @@ export type Cliente = {
 };
 export type Empresa = {
   id: number;
-  ruc: string;
+  ruc: string | null;
   razonSocial: string;
   direccion: string;
   estado: "ACTIVA" | "PENDIENTE" | "SUSPENDIDA";

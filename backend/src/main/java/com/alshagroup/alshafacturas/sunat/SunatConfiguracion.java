@@ -41,7 +41,7 @@ public class SunatConfiguracion {
   }
 
   public Datos cargar(String ruc) {
-    if (directory.isBlank() || !ruc.matches("[0-9]{11}")) throw falta();
+    if (directory.isBlank() || ruc == null || !ruc.matches("[0-9]{11}")) throw falta();
     try {
       var p = new Properties();
       try (var reader =
@@ -89,6 +89,15 @@ public class SunatConfiguracion {
   }
 
   public Map<String, Object> estado(String ruc) {
+    if (ruc == null || ruc.isBlank())
+      return Map.of(
+          "configurado",
+          false,
+          "ambiente",
+          "SIN_CONFIGURAR",
+          "mensaje",
+          "Este negocio funciona en gestión interna sin RUC. Para emitir con SUNAT necesita RUC y"
+              + " configuración fiscal");
     try {
       var d = cargar(ruc);
       return Map.of(

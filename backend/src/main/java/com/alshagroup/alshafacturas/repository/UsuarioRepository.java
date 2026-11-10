@@ -13,6 +13,9 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
   @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "empresa")
   Optional<Usuario> findByCorreoAndRolAndActivoTrue(String correo, String rol);
 
+  @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "empresa")
+  List<Usuario> findByCorreoAndActivoTrue(String correo);
+
   Optional<Usuario> findByIdAndEmpresaId(Long id, Long empresaId);
 
   @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "empresa")

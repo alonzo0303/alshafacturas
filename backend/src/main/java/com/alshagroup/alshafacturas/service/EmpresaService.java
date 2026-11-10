@@ -25,7 +25,7 @@ public class EmpresaService {
 
   public Empresa guardarEmpresa(Empresa empresa) {
 
-    if (empresaRepository.existsByRuc(empresa.getRuc())) {
+    if (empresa.getRuc() != null && empresaRepository.existsByRuc(empresa.getRuc())) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "Ya existe una empresa registrada con este RUC");
     }

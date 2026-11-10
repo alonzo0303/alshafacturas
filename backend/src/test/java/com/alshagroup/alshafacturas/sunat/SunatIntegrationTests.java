@@ -278,6 +278,12 @@ class SunatIntegrationTests {
   }
 
   @Test
+  void configuracionConCarpetaHabilitadaRechazaRucAusente() {
+    assertThrows(ResponseStatusException.class, () -> configuration.cargar(null));
+    assertEquals(false, configuration.estado(null).get("configurado"));
+  }
+
+  @Test
   void xmlExternoBloqueadoYOrdenSoapCorrecto() throws Exception {
     assertThrows(
         Exception.class,

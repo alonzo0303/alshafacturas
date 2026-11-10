@@ -42,12 +42,10 @@ jobs:
         run: |
           APP_BOOTSTRAP_SUPERADMIN_ENABLED=true SUPERADMIN_CORREO="$TEST_SUPERADMIN_EMAIL" SUPERADMIN_PASSWORD="$TEST_SUPERADMIN_PASSWORD" java -jar backend/target/backend-0.0.1-SNAPSHOT.jar > /tmp/backend.log 2>&1 &
           npm run dev --prefix frontend -- --port 5173 > /tmp/frontend.log 2>&1 &
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8080/api/auth/csrf >/dev/null && curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
-            sleep 2
-          done
-          cat /tmp/backend.log /tmp/frontend.log
-          exit 1
+          if ! python tests/wait_for_app.py; then
+            cat /tmp/backend.log /tmp/frontend.log
+            exit 1
+          fi
       - run: python tests/test_api.py
       - run: npx playwright install --with-deps chromium
         working-directory: frontend

@@ -6,17 +6,23 @@ import {
   type Producto,
   type Cliente,
   type Venta,
+  type Empresa,
 } from "../lib/api";
 import { Field, ErrorNotice, Empty, PageTitle, Table } from "../components/ui";
 import Recibo from "./Recibo";
 type Linea = { producto: Producto; cantidad: number; costo: number };
 export default function Operacion({ compra = false }: { compra?: boolean }) {
-  const { data, loading, error, refresh } = useData(
+  const { data, loading, error, refresh } = useData<{
+    productos: Producto[];
+    clientes: Cliente[];
+    empresa: Empresa | null;
+  }>(
     async () => ({
       productos: await api<Producto[]>("/productos"),
       clientes: compra ? [] : await api<Cliente[]>("/clientes"),
+      empresa: await api<Empresa>("/empresas/mi-empresa"),
     }),
-    { productos: [], clientes: [] },
+    { productos: [], clientes: [], empresa: null as Empresa | null },
   );
   const [cart, setCart] = useState<Linea[]>([]),
     [search, setSearch] = useState(""),
@@ -106,7 +112,9 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         description={
           compra
             ? "Registra mercadería recibida y actualiza tus existencias."
-            : "Selecciona productos y confirma tu venta. Precios incluyen IGV."
+            : data.empresa?.ruc
+              ? "Selecciona productos y confirma tu venta. Precios incluyen IGV."
+              : "Selecciona productos y registra una venta interna sin comprobante fiscal."
         }
       />
       <ErrorNotice message={error || actionError} />
@@ -267,12 +275,16 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
                   <Field label="Documento solicitado">
                     <select name="tipo" disabled={busy}>
                       <option value="TICKET">Nota de venta interna</option>
-                      <option value="BOLETA">
-                        Boleta (pendiente de emisión fiscal)
-                      </option>
-                      <option value="FACTURA">
-                        Factura (pendiente de emisión fiscal)
-                      </option>
+                      {data.empresa?.ruc && (
+                        <>
+                          <option value="BOLETA">
+                            Boleta (pendiente de emisión fiscal)
+                          </option>
+                          <option value="FACTURA">
+                            Factura (pendiente de emisión fiscal)
+                          </option>
+                        </>
+                      )}
                     </select>
                   </Field>
                   <Field label="Medio de pago">
@@ -285,8 +297,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
                 </div>
                 <p className="hint">
                   El cobro se registra; no se procesa un pago bancario. La
-                  emisión electrónica aún requiere configurar el proveedor
-                  fiscal.
+                  emisión electrónica requiere RUC y configuración de SUNAT.
                 </p>
               </>
             )}

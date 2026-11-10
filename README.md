@@ -43,7 +43,7 @@ Desde la raíz del repositorio:
 3. Instala el frontend con `npm ci --prefix frontend` y compílalo con `npm run build --prefix frontend`. Docker copiará `frontend/dist` al servidor web.
 4. Ejecuta `docker compose up --build -d`. El volumen `postgres_data` conserva los datos entre reinicios. No uses `docker compose down -v` si necesitas conservarlos.
 5. Abre `http://localhost:8088/admin/login`. Ingresa con el SUPERADMIN configurado. Después de crearlo, cambia `APP_BOOTSTRAP_SUPERADMIN_ENABLED=false` y recrea el backend con `docker compose up -d backend`. El arranque es idempotente para el mismo SUPERADMIN activo; no cambia contraseñas existentes.
-6. Crea una empresa con su administrador. Cierra sesión y entra por `/login` con su RUC, correo y contraseña. Registra productos y una compra o un ajuste inicial antes de vender.
+6. Crea una empresa con su administrador. Cierra sesión y entra por `/login` con su correo y contraseña. El RUC es opcional para gestión interna. Si el correo coincide con varias cuentas, indica el código de negocio o RUC desde las opciones del acceso. Registra productos y una compra o un ajuste inicial antes de vender.
 
 Los contenedores de aplicación no instalan dependencias durante la construcción. Tras cambiar código, repite la compilación correspondiente y `docker compose up --build -d`.
 
@@ -64,3 +64,9 @@ En una terminal dentro de `backend`: `mvn spring-boot:run`. En otra, dentro de `
 **Ejecuta las pruebas de API y navegador solo en una instancia de prueba desechable.** Crean empresas, usuarios y operaciones. No limpian datos de una instancia compartida. No llevan credenciales de producción en el código.
 
 La CI configura PostgreSQL e instancias de prueba aisladas. No publica el sistema ni modifica bases externas.
+
+## Negocios sin RUC
+
+El alta permite dejar el RUC vacío. Cada negocio conserva su código interno y su inventario aislado. El correo y contraseña permiten ingresar; si coinciden en varios negocios, se solicita el código del negocio o RUC para identificar la cuenta. Las cuentas existentes pueden seguir ingresando con RUC.
+
+Sin RUC se permiten catálogo, clientes, compras, inventario, usuarios y notas de venta internas. No se permite solicitar ni emitir boletas/facturas. La migración V6 hace nullable el RUC sin modificar los existentes y conserva su validación y unicidad cuando se proporciona. El alta sigue gestionándose desde SUPERADMIN; este cambio no incorpora autorregistro público.

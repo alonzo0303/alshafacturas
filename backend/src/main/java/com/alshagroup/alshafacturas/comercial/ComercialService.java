@@ -200,6 +200,11 @@ public class ComercialService {
                 + " crear una nueva operación");
       return previous;
     }
+    if (!"TICKET".equals(r.tipo())
+        && db.queryForObject("SELECT ruc FROM empresas WHERE id=?", String.class, empresa) == null)
+      throw error(
+          "El negocio necesita RUC para solicitar facturas o boletas. Puedes registrar una nota de"
+              + " venta interna");
     if (r.clienteId() != null) {
       var c = one("SELECT * FROM clientes WHERE empresa_id=? AND id=?", empresa, r.clienteId());
       if ("FACTURA".equals(r.tipo()) && !c.get("documento").toString().matches("[0-9]{11}"))
@@ -236,6 +241,8 @@ public class ComercialService {
                     ((BigDecimal) l.get("importe"))
                         .divide(new BigDecimal("1.18"), 2, RoundingMode.HALF_UP))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (db.queryForObject("SELECT ruc FROM empresas WHERE id=?", String.class, empresa) == null)
+      subtotal = total;
     long seq =
         db.queryForObject(
             "INSERT INTO correlativos(empresa_id,tipo,ultimo) VALUES (?,'VENTA',1) ON"

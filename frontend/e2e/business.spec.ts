@@ -45,7 +45,7 @@ test("Empresa: catálogo, stock, venta, comprobante, anulación, sesión y móvi
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/panel");
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByLabel("RUC de la empresa").fill(company.ruc);
+  // Existing RUC-based businesses also support email-only login.
   await page.getByLabel("Correo electrónico").fill(company.correo);
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page
@@ -171,5 +171,54 @@ test("Acceso SUPERADMIN y rutas protegidas", async ({ page }) => {
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Empresas", exact: true }),
+  ).toBeVisible();
+});
+
+test("Alta sin RUC y acceso a gestión interna", async ({ page }) => {
+  const email = randomUUID() + "@test.local";
+  await page.goto("/admin/login");
+  await page
+    .getByLabel("Correo electrónico")
+    .fill(process.env.TEST_SUPERADMIN_EMAIL!);
+  await page
+    .getByLabel("Contraseña", { exact: true })
+    .fill(process.env.TEST_SUPERADMIN_PASSWORD!);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page
+    .getByLabel("Nombre del negocio o razón social")
+    .fill("Negocio sin RUC " + email);
+  await page
+    .getByLabel("Nombre del administrador")
+    .fill("Responsable de inventario");
+  await page.getByLabel("Correo del administrador").fill(email);
+  await page.getByLabel("Contraseña inicial").fill(password);
+  await page
+    .getByRole("button", { name: "Crear empresa", exact: true })
+    .click();
+  await expect(page.getByRole("row").filter({ hasText: email })).toContainText(
+    "Sin RUC",
+  );
+  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await page.goto("/login");
+  await page.getByLabel("Correo electrónico").fill(email);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Resumen del negocio" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Punto de venta", exact: true }).click();
+  await expect(
+    page.getByLabel("Documento solicitado").locator("option"),
+  ).toHaveCount(1);
+  await expect(page.getByLabel("Documento solicitado")).toHaveValue("TICKET");
+  await page
+    .getByRole("link", { name: "Facturación electrónica", exact: true })
+    .click();
+  await expect(
+    page.getByText("Pendiente de configuración segura", { exact: true }),
   ).toBeVisible();
 });

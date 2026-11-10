@@ -137,7 +137,7 @@ export function Configuracion() {
               </div>
               <div>
                 <dt>RUC</dt>
-                <dd>{data.ruc}</dd>
+                <dd>{data.ruc || "Sin RUC · Gestión interna"}</dd>
               </div>
               <div>
                 <dt>Dirección</dt>
@@ -155,9 +155,9 @@ export function Configuracion() {
       <section className="surface">
         <h2>Operación comercial</h2>
         <p>
-          Moneda: soles (PEN). Los precios incluyen IGV del 18%. Las operaciones
-          NV01 son notas de venta internas. Las empresas con otros regímenes
-          tributarios requieren configurar sus reglas antes de operar.
+          {data?.ruc
+            ? "Moneda: soles (PEN). Precios con IGV del 18%. NV01 son notas internas. Otros regímenes requieren configuración."
+            : "Gestión interna sin RUC. Moneda: soles (PEN). Inventario y notas internas sin desglose fiscal; no se emiten comprobantes electrónicos."}
         </p>
         <p>
           Para cambiar los datos de empresa, contacta al administrador de la

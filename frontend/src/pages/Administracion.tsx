@@ -47,22 +47,25 @@ export function Empresas() {
       <ErrorNotice message={error || actionError} />
       <section className="surface">
         <h2>Nueva empresa y administrador</h2>
+        <p>
+          El RUC es opcional para inventario, compras y ventas internas. Se
+          requiere para facturación electrónica.
+        </p>
         <Form
           onSave={(d) => api("/empresas/alta", "POST", Object.fromEntries(d))}
           label="Crear empresa"
           onDone={() => void refresh()}
         >
           <div className="form-grid">
-            <Field label="RUC">
+            <Field label="RUC (opcional)">
               <input
                 name="ruc"
                 inputMode="numeric"
                 pattern="[0-9]{11}"
                 maxLength={11}
-                required
               />
             </Field>
-            <Field label="Razón social">
+            <Field label="Nombre del negocio o razón social">
               <input name="razonSocial" maxLength={200} required />
             </Field>
             <Field label="Dirección">
@@ -100,11 +103,12 @@ export function Empresas() {
         {loading ? (
           <p role="status">Cargando empresas…</p>
         ) : data.length ? (
-          <Table headers={["Empresa", "RUC", "Estado", "Acciones"]}>
+          <Table headers={["Código", "Empresa", "RUC", "Estado", "Acciones"]}>
             {data.map((e) => (
               <tr key={e.id}>
+                <td className="mono">{e.id}</td>
                 <td>{e.razonSocial}</td>
-                <td className="mono">{e.ruc}</td>
+                <td className="mono">{e.ruc || "Sin RUC · Gestión interna"}</td>
                 <td>
                   <Badge neutral={e.estado === "ACTIVA"}>{e.estado}</Badge>
                 </td>
