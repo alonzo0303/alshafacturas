@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+**/node_modules
+**/target
+**/test-results
+**/playwright-report
+**/__pycache__
+work
+*.log
+
+sunat-secrets/
+*.p12
+*.pfx

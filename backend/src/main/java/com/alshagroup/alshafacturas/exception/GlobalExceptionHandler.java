@@ -1,8 +1,6 @@
-
 package com.alshagroup.alshafacturas.exception;
 
 import java.util.Map;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,32 +11,36 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> manejarValidaciones(
-            MethodArgumentNotValidException ex) {
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  public ResponseEntity<Map<String, String>> manejarValidaciones(
+      MethodArgumentNotValidException ex) {
 
-        String mensaje = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .findFirst()
-                .map(error -> error.getDefaultMessage())
-                .orElse("Los datos enviados no son validos");
+    String mensaje =
+        ex.getBindingResult().getFieldErrors().stream()
+            .findFirst()
+            .map(error -> error.getDefaultMessage())
+            .orElse("Los datos enviados no son validos");
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("mensaje", mensaje));
-    }
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("mensaje", mensaje));
+  }
 
-    @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, String>> manejarErroresHttp(
-            ResponseStatusException ex) {
+  @ExceptionHandler(ResponseStatusException.class)
+  public ResponseEntity<Map<String, String>> manejarErroresHttp(ResponseStatusException ex) {
 
-        String mensaje = ex.getReason() != null
-                ? ex.getReason()
-                : "Ocurrio un error en la solicitud";
+    String mensaje = ex.getReason() != null ? ex.getReason() : "Ocurrio un error en la solicitud";
 
-        return ResponseEntity
-                .status(ex.getStatusCode())
-                .body(Map.of("mensaje", mensaje));
-    }
+    return ResponseEntity.status(ex.getStatusCode()).body(Map.of("mensaje", mensaje));
+  }
+
+  @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+  public ResponseEntity<Map<String, String>> conflicto(Exception e) {
+    return ResponseEntity.status(409)
+        .body(Map.of("mensaje", "El registro ya existe o tiene datos incompatibles"));
+  }
+
+  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  public ResponseEntity<Map<String, String>> formato(Exception e) {
+    return ResponseEntity.badRequest()
+        .body(Map.of("mensaje", "Revisa el formato de los datos enviados"));
+  }
 }
