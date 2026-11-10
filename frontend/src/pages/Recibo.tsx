@@ -1,5 +1,5 @@
 import { taxLabels } from "../lib/session";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { money, date, type Venta } from "../lib/api";
 export default function Recibo({
   venta: v,
@@ -8,12 +8,31 @@ export default function Recibo({
   venta: Venta;
   onClose: () => void;
 }) {
+  const [format, setFormat] = useState("A4");
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
     return () => dialog?.close();
   }, []);
+  useEffect(() => {
+    const style = document.createElement("style");
+    const height = Math.max(
+      40,
+      Math.ceil(
+        ((ref.current?.querySelector("#receipt")?.getBoundingClientRect()
+          .height || 400) *
+          25.4) /
+          96,
+      ) + 8,
+    );
+    style.textContent =
+      format === "A4"
+        ? "@media print { @page { size:A4; margin:12mm; } }"
+        : `@media print { @page { size:${format}mm ${height}mm; margin:2mm; } #receipt { width:${Number(format) - 4}mm !important; max-width:${Number(format) - 4}mm !important; } }`;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, [format]);
   return (
     <dialog
       ref={ref}
@@ -22,12 +41,38 @@ export default function Recibo({
       aria-labelledby="receipt-title"
     >
       <div className="receipt-actions">
+        <label>
+          Formato de impresión
+          <select
+            aria-label="Formato de impresión"
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+          >
+            <option value="A4">Hoja A4</option>
+            <option value="80">Ticket térmico 80 mm</option>
+            <option value="58">Ticket térmico 58 mm</option>
+          </select>
+        </label>
         <button onClick={onClose}>Cerrar</button>
         <button className="primary" onClick={() => window.print()}>
           Imprimir / Guardar PDF
         </button>
       </div>
-      <article id="receipt">
+      {format !== "A4" && (
+        <p className="print-help">
+          Selecciona papel de {format} mm en el controlador de la impresora,
+          escala 100% y desactiva encabezados y pies. Si el controlador admite
+          rollo continuo, selecciona esa opción. Este formato conserva la nota
+          interna; no la convierte en una boleta electrónica.
+        </p>
+      )}
+      <article
+        id="receipt"
+        className={format === "A4" ? "" : "thermal-receipt"}
+        style={
+          format === "A4" ? undefined : { width: `${Number(format) - 4}mm` }
+        }
+      >
         <p className="eyebrow">AlshaFacturas</p>
         <h1 id="receipt-title">Nota de venta interna</h1>
         <h2>{v.razon_social}</h2>

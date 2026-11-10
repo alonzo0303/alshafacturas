@@ -1,3 +1,4 @@
+import { ProductImage } from "../components/ProductImage";
 import { useData } from "../lib/useData";
 import { useState } from "react";
 import { api, money, type Producto, type Cliente } from "../lib/api";
@@ -72,7 +73,15 @@ export function Productos() {
                   <small>{p.codigo_barras || "Sin código de barras"}</small>
                 </td>
                 <td>
-                  {p.nombre}
+                  <div className="product-identity">
+                    <ProductImage
+                      id={p.id}
+                      version={p.imagen_version}
+                      name={p.nombre}
+                      className="product-thumb"
+                    />
+                    <span>{p.nombre}</span>
+                  </div>
                   <small>
                     {p.marca} · {p.presentacion || p.categoria}
                   </small>

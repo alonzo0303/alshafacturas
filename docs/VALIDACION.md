@@ -44,3 +44,17 @@ Verificación del 10 de noviembre de 2026 en instancia local con PostgreSQL de p
 - Escaneo: escritura de código con Enter y decodificación local de imagen de prueba; permiso de cámara denegado con mensaje recuperable. No se ha probado cámara/lector físico en teléfono o tablet.
 
 No se reconstruyeron contenedores ni se enviaron documentos a SUNAT en esta actualización. El registro de pago es manual, con fechas explícitas; no implica un depósito real ni un cobro automático. Los datos de integración son ficticios. Los nuevos tratamientos fiscales requieren la validación del emisor antes de producción.
+
+## Actualización: fotos, móvil, rubros e impresión térmica
+
+Verificado el 10 de noviembre de 2026:
+
+- Maven `verify`: 8 pruebas aprobadas y 2 pruebas externas SUNAT omitidas. Migración V8 aplicada sobre la base de pruebas existente.
+- API: 23 pruebas aprobadas, incluidas subida/lectura/borrado de foto, imágenes inválidas o mayores al límite, aislamiento entre negocios, restricción por rubro tanto al listar como al incorporar por ID y conservación de copias al retirar acceso.
+- Frontend: TypeScript/Vite y lint aprobados. Dependencias de cámara compatibles y fijadas en package-lock.
+- Navegador: 7 recorridos aprobados contra Vite y 7 contra la compilación de producción servida por Nginx, con las cabeceras CSP del despliegue. Se comprobó una foto subida con ancho natural válido, el morado #7C3AED, menú móvil, desplazamiento real con botones, filtros de categoría y asignación de rubro desde SUPERADMIN.
+- Tamaños probados: 320, 390, 622, 768, 1024 y 1440 px en el recorrido de fotos; sin desbordamiento global. Las tablas se desplazan dentro del contenedor.
+- PDF: A4 y medidas térmicas de 58 y 80 mm; el ancho de MediaBox coincide con el formato elegido. Continúa siendo nota interna. No se probó una impresora física, corte ni Bluetooth.
+- Accesibilidad automática: sin infracciones axe A/AA en las pantallas probadas. No sustituye revisión manual completa ni uso en dispositivos físicos.
+
+El ensayo de Nginx reutilizó una imagen existente con archivos compilados/configuración montados de solo lectura; no reconstruyó imágenes ni reemplazó contenedores de bases de datos. Se habilitaron imágenes `blob:` y medios locales en CSP para vista previa y escaneo. No se enviaron comprobantes a SUNAT ni se copiaron recursos de la referencia comercial. El contenido público de tefacturo.pe pudo consultarse; el video de YouTube no cargó desde el entorno.

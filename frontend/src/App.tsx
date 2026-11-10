@@ -47,6 +47,7 @@ function Shell({
 }) {
   const admin = session.rol === "ADMIN",
     superadmin = session.rol === "SUPERADMIN";
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   async function logout() {
@@ -83,9 +84,30 @@ function Shell({
         <p className="sidebar-caption">
           {superadmin ? "Administración de plataforma" : "Gestión empresarial"}
         </p>
-        <nav aria-label="Navegación principal">
+        <button
+          className="mobile-menu"
+          type="button"
+          aria-expanded={mobileOpen}
+          aria-controls="main-navigation"
+          onClick={() => setMobileOpen(!mobileOpen)}
+        >
+          {mobileOpen ? "Cerrar menú" : "Menú"}
+        </button>
+        <nav
+          id="main-navigation"
+          data-open={mobileOpen}
+          aria-label="Navegación principal"
+        >
           {links.map(([label, path]) => (
-            <NavLink key={path} to={path} end>
+            <NavLink
+              key={path}
+              to={path}
+              end
+              onClick={() => {
+                setMobileOpen(false);
+                document.getElementById("contenido")?.focus();
+              }}
+            >
               {label}
             </NavLink>
           ))}

@@ -1,0 +1,35 @@
+# Fotos, catálogo por rubro y tickets
+
+## Acceso por rubro
+
+En SUPERADMIN → Empresas → **Acceso al catálogo por rubro**, selecciona el negocio, marca uno o varios rubros y guarda. Los rubros disponibles se crean al publicar plantillas en el catálogo común. Un negocio de maquillaje puede recibir solo Maquillaje, o varios rubros si lo necesita. Sin rubros habilitados, no ve plantillas comunes y sí conserva sus productos propios.
+
+La migración V8 no adivina el rubro ni concede acceso a todos los negocios existentes. La plataforma debe asignarlo. El servidor bloquea también la incorporación por ID de plantillas no autorizadas y la lectura de sus fotos. Retirar un rubro no borra los productos ni las imágenes que el negocio ya incorporó.
+
+## Fotos de mercancía
+
+Nuevo producto, edición de producto, mercancía creada en Compras y plantilla común permiten elegir o quitar una foto. Se aceptan JPEG, PNG y WebP de hasta 10 MB en el navegador; se optimizan a un máximo de 800 píxeles antes de subir. El servidor acepta JPEG/PNG de hasta 2 MB y 2048 × 2048, valida y vuelve a codificar la imagen sin metadatos.
+
+Las imágenes se guardan en PostgreSQL, separadas del listado de productos. Necesitan sesión y permiso; las de un negocio no son accesibles por otros. Al incorporar una plantilla con foto se guarda una copia propia. Cambiar después la plantilla no modifica la foto del negocio.
+
+Las fotos se muestran en Productos, Catálogo común y las tarjetas de selección del punto de venta o compra. Guardar un producto e intentar de nuevo una subida fallida no crea un segundo producto. Una imagen por producto o variante; no incluye una galería múltiple.
+
+## Pantallas pequeñas y desplazamiento
+
+En teléfono y tablet estrecha, el botón **Menú** abre la navegación en dos columnas y se cierra al elegir una sección. No hace falta deslizar horizontalmente todos los enlaces. Las tablas mantienen sus columnas legibles dentro de su propio contenedor: se pueden arrastrar, enfocar con teclado o mover con **Más columnas** y **Columnas anteriores**. La página conserva su ancho.
+
+El morado principal es **#7C3AED**, indicado por Alsha Group. Los estados de alerta conservan rojo y los de confirmación verde.
+
+El lector utiliza versiones compatibles fijadas de ZXing para evitar avisos repetidos por fotogramas sin código. Se mantienen cámara, foto y lector que escribe el código con Enter. La cámara en vivo sigue necesitando HTTPS o localhost y permiso del navegador.
+
+## Impresión de 58 y 80 mm
+
+Al abrir **Ver / Imprimir**, elige **Hoja A4**, **Ticket térmico 80 mm** o **Ticket térmico 58 mm**. La vista previa adapta texto y columnas. El PDF usa el ancho elegido y una altura calculada para el contenido.
+
+En la impresión física, instala el controlador correspondiente y selecciona el ancho real del papel, escala 100%, márgenes mínimos y sin encabezados/pies del navegador. Si admite rollo continuo, configura esa opción. El navegador abre el diálogo de impresión: no selecciona impresora, no imprime en silencio y no controla corte, cajón ni Bluetooth directamente. El comportamiento físico depende del controlador y debe probarse con el equipo real.
+
+**El formato térmico no convierte una nota interna en boleta electrónica.** La nota conserva el aviso de documento sin validez tributaria. La emisión fiscal real necesita RUC, configuración del emisor, certificado y el procedimiento SUNAT correspondiente; esta mejora no incorpora una representación fiscal con QR ni acredita aceptación en producción. El ticket mostrado en la referencia comercial corresponde a otro sistema; aquí se implementa el tamaño de papel para la nota interna existente.
+
+## Referencia de experiencia de uso
+
+Se consultó el contenido público de [tefacturo.pe](https://tefacturo.pe/) como referencia de organización por rubros y módulos empresariales. No se reutilizan su código, textos, imágenes, logotipo ni afirmaciones comerciales. AlshaFacturas mantiene su navegación, morado, planes y permisos propios. El punto de venta añade filtros por categoría y acceso al detalle de la operación en móvil. El video de YouTube compartido no pudo cargarse desde el entorno; no se afirma haber revisado su contenido.

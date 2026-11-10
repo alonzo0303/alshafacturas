@@ -63,45 +63,100 @@ export function Table({
   headers: string[];
   children: ReactNode;
 }) {
+  const scroll = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({
+    overflow: false,
+    start: true,
+    end: true,
+  });
+  useEffect(() => {
+    const element = scroll.current;
+    if (!element) return;
+    const update = () =>
+      setPosition({
+        overflow: element.scrollWidth > element.clientWidth + 1,
+        start: element.scrollLeft < 1,
+        end:
+          element.scrollLeft + element.clientWidth >= element.scrollWidth - 1,
+      });
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    if (element.firstElementChild) observer.observe(element.firstElementChild);
+    element.addEventListener("scroll", update);
+    update();
+    return () => {
+      observer.disconnect();
+      element.removeEventListener("scroll", update);
+    };
+  }, [children]);
   const numeric = headers.map((h) =>
     /^(Stock|Mínimo|Precio|Cantidad|Cant\.|Saldo|Total|Costo|Importe|Base|IGV)/i.test(
       h,
     ),
   );
   return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            {headers.map((h, i) => (
-              <th
-                key={h || i}
-                className={numeric[i] ? "number" : undefined}
-                scope="col"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {Children.map(children, (row) => {
-            if (!isValidElement(row)) return row;
-            const tr = row as ReactElement<{ children: ReactNode }>;
-            return cloneElement(tr, {
-              children: Children.map(tr.props.children, (cell, i) => {
-                if (!isValidElement(cell)) return cell;
-                const td = cell as ReactElement<{ className?: string }>;
-                return cloneElement(td, {
-                  className: [td.props.className, numeric[i] ? "number" : ""]
-                    .filter(Boolean)
-                    .join(" "),
-                });
-              }),
-            });
-          })}
-        </tbody>
-      </table>
+    <div className="table-container">
+      {position.overflow && (
+        <div className="table-controls">
+          <small>Desliza para ver más columnas</small>
+          <button
+            type="button"
+            aria-label="Columnas anteriores"
+            disabled={position.start}
+            onClick={() => scroll.current?.scrollBy({ left: -240 })}
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            aria-label="Más columnas"
+            disabled={position.end}
+            onClick={() => scroll.current?.scrollBy({ left: 240 })}
+          >
+            →
+          </button>
+        </div>
+      )}
+      <div
+        ref={scroll}
+        className="table-scroll"
+        role="region"
+        aria-label={`Tabla: ${headers.join(", ")}`}
+        tabIndex={0}
+      >
+        <table>
+          <thead>
+            <tr>
+              {headers.map((h, i) => (
+                <th
+                  key={h || i}
+                  className={numeric[i] ? "number" : undefined}
+                  scope="col"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Children.map(children, (row) => {
+              if (!isValidElement(row)) return row;
+              const tr = row as ReactElement<{ children: ReactNode }>;
+              return cloneElement(tr, {
+                children: Children.map(tr.props.children, (cell, i) => {
+                  if (!isValidElement(cell)) return cell;
+                  const td = cell as ReactElement<{ className?: string }>;
+                  return cloneElement(td, {
+                    className: [td.props.className, numeric[i] ? "number" : ""]
+                      .filter(Boolean)
+                      .join(" "),
+                  });
+                }),
+              });
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

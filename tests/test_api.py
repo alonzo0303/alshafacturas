@@ -9,6 +9,7 @@ import unittest
 import urllib.error
 import urllib.request
 import uuid
+import base64
 from datetime import date, timedelta
 
 BASE = os.environ.get('TEST_API_URL', 'http://127.0.0.1:8080/api')
@@ -34,6 +35,15 @@ class Client:
             res = e
         raw = res.read()
         return res.code, json.loads(raw) if raw else None
+
+    def raw(self, path, method='GET', content=None, content_type='image/png'):
+        headers={}
+        if method!='GET':
+            _, token=self.request('/auth/csrf');headers[token['headerName']]=token['token'];headers['Content-Type']=content_type
+        req=urllib.request.Request(BASE+path,data=content,headers=headers,method=method)
+        try: res=self.opener.open(req,timeout=20)
+        except urllib.error.HTTPError as error: res=error
+        return res.code,res.read(),res.headers
 
     def ok(self, path, method='GET', body=None):
         status, data = self.request(path, method, body)
@@ -61,6 +71,8 @@ class ApiRegression(unittest.TestCase):
         ruc = '20' + str(uuid.uuid4().int)[:9]
         email = str(uuid.uuid4()) + '@test.local'
         empresa = cls.platform.ok('/empresas/alta', 'POST', {'ruc': ruc, 'razonSocial': name, 'direccion': 'Dirección de prueba', 'administradorNombre': 'Administrador', 'administradorCorreo': email, 'administradorPassword': PASSWORD})
+        access=cls.platform.ok(f"/empresas/{empresa['id']}/rubros-catalogo")
+        cls.platform.ok(f"/empresas/{empresa['id']}/rubros-catalogo",'PUT',{'rubros':access['disponibles']})
         if paid:
             cls.payment(empresa['id'], 'ILIMITADO', 70)
         client = Client()
@@ -86,6 +98,40 @@ class ApiRegression(unittest.TestCase):
 
     def stock(self, product, client=None):
         return next(p['stock'] for p in (client or self.a).ok('/productos') if p['id'] == product['id'])
+
+    def test_images_are_validated_private_and_removable(self):
+        p=self.product()
+        png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
+        path=f"/productos/{p['id']}/imagen"
+        self.assertEqual(self.a.raw(path,'PUT',png)[0],200)
+        status,body,headers=self.a.raw(path)
+        self.assertEqual(status,200); self.assertTrue(body.startswith(b'\xff\xd8')); self.assertEqual(headers['Content-Type'],'image/jpeg')
+        self.assertEqual(self.b.raw(path)[0],404)
+        self.assertEqual(self.vendor.raw(path,'PUT',png)[0],403)
+        self.assertEqual(self.a.raw(path,'PUT',b'<script>alert(1)</script>')[0],400)
+        self.assertEqual(self.a.raw(path,'PUT',b'a'*(2*1024*1024+1))[0],413)
+        self.a.ok(path,'DELETE'); self.assertEqual(self.a.raw(path)[0],404)
+
+    def test_catalog_access_cannot_be_bypassed_and_copies_survive(self):
+        company,_,owner=self.company('Rubro restringido')
+        self.platform.ok(f"/empresas/{company['id']}/rubros-catalogo",'PUT',{'rubros':['Maquillaje']})
+        templates=owner.ok('/catalogo-comun')
+        self.assertTrue(templates);self.assertEqual({p['rubro'] for p in templates},{'Maquillaje'})
+        other=next(p for p in self.platform.ok('/catalogo-comun') if p['rubro']=='Ferretería')
+        body={'nombre':'Copia propia','precio':10,'minimo':0,'activo':True}
+        self.assertEqual(owner.request(f"/catalogo-comun/{other['id']}/incorporar",'POST',body)[0],404)
+        self.assertEqual(owner.request('/productos','POST',{**body,'catalogoId':other['id']})[0],404)
+        self.assertEqual(owner.request(f"/empresas/{company['id']}/rubros-catalogo",'PUT',{'rubros':['Ferretería']})[0],403)
+        permitted=templates[0]
+        png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
+        self.assertEqual(self.platform.raw(f"/catalogo-comun/{permitted['id']}/imagen",'PUT',png)[0],200)
+        copy=owner.ok(f"/catalogo-comun/{permitted['id']}/incorporar",'POST',body)
+        self.assertTrue(copy['imagen_version'])
+        self.platform.ok(f"/empresas/{company['id']}/rubros-catalogo",'PUT',{'rubros':[]})
+        self.assertEqual(owner.ok('/catalogo-comun'),[])
+        self.assertEqual(owner.raw(f"/catalogo-comun/{permitted['id']}/imagen")[0],404)
+        self.assertEqual(owner.raw(f"/productos/{copy['id']}/imagen")[0],200)
+        owner.ok(f"/productos/{copy['id']}",'PUT',{**body,'sku':copy['sku'],'catalogoId':permitted['id']})
 
     def test_last_employee_slot_is_atomic(self):
         company, email, owner = self.company('Último cupo', paid=False)

@@ -33,13 +33,20 @@ public class CatalogoController {
   @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('PRODUCTOS_VER')")
   public List<Map<String, Object>> listado(@AuthenticationPrincipal UsuarioPrincipal p) {
     return db.queryForList(
-        "SELECT * FROM catalogo_comun WHERE activo=true OR ? ORDER BY rubro,nombre,id",
-        "SUPERADMIN".equals(p.getRol()));
+        "SELECT c.*,f.version AS imagen_version FROM catalogo_comun c LEFT JOIN fotos_catalogo f ON"
+            + " f.catalogo_id=c.id WHERE ? OR (c.activo AND EXISTS(SELECT 1 FROM"
+            + " empresa_rubros_catalogo r WHERE r.empresa_id=? AND r.rubro=c.rubro)) ORDER BY"
+            + " c.rubro,c.nombre,c.id",
+        "SUPERADMIN".equals(p.getRol()),
+        p.getEmpresaId());
   }
 
   @PostMapping
   @PreAuthorize("hasRole('SUPERADMIN')")
+  @org.springframework.transaction.annotation.Transactional
   public Map<String, Object> crear(@Valid @RequestBody Plantilla r) {
+    db.update(
+        "INSERT INTO rubros_catalogo(nombre) VALUES (?) ON CONFLICT DO NOTHING", r.rubro().trim());
     Long id =
         db.queryForObject(
             "INSERT INTO catalogo_comun(nombre,rubro,descripcion,activo) VALUES (?,?,?,?) RETURNING"
@@ -54,7 +61,10 @@ public class CatalogoController {
 
   @PutMapping("/{id}")
   @PreAuthorize("hasRole('SUPERADMIN')")
+  @org.springframework.transaction.annotation.Transactional
   public Map<String, Object> editar(@PathVariable Long id, @Valid @RequestBody Plantilla r) {
+    db.update(
+        "INSERT INTO rubros_catalogo(nombre) VALUES (?) ON CONFLICT DO NOTHING", r.rubro().trim());
     if (db.update(
             "UPDATE catalogo_comun SET nombre=?,rubro=?,descripcion=?,activo=? WHERE id=?",
             r.nombre().trim(),

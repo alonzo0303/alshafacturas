@@ -91,6 +91,7 @@ export const date = (value: string) =>
     timeZone: "America/Lima",
   }).format(new Date(value));
 export type Producto = {
+  imagen_version?: string | null;
   id: number;
   sku: string;
   nombre: string;

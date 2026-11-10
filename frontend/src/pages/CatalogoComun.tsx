@@ -1,3 +1,5 @@
+import { ProductImage, ImageEditor } from "../components/ProductImage";
+import { uploadImage } from "../lib/images";
 import { useState } from "react";
 import { api, type Producto } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -57,6 +59,12 @@ export function CatalogoPicker({
         <div className="catalog-grid">
           {list.map((p) => (
             <article className="catalog-item" key={p.id}>
+              <ProductImage
+                common
+                id={p.id}
+                version={p.imagen_version}
+                name={p.nombre}
+              />
               <h3>{p.nombre}</h3>
               <small>{p.rubro}</small>
               {p.descripcion && <p>{p.descripcion}</p>}
@@ -68,8 +76,9 @@ export function CatalogoPicker({
         </div>
       ) : (
         <Empty>
-          No hay productos para este filtro. Puedes crear mercadería propia
-          desde Productos o Compras.
+          No hay plantillas habilitadas para este filtro. Solicita a la
+          plataforma acceso al rubro de tu negocio. Puedes crear mercadería
+          propia desde Productos o Compras.
         </Empty>
       )}
     </>
@@ -131,6 +140,9 @@ export function CatalogoAdmin() {
     ),
     [editing, setEditing] = useState<Plantilla | null>(null),
     [search, setSearch] = useState("");
+  const [photo, setPhoto] = useState<File | null | undefined>();
+  const [savedId, setSavedId] = useState<number | null>(null);
+  const [formVersion, setFormVersion] = useState(0);
   return (
     <>
       <PageTitle
@@ -141,24 +153,41 @@ export function CatalogoAdmin() {
       <section className="surface">
         <h2>{editing ? "Editar plantilla" : "Nueva plantilla"}</h2>
         <Form
-          key={editing?.id ?? "new"}
-          onSave={(d) =>
-            api(
-              `/catalogo-comun${editing ? "/" + editing.id : ""}`,
-              editing ? "PUT" : "POST",
+          key={editing?.id ?? `new-${formVersion}`}
+          onSave={async (d) => {
+            const id = editing?.id || savedId;
+            const saved = await api<Plantilla>(
+              `/catalogo-comun${id ? "/" + id : ""}`,
+              id ? "PUT" : "POST",
               {
                 nombre: d.get("nombre"),
                 rubro: d.get("rubro"),
                 descripcion: d.get("descripcion"),
                 activo: d.get("activo") === "on",
               },
-            )
-          }
+            );
+            setSavedId(saved.id);
+            if (photo) await uploadImage(`/catalogo-comun/${saved.id}`, photo);
+            else if (photo === null)
+              await api(`/catalogo-comun/${saved.id}/imagen`, "DELETE");
+          }}
           onDone={() => {
             setEditing(null);
+            setPhoto(undefined);
+            setSavedId(null);
+            setFormVersion((v) => v + 1);
             void refresh();
           }}
         >
+          <ImageEditor
+            key={editing?.id ?? `new-${formVersion}`}
+            initialUrl={
+              editing?.imagen_version
+                ? `/api/catalogo-comun/${editing.id}/imagen`
+                : undefined
+            }
+            onChange={setPhoto}
+          />
           <div className="form-grid">
             <Field label="Nombre del producto común">
               <input
@@ -193,7 +222,15 @@ export function CatalogoAdmin() {
             Disponible para los negocios
           </label>
           {editing && (
-            <button type="button" onClick={() => setEditing(null)}>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setPhoto(undefined);
+                setSavedId(null);
+                setFormVersion((v) => v + 1);
+              }}
+            >
               Cancelar edición
             </button>
           )}
@@ -222,13 +259,26 @@ export function CatalogoAdmin() {
               )
               .map((p) => (
                 <tr key={p.id}>
-                  <td>{p.nombre}</td>
+                  <td>
+                    <div className="product-identity">
+                      <ProductImage
+                        common
+                        id={p.id}
+                        version={p.imagen_version}
+                        name={p.nombre}
+                        className="product-thumb"
+                      />
+                      {p.nombre}
+                    </div>
+                  </td>
                   <td>{p.rubro}</td>
                   <td>{p.activo ? "Disponible" : "Oculto"}</td>
                   <td>
                     <button
                       onClick={() => {
                         setEditing(p);
+                        setPhoto(undefined);
+                        setSavedId(null);
                         window.scrollTo({ top: 0 });
                       }}
                     >

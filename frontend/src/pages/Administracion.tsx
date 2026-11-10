@@ -1,3 +1,4 @@
+import RubrosAcceso from "./RubrosAcceso";
 import { PlanInfo, type PlanState } from "./Planes";
 import { useData } from "../lib/useData";
 import { api, type Empresa, type Session } from "../lib/api";
@@ -46,6 +47,7 @@ export function Empresas() {
         description="Alta y control de acceso de las empresas de la plataforma."
       />
       <ErrorNotice message={error || actionError} />
+      <RubrosAcceso />
       <section className="surface">
         <h2>Nueva empresa y administrador</h2>
         <p>

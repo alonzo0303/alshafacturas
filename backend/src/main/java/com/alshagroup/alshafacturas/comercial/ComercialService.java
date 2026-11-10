@@ -37,8 +37,10 @@ public class ComercialService {
 
   public List<Map<String, Object>> productos(Long empresa) {
     return db.queryForList(
-        "SELECT p.*,CASE WHEN afectacion_igv='GRAVADO' THEN round(precio/1.18,2) ELSE precio END AS"
-            + " precio_sin_igv FROM productos p WHERE empresa_id=? ORDER BY nombre,id",
+        "SELECT p.*,(SELECT version FROM fotos_productos f WHERE f.producto_id=p.id) AS"
+            + " imagen_version,CASE WHEN afectacion_igv='GRAVADO' THEN round(precio/1.18,2) ELSE"
+            + " precio END AS precio_sin_igv FROM productos p WHERE empresa_id=? ORDER BY"
+            + " nombre,id",
         empresa);
   }
 
@@ -65,8 +67,18 @@ public class ComercialService {
     String sku =
         normalized(r.sku(), "P-" + UUID.randomUUID().toString().substring(0, 12))
             .toUpperCase(Locale.ROOT);
-    if (r.catalogoId() != null)
-      one("SELECT id FROM catalogo_comun WHERE id=? AND activo=true", r.catalogoId());
+    boolean nuevo = id == null;
+    if (r.catalogoId() != null
+        && (nuevo
+            || !Objects.equals(
+                one("SELECT catalogo_id FROM productos WHERE empresa_id=? AND id=?", empresa, id)
+                    .get("catalogo_id"),
+                r.catalogoId())))
+      one(
+          "SELECT c.id FROM catalogo_comun c JOIN empresa_rubros_catalogo a ON a.rubro=c.rubro"
+              + " WHERE a.empresa_id=? AND c.id=? AND c.activo=true",
+          empresa,
+          r.catalogoId());
     if (id == null)
       id =
           db.queryForObject(
@@ -106,7 +118,18 @@ public class ComercialService {
           empresa,
           id);
     }
-    return one("SELECT * FROM productos WHERE empresa_id=? AND id=?", empresa, id);
+    if (nuevo && r.catalogoId() != null)
+      db.update(
+          "INSERT INTO fotos_productos(producto_id,contenido,version) SELECT ?,contenido,? FROM"
+              + " fotos_catalogo WHERE catalogo_id=?",
+          id,
+          UUID.randomUUID(),
+          r.catalogoId());
+    return one(
+        "SELECT p.*,(SELECT version FROM fotos_productos f WHERE f.producto_id=p.id) AS"
+            + " imagen_version FROM productos p WHERE empresa_id=? AND id=?",
+        empresa,
+        id);
   }
 
   public List<Map<String, Object>> clientes(Long empresa) {

@@ -35,6 +35,15 @@ async function setup() {
     administradorCorreo: correo,
     administradorPassword: password,
   });
+  const csrf = await (await platform.get("/api/auth/csrf")).json();
+  expect(
+    (
+      await platform.put(`/api/empresas/${empresa.id}/rubros-catalogo`, {
+        data: { rubros: ["Maquillaje"] },
+        headers: { [csrf.headerName]: csrf.token },
+      })
+    ).ok(),
+  ).toBeTruthy();
   await platform.dispose();
   return { ruc, correo, id: empresa.id };
 }
@@ -102,6 +111,21 @@ test("Empresa: catálogo, stock, venta, comprobante, anulación, sesión y móvi
     1,
   );
   await page.emulateMedia({ media: "screen" });
+  for (const size of ["58", "80"]) {
+    await dialog.getByLabel("Formato de impresión").selectOption(size);
+    await page.emulateMedia({ media: "print" });
+    const thermal = await page.pdf({ preferCSSPageSize: true });
+    const boxes = [
+      ...thermal
+        .toString("latin1")
+        .matchAll(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/g),
+    ];
+    expect(boxes.length).toBeGreaterThan(0);
+    expect(
+      Math.abs(Number(boxes[0][1]) - (Number(size) * 72) / 25.4),
+    ).toBeLessThan(2);
+    await page.emulateMedia({ media: "screen" });
+  }
   await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
   await page.getByRole("link", { name: "Ventas", exact: true }).click();
   await expect(
@@ -422,4 +446,146 @@ test("Pago confirmado, cupos, roles y consulta de inventario por vendedor", asyn
   await expect(
     page.getByRole("link", { name: "Usuarios", exact: true }),
   ).toHaveCount(0);
+});
+
+test("Fotos, marca morada y desplazamiento con menú móvil", async ({
+  page,
+}) => {
+  const company = await setup();
+  await page.goto("/login");
+  await page.getByLabel("Correo electrónico").fill(company.correo);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Productos", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Nuevo producto", exact: true })
+    .click();
+  const editor = page.getByRole("dialog");
+  await editor.getByLabel("Nombre del producto").fill("Producto con foto");
+  await editor.getByLabel("Precio de venta ingresado (S/)").fill("12");
+  const data = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 100;
+    canvas.height = 100;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#7C3AED";
+    ctx.fillRect(0, 0, 100, 100);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  await editor.getByLabel("Foto del producto (opcional)").setInputFiles({
+    name: "foto.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(data, "base64"),
+  });
+  await expect(
+    editor.getByAltText("Vista previa de la foto del producto"),
+  ).toBeVisible();
+  await editor
+    .getByRole("button", { name: "Guardar producto", exact: true })
+    .click();
+  await expect(editor).not.toBeVisible();
+  const image = page.getByAltText("Producto con foto", { exact: true });
+  await expect(image).toBeVisible();
+  await image.scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBeGreaterThan(0);
+  await expect(
+    page.getByRole("button", { name: "Nuevo producto", exact: true }),
+  ).toHaveCSS("background-color", "rgb(124, 58, 237)");
+  for (const width of [320, 390, 622, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        { message: `Ancho ${width}` },
+      )
+      .toBeTruthy();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  const menu = page.getByRole("button", { name: "Menú", exact: true });
+  await expect(menu).toBeVisible();
+  await menu.click();
+  await expect(page.getByRole("navigation")).toBeVisible();
+  await page.getByRole("link", { name: "Inventario", exact: true }).click();
+  await expect(page.getByRole("navigation")).not.toBeVisible();
+  await page.getByRole("button", { name: "Menú", exact: true }).click();
+  await page.getByRole("link", { name: "Productos", exact: true }).click();
+  const scroll = page.getByRole("region", { name: /Tabla: Código/ });
+  await expect(
+    page.getByRole("button", { name: "Más columnas", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Más columnas", exact: true }).click();
+  await expect
+    .poll(() => scroll.evaluate((el) => el.scrollLeft))
+    .toBeGreaterThan(0);
+  await page
+    .getByRole("button", { name: "Columnas anteriores", exact: true })
+    .click();
+  await expect.poll(() => scroll.evaluate((el) => el.scrollLeft)).toBe(0);
+  await page.getByRole("button", { name: "Menú", exact: true }).click();
+  await page.getByRole("link", { name: "Punto de venta", exact: true }).click();
+  await expect(
+    page.getByAltText("Producto con foto", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Categoría de mercancía").selectOption("General");
+  await expect(
+    page.getByRole("button", { name: /Producto con foto/ }),
+  ).toBeVisible();
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
+test("SUPERADMIN asigna el rubro visible para el negocio", async ({ page }) => {
+  const company = await setup();
+  await page.goto("/admin/login");
+  await page
+    .getByLabel("Correo electrónico")
+    .fill(process.env.TEST_SUPERADMIN_EMAIL!);
+  await page
+    .getByLabel("Contraseña", { exact: true })
+    .fill(process.env.TEST_SUPERADMIN_PASSWORD!);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page
+    .getByLabel("Negocio para habilitar rubros")
+    .selectOption(String(company.id));
+  await page.getByLabel("Maquillaje", { exact: true }).uncheck();
+  await page.getByLabel("Ferretería", { exact: true }).check();
+  await page
+    .getByRole("button", { name: "Guardar acceso al catálogo", exact: true })
+    .click();
+  await expect(
+    page.getByText("Acceso al catálogo actualizado.", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Cerrar sesión", exact: true })
+    .click();
+  await page.goto("/login");
+  await page.getByLabel("Correo electrónico").fill(company.correo);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Catálogo común", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Usar producto Martillo", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Usar producto Lápiz labial",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByLabel("Rubro", { exact: true }).locator("option"),
+  ).toHaveText(["Todos los rubros", "Ferretería"]);
 });

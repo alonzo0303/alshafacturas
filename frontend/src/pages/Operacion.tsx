@@ -1,3 +1,4 @@
+import { ProductImage } from "../components/ProductImage";
 import { useRef, useState, type FormEvent } from "react";
 import { useData } from "../lib/useData";
 import {
@@ -42,12 +43,17 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
     } | null>(null),
     [catalog, setCatalog] = useState(false),
     [tax, setTax] = useState<PurchaseTax>(emptyPurchaseTax);
+  const [category, setCategory] = useState("");
+  const categories = [
+    ...new Set(data.productos.filter((p) => p.activo).map((p) => p.categoria)),
+  ].sort();
   const session = useSession(),
     key = useRef(crypto.randomUUID()),
     round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const products = data.productos.filter(
     (p) =>
       p.activo &&
+      (!category || p.categoria === category) &&
       `${p.nombre} ${p.sku} ${p.codigo_barras || ""} ${p.marca}`
         .toLowerCase()
         .includes(search.toLowerCase()),
@@ -199,6 +205,20 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
             </button>
           </div>
           <BarcodeScanner value={search} onChange={setSearch} onScan={scan} />
+          <Field label="Categoría de mercancía">
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              <option value="">Todas las categorías</option>
+              {categories.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </Field>
+          <p className="catalog-count">
+            {products.length} productos · Precio y stock de tu negocio
+          </p>
           {compra && can(session, "PRODUCTOS_EDITAR") && (
             <div className="section-toolbar">
               <button
@@ -230,6 +250,11 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
                   }
                   onClick={() => add(p)}
                 >
+                  <ProductImage
+                    id={p.id}
+                    version={p.imagen_version}
+                    name={p.nombre}
+                  />
                   <span>
                     <strong>{p.nombre}</strong>
                     <small>
@@ -257,7 +282,11 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
             </Empty>
           )}
         </section>
-        <section className="surface">
+        <section
+          id="detalle-operacion"
+          className="surface order-panel"
+          tabIndex={-1}
+        >
           <h2>{compra ? "Detalle de compra" : "Detalle de venta"}</h2>
           <form className="form" onSubmit={submit}>
             <OperationCart
@@ -350,6 +379,23 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
           </form>
         </section>
       </div>
+      {cart.length > 0 && (
+        <div className="mobile-order-summary">
+          <span>
+            {cart.length} productos <strong>{money(totals.total)}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const detail = document.getElementById("detalle-operacion");
+              detail?.scrollIntoView();
+              detail?.focus();
+            }}
+          >
+            Revisar {compra ? "compra" : "venta"}
+          </button>
+        </div>
+      )}
       {editor && (
         <Modal
           title={

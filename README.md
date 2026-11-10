@@ -74,3 +74,7 @@ Sin RUC se permiten catálogo, clientes, compras, inventario, usuarios y notas d
 ## Planes, roles, catálogo y compras
 
 Consulta la [guía de operación](docs/PLANES_Y_CATALOGO.md) para registrar pagos de S/35, S/50 o S/70, gestionar empleados y roles, incorporar productos comunes, escanear códigos y distinguir el IGV de ventas del crédito fiscal potencial.
+
+## Fotos, móvil e impresión térmica
+
+La interfaz usa el morado #7C3AED de Alsha Group. Incluye fotos de productos/plantillas, navegación móvil desplegable y tablas con desplazamiento propio y controles. SUPERADMIN asigna el acceso al catálogo común por rubro de negocio. Las notas internas pueden imprimirse en A4, 58 u 80 mm. Consulta la [guía de fotos, rubros e impresión](docs/IMAGENES_MOVIL_IMPRESION.md), incluidos los límites de la impresión fiscal y del hardware.

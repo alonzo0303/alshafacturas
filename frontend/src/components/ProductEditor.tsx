@@ -1,3 +1,5 @@
+import { ImageEditor } from "./ProductImage";
+import { uploadImage } from "../lib/images";
 import { useState, type FormEvent } from "react";
 import { api, money, type Producto } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -10,6 +12,7 @@ export type Plantilla = {
   rubro: string;
   descripcion?: string;
   activo: boolean;
+  imagen_version?: string | null;
 };
 type TaxConfig = {
   ruc: string | null;
@@ -55,6 +58,8 @@ function ProductForm({
     ),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [existing, setExisting] = useState(product);
+  const [photo, setPhoto] = useState<File | null | undefined>();
   const final =
     Number(price || 0) * (tax === "GRAVADO" && !includes ? 1.18 : 1);
   async function save(e: FormEvent<HTMLFormElement>) {
@@ -64,7 +69,7 @@ function ProductForm({
     setError("");
     try {
       const body = {
-        sku: d.get("sku") || null,
+        sku: d.get("sku") || existing?.sku || null,
         nombre: d.get("nombre"),
         precio: Number(price || 0),
         minimo: Number(d.get("minimo")),
@@ -77,16 +82,24 @@ function ProductForm({
         afectacionIgv: config.ruc ? tax : "SIN_IGV",
         precioIncluyeIgv: includes,
       };
-      const endpoint = product
-        ? `/productos/${product.id}`
+      const endpoint = existing
+        ? `/productos/${existing.id}`
         : template
           ? `/catalogo-comun/${template.id}/incorporar`
           : "/productos";
       const saved = await api<Producto>(
         endpoint,
-        product ? "PUT" : "POST",
+        existing ? "PUT" : "POST",
         body,
       );
+      setExisting(saved);
+      if (photo) {
+        const image = await uploadImage(`/productos/${saved.id}`, photo);
+        saved.imagen_version = image.imagen_version;
+      } else if (photo === null) {
+        await api(`/productos/${saved.id}/imagen`, "DELETE");
+        saved.imagen_version = null;
+      }
       onSaved(
         saved,
         purchase
@@ -106,6 +119,17 @@ function ProductForm({
     <form onSubmit={save} className="form">
       <ErrorNotice message={error} />
       <fieldset disabled={busy}>
+        <ImageEditor
+          initialUrl={
+            product?.imagen_version
+              ? `/api/productos/${product.id}/imagen`
+              : template?.imagen_version
+                ? `/api/catalogo-comun/${template.id}/imagen`
+                : undefined
+          }
+          onChange={setPhoto}
+          disabled={busy}
+        />
         <div className="form-grid">
           <Field label="Código / SKU (opcional)">
             <input
