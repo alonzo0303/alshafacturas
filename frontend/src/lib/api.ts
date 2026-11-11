@@ -5,6 +5,8 @@ export type Session = {
   correo: string;
   rol: string;
   permisos: string[];
+  modalidad: "COMERCIO" | "ATENCION";
+  tipoAtencion: "RESTAURANTE" | "BARBERIA" | "OTROS_SERVICIOS" | null;
 };
 export class ApiError extends Error {
   status: number;

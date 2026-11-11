@@ -6,4 +6,6 @@ public record LoginResponse(
     String nombre,
     String correo,
     String rol,
-    java.util.List<String> permisos) {}
+    java.util.List<String> permisos,
+    String modalidad,
+    String tipoAtencion) {}

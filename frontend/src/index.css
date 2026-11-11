@@ -1,4 +1,19 @@
 @import "tailwindcss";
+.atencion-access {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 1rem;
+  margin-block: 1.5rem;
+}
+.atencion-access dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.atencion-access dd {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 :root {
   font-family: Arial, Helvetica, sans-serif;
   color: #30263e;

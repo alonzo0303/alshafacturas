@@ -78,3 +78,7 @@ Consulta la [guía de operación](docs/PLANES_Y_CATALOGO.md) para registrar pago
 ## Fotos, móvil e impresión térmica
 
 La interfaz usa el morado #7C3AED de Alsha Group. Incluye fotos de productos/plantillas, navegación móvil desplegable y tablas con desplazamiento propio y controles. SUPERADMIN asigna el acceso al catálogo común por rubro de negocio. Las notas internas pueden imprimirse en A4, 58 u 80 mm. Consulta la [guía de fotos, rubros e impresión](docs/IMAGENES_MOVIL_IMPRESION.md), incluidos los límites de la impresión fiscal y del hardware.
+
+## Visualización por usuario
+
+SUPERADMIN asigna **Comercio** o **Atención y servicios** a cada usuario, con tipo Restaurante, Barbería u Otros servicios. Los usuarios existentes conservan Comercio. Atención tiene un inicio independiente y acceso administrativo a personal, roles y plan; sus operaciones específicas se desarrollarán por separado. Consulta la [guía de visualizaciones](docs/MODALIDADES_USUARIO.md).

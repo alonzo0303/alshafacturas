@@ -20,6 +20,16 @@ public class UsuarioPrincipal implements UserDetails {
   private final String rol;
   private final boolean activo;
   private final List<String> permisos;
+  private final String modalidad;
+  private final String tipoAtencion;
+
+  public String getModalidad() {
+    return modalidad;
+  }
+
+  public String getTipoAtencion() {
+    return tipoAtencion;
+  }
 
   public UsuarioPrincipal(Usuario usuario) {
     this(
@@ -29,6 +39,8 @@ public class UsuarioPrincipal implements UserDetails {
 
   public UsuarioPrincipal(Usuario usuario, List<String> permisos) {
     this.permisos = List.copyOf(permisos);
+    this.modalidad = usuario.getModalidad();
+    this.tipoAtencion = usuario.getTipoAtencion();
     this.id = usuario.getId();
     this.empresaId = usuario.getEmpresa().getId();
     this.nombre = usuario.getNombre();

@@ -29,6 +29,28 @@ public class Usuario {
   @Column(nullable = false)
   private Boolean activo = true;
 
+  @Column(nullable = false, length = 20)
+  private String modalidad = "COMERCIO";
+
+  @Column(name = "tipo_atencion", length = 20)
+  private String tipoAtencion;
+
+  public String getModalidad() {
+    return modalidad;
+  }
+
+  public void setModalidad(String modalidad) {
+    this.modalidad = modalidad;
+  }
+
+  public String getTipoAtencion() {
+    return tipoAtencion;
+  }
+
+  public void setTipoAtencion(String tipoAtencion) {
+    this.tipoAtencion = tipoAtencion;
+  }
+
   public Usuario() {}
 
   public Long getId() {

@@ -21,6 +21,8 @@ import Roles from "./pages/Roles";
 import { MiPlan, PagosAdmin } from "./pages/Planes";
 import { CatalogoAdmin, CatalogoNegocio } from "./pages/CatalogoComun";
 import Tributacion from "./pages/Tributacion";
+import Visualizaciones from "./pages/Visualizaciones";
+import Atencion from "./pages/Atencion";
 const empresaLinks = [
   ["Resumen", "/panel", "RESUMEN_VER"],
   ["Punto de venta", "/panel/pos", "VENTAS_GESTIONAR"],
@@ -47,6 +49,7 @@ function Shell({
 }) {
   const admin = session.rol === "ADMIN",
     superadmin = session.rol === "SUPERADMIN";
+  const atencion = !superadmin && session.modalidad === "ATENCION";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -67,10 +70,22 @@ function Shell({
         ["Empresas", "/admin/empresas"],
         ["Pagos y planes", "/admin/pagos"],
         ["Catálogo común", "/admin/catalogo"],
+        ["Visualizaciones de usuarios", "/admin/visualizaciones"],
       ]
-    : empresaLinks.filter((l) =>
-        l[2] === "ADMIN" ? admin : can(session, l[2]),
-      );
+    : atencion
+      ? [
+          ["Atención y servicios", "/atencion"],
+          ...(admin
+            ? [
+                ["Personal", "/atencion/usuarios"],
+                ["Roles", "/atencion/roles"],
+                ["Mi plan", "/atencion/plan"],
+              ]
+            : []),
+        ]
+      : empresaLinks.filter((l) =>
+          l[2] === "ADMIN" ? admin : can(session, l[2]),
+        );
   const home = links[0]?.[1] || "/sin-acceso";
   return (
     <div className="app-shell">
@@ -82,7 +97,11 @@ function Shell({
           ALSHA<span>FACTURAS</span>
         </NavLink>
         <p className="sidebar-caption">
-          {superadmin ? "Administración de plataforma" : "Gestión empresarial"}
+          {superadmin
+            ? "Administración de plataforma"
+            : atencion
+              ? "Atención y servicios"
+              : "Gestión empresarial"}
         </p>
         <button
           className="mobile-menu"
@@ -135,6 +154,27 @@ function Shell({
                 <Route path="/admin/empresas" element={<Empresas />} />
                 <Route path="/admin/pagos" element={<PagosAdmin />} />
                 <Route path="/admin/catalogo" element={<CatalogoAdmin />} />
+                <Route
+                  path="/admin/visualizaciones"
+                  element={<Visualizaciones />}
+                />
+              </>
+            ) : atencion ? (
+              <>
+                <Route
+                  path="/atencion"
+                  element={<Atencion session={session} />}
+                />
+                {admin && (
+                  <>
+                    <Route
+                      path="/atencion/usuarios"
+                      element={<Usuarios session={session} />}
+                    />
+                    <Route path="/atencion/roles" element={<Roles />} />
+                    <Route path="/atencion/plan" element={<MiPlan />} />
+                  </>
+                )}
               </>
             ) : (
               <>

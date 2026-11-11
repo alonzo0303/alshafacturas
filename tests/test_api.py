@@ -292,6 +292,49 @@ class ApiRegression(unittest.TestCase):
         self.assertEqual(self.b.request('/ventas/' + str(sale['id']) + '/anular', 'POST', {'motivo': 'intrusión'})[0], 404)
         self.assertEqual(self.stock(p), 4)
 
+    def test_visualizaciones_individuales_y_roles(self):
+        company, email, owner = self.company('Modalidades independientes')
+        before = owner.ok('/auth/me')
+        self.assertEqual(before['modalidad'], 'COMERCIO')
+        self.assertIsNone(before['tipoAtencion'])
+        staff = owner.ok('/usuarios', 'POST', {'nombre':'Barbero','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
+        producto = self.product(3, owner)
+        snapshots = {path:owner.ok(path) for path in ['/productos','/ventas','/compras','/inventario','/usuarios','/plan']}
+        base = f"/admin/visualizaciones?empresaId={company['id']}"
+        target = f"/admin/visualizaciones/{before['id']}?empresaId={company['id']}"
+        for client in [owner, self.vendor, self.b, Client()]:
+            self.assertIn(client.request(base)[0], (401,403))
+            self.assertIn(client.request(target,'PATCH',{'modalidad':'ATENCION','tipoAtencion':'BARBERIA'})[0], (401,403))
+        for body in [{}, {'modalidad':'OTRA'}, {'modalidad':'ATENCION'}, {'modalidad':'ATENCION','tipoAtencion':'OTRA'}, {'modalidad':'COMERCIO','tipoAtencion':'BARBERIA'}]:
+            self.assertEqual(self.platform.request(target,'PATCH',body)[0],400)
+        self.assertEqual(self.platform.request(f"/admin/visualizaciones/{before['id']}?empresaId={self.b_company['id']}",'PATCH',{'modalidad':'COMERCIO'})[0],404)
+        for tipo in ['BARBERIA','RESTAURANTE','OTROS_SERVICIOS']:
+            result=self.platform.ok(target,'PATCH',{'modalidad':'ATENCION','tipoAtencion':tipo})
+            self.assertEqual((result['modalidad'],result['tipoAtencion'],result['rol']),('ATENCION',tipo,'ADMIN'))
+            current=owner.ok('/auth/me')  # An already-open session reflects the saved selection.
+            self.assertEqual(current['tipoAtencion'],tipo)
+            self.assertEqual(current['permisos'],before['permisos'])
+        rows=self.platform.ok(base)
+        self.assertEqual(next(u for u in rows if u['id']==staff['id'])['modalidad'],'COMERCIO')
+        for path, snapshot in snapshots.items():
+            self.assertEqual(owner.ok(path),snapshot)
+        custom=owner.ok('/roles','POST',{'codigo':'R_BARBERO','nombre':'Barbero','permisos':['CLIENTES_GESTIONAR']})
+        owner.ok(f"/usuarios/{staff['id']}/rol",'PATCH',{'rol':'R_BARBERO'})
+        staffpath=f"/admin/visualizaciones/{staff['id']}?empresaId={company['id']}"
+        self.platform.ok(staffpath,'PATCH',{'modalidad':'ATENCION','tipoAtencion':'BARBERIA'})
+        employee=Client()
+        session=employee.login(company['ruc'],staff['correo'])
+        self.assertEqual(session['rol'],'R_BARBERO')
+        self.assertEqual(session['modalidad'],'ATENCION')
+        self.assertEqual(employee.request('/usuarios')[0],403)
+        self.assertEqual(employee.request('/roles')[0],403)
+        self.assertEqual(employee.request('/compras')[0],403)
+        self.platform.ok(target,'PATCH',{'modalidad':'COMERCIO','tipoAtencion':None})
+        self.assertEqual(owner.ok('/auth/me'),before)
+        self.assertEqual(self.stock(producto,owner),3)
+        root=self.platform.ok('/auth/me')
+        self.assertEqual(self.platform.request(f"/admin/visualizaciones/{root['id']}?empresaId={root['empresaId']}",'PATCH',{'modalidad':'COMERCIO'})[0],409)
+
     def test_roles_and_escalation(self):
         self.assertEqual(self.a.request('/empresas')[0], 403)
         self.assertEqual(self.vendor.request('/usuarios')[0], 403)
