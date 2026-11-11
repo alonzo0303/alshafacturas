@@ -1461,3 +1461,8 @@ a {
     display: none !important;
   }
 }
+.catalog-brand {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 8px 0;
+}

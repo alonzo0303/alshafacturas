@@ -11,6 +11,7 @@ export type Plantilla = {
   id: number;
   nombre: string;
   rubro: string;
+  marca?: string;
   descripcion?: string;
   activo: boolean;
   imagen_version?: string | null;
@@ -160,7 +161,7 @@ function ProductForm({
             <input
               name="marca"
               maxLength={100}
-              defaultValue={product?.marca || "Genérico"}
+              defaultValue={product?.marca || template?.marca || "Genérico"}
               required
             />
           </Field>

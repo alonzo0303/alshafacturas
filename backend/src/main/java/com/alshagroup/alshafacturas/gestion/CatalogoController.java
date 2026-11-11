@@ -27,7 +27,12 @@ public class CatalogoController {
       @NotBlank @Size(max = 200) String nombre,
       @NotBlank @Size(max = 100) String rubro,
       @Size(max = 500) String descripcion,
-      boolean activo) {}
+      boolean activo,
+      @Size(max = 100) String marca) {}
+
+  private String marca(String value) {
+    return value == null || value.isBlank() ? "Genérico" : value.trim();
+  }
 
   @GetMapping
   @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('PRODUCTOS_VER')")
@@ -49,13 +54,14 @@ public class CatalogoController {
         "INSERT INTO rubros_catalogo(nombre) VALUES (?) ON CONFLICT DO NOTHING", r.rubro().trim());
     Long id =
         db.queryForObject(
-            "INSERT INTO catalogo_comun(nombre,rubro,descripcion,activo) VALUES (?,?,?,?) RETURNING"
-                + " id",
+            "INSERT INTO catalogo_comun(nombre,rubro,descripcion,activo,marca) VALUES (?,?,?,?,?)"
+                + " RETURNING id",
             Long.class,
             r.nombre().trim(),
             r.rubro().trim(),
             r.descripcion(),
-            r.activo());
+            r.activo(),
+            marca(r.marca()));
     return db.queryForMap("SELECT * FROM catalogo_comun WHERE id=?", id);
   }
 
@@ -66,11 +72,13 @@ public class CatalogoController {
     db.update(
         "INSERT INTO rubros_catalogo(nombre) VALUES (?) ON CONFLICT DO NOTHING", r.rubro().trim());
     if (db.update(
-            "UPDATE catalogo_comun SET nombre=?,rubro=?,descripcion=?,activo=? WHERE id=?",
+            "UPDATE catalogo_comun SET"
+                + " nombre=?,rubro=?,descripcion=?,activo=?,marca=COALESCE(?,marca) WHERE id=?",
             r.nombre().trim(),
             r.rubro().trim(),
             r.descripcion(),
             r.activo(),
+            r.marca() == null ? null : marca(r.marca()),
             id)
         == 0)
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto común no encontrado");

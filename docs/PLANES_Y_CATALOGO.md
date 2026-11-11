@@ -20,9 +20,9 @@ Administrador tiene gestión completa; Vendedor registra ventas, gestiona client
 
 ## Productos comunes y mercancía propia
 
-SUPERADMIN administra **Catálogo común**: nombre, rubro, descripción y disponibilidad. Incluye plantillas genéricas iniciales para maquillaje, ferretería y abarrotes. Las plantillas no fijan precios, existencias, marcas ni códigos de fabricantes.
+SUPERADMIN administra **Catálogo común**: nombre, marca, rubro, descripción y disponibilidad. Incluye plantillas genéricas iniciales para maquillaje, ferretería y abarrotes. Las plantillas pueden proponer una marca, con Genérico como valor predeterminado. No fijan precios, existencias ni códigos de fabricantes.
 
-Una vez que SUPERADMIN habilita sus rubros desde Empresas, el negocio elige una plantilla y completa su precio, marca (por defecto **Genérico**), presentación o variante y código de barras. Se crea una copia propia: modificarla no altera la plantilla ni otros negocios. Se pueden crear varios productos de una plantilla, por ejemplo colores o marcas. Los códigos de barras y SKU son únicos dentro de cada negocio; el SKU se genera cuando se deja vacío.
+Una vez que SUPERADMIN habilita sus rubros desde Empresas, el negocio elige una plantilla y completa su precio, marca (inicialmente la de la plantilla, o **Genérico**), presentación o variante y código de barras. Se crea una copia propia: modificarla no altera la plantilla ni otros negocios. Se pueden crear varios productos de una plantilla, por ejemplo colores o marcas. Los códigos de barras y SKU son únicos dentro de cada negocio; el SKU se genera cuando se deja vacío.
 
 En **Registrar compra** se puede crear mercancía y añadirla al detalle sin pasar por Productos. Guardar el producto no ingresa existencias: confirmar la compra registra el movimiento. Un producto sin precio de venta puede recibir compras, pero no venderse hasta definirlo. El costo se ingresa explícitamente y no se toma del precio de venta. El último costo neto es una referencia, no una asignación automática.
 
