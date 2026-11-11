@@ -128,6 +128,7 @@ export function Productos() {
           }}
         >
           <ProductEditor
+            categories={data.map((p) => p.categoria)}
             product={editing || undefined}
             onSaved={() => {
               setEditing(null);

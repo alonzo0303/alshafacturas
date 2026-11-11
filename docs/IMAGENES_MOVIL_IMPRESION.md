@@ -43,3 +43,11 @@ La barra inferior de tablas es un control con un tirador visible: se puede arras
 Seleccionar **Foto del producto** muestra una vista previa. La imagen solo se almacena al confirmar **Guardar producto** o **Guardar** en la plantilla común. Se desactiva la confirmación mientras se prepara la imagen. Persiste en PostgreSQL junto con el sistema; al ejecutar localmente queda en la base local, y al desplegar en un servidor compartido queda en su base. Copiar o mover únicamente el código fuente no copia los datos ni las fotos: se necesita el respaldo de la base.
 
 **Leer código desde una imagen** (antes Escanear foto) es otra función: reconoce el código y no guarda esa imagen como foto de mercancía. Una foto nueva en una plantilla común no sustituye automáticamente las fotos de productos ya incorporados por los negocios.
+
+## Buscar rubros
+
+Los campos **Rubro** del catálogo y **Rubro del catálogo** permiten escribir para filtrar la lista sin distinguir mayúsculas o tildes: `ferreteria` encuentra `Ferretería`. Se puede elegir con ratón o flechas y Enter, cerrar con Escape y volver a Todos los rubros en el filtro del negocio. El selector muestra solamente los rubros de las plantillas autorizadas para ese negocio.
+
+En la edición/alta de plantilla común se puede elegir un rubro existente o escribir uno nuevo y confirmarlo con Guardar. En productos, Rubro / categoría ofrece las categorías del negocio y permite escribir una propia. Al editar se conserva el valor actual.
+
+En **Acceso al catálogo por rubro**, Buscar rubros para habilitar filtra las casillas. Las casillas marcadas que no coinciden con la búsqueda siguen seleccionadas y se guardan. Buscar no modifica permisos hasta confirmar Guardar acceso al catálogo.

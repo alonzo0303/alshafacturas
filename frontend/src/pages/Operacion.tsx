@@ -406,6 +406,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
           onClose={() => setEditor(null)}
         >
           <ProductEditor
+            categories={categories}
             template={editor.template}
             barcode={editor.barcode}
             purchase

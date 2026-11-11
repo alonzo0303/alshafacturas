@@ -68,3 +68,7 @@ La prueba de edición comprueba el mismo ID, RUC y estado; compara productos, ve
 El control de tabla se probó con arrastre real del ratón hasta el extremo y movimiento efectivo de scrollLeft, además de flechas y teclas Home/End. No se trata solo de un color sobre la tabla. Se conserva el desplazamiento táctil y se oculta la antigua barra nativa pequeña para evitar duplicarla.
 
 Las fotos se confirman al guardar el formulario; se impide confirmar mientras se prepara el archivo. El texto del lector distingue la lectura de un código desde imagen del almacenamiento de una foto de producto. No se ejecutaron migraciones nuevas ni se modificaron datos del equipo del usuario.
+
+## Actualización: búsqueda de rubros
+
+Compilación TypeScript/Vite y lint aprobados. Nueve recorridos de navegador aprobados; las dos pruebas de búsqueda/asignación se repitieron tras el ajuste final del selector y pasaron. Incluye búsqueda sin tilde/mayúsculas, selección con teclado sin enviar accidentalmente el formulario, volver a Todos los rubros, rubro nuevo, valor conservado al editar y casillas seleccionadas fuera del filtro. Se comprobó el selector a 320 px y axe A/AA sin infracciones en la pantalla probada. Solo cambia frontend; no requiere migración ni modifica datos existentes.

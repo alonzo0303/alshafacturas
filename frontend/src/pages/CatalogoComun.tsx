@@ -1,3 +1,5 @@
+import SearchChoice from "../components/SearchChoice";
+import { searchText } from "../lib/search";
 import { ProductImage, ImageEditor } from "../components/ProductImage";
 import { uploadImage } from "../lib/images";
 import { useState } from "react";
@@ -28,7 +30,7 @@ export function CatalogoPicker({
   const list = data.filter(
     (p) =>
       (!rubro || p.rubro === rubro) &&
-      `${p.nombre} ${p.rubro}`.toLowerCase().includes(search.toLowerCase()),
+      searchText(`${p.nombre} ${p.rubro}`).includes(searchText(search)),
   );
   return (
     <>
@@ -42,12 +44,11 @@ export function CatalogoPicker({
           onChange={(e) => setSearch(e.target.value)}
         />
         <Field label="Rubro">
-          <select value={rubro} onChange={(e) => setRubro(e.target.value)}>
-            <option value="">Todos los rubros</option>
-            {[...new Set(data.map((p) => p.rubro))].sort().map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
+          <SearchChoice
+            value={rubro}
+            onChange={setRubro}
+            options={data.map((p) => p.rubro)}
+          />
         </Field>
         <button type="button" onClick={() => void refresh()}>
           Actualizar catálogo
@@ -140,6 +141,7 @@ export function CatalogoAdmin() {
     ),
     [editing, setEditing] = useState<Plantilla | null>(null),
     [search, setSearch] = useState("");
+  const [rubroCatalogo, setRubroCatalogo] = useState("");
   const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [photo, setPhoto] = useState<File | null | undefined>();
   const [savedId, setSavedId] = useState<number | null>(null);
@@ -175,6 +177,7 @@ export function CatalogoAdmin() {
           }}
           onDone={() => {
             setEditing(null);
+            setRubroCatalogo("");
             setPhoto(undefined);
             setSavedId(null);
             setFormVersion((v) => v + 1);
@@ -201,11 +204,13 @@ export function CatalogoAdmin() {
               />
             </Field>
             <Field label="Rubro del catálogo">
-              <input
+              <SearchChoice
                 name="rubro"
-                maxLength={100}
+                value={rubroCatalogo}
+                onChange={setRubroCatalogo}
+                options={data.map((p) => p.rubro)}
+                allowCustom
                 required
-                defaultValue={editing?.rubro}
               />
             </Field>
             <Field label="Descripción (opcional)">
@@ -229,6 +234,7 @@ export function CatalogoAdmin() {
               type="button"
               onClick={() => {
                 setEditing(null);
+                setRubroCatalogo("");
                 setPhoto(undefined);
                 setSavedId(null);
                 setFormVersion((v) => v + 1);
@@ -256,9 +262,9 @@ export function CatalogoAdmin() {
           <Table headers={["Producto común", "Rubro", "Estado", "Acciones"]}>
             {data
               .filter((p) =>
-                `${p.nombre} ${p.rubro}`
-                  .toLowerCase()
-                  .includes(search.toLowerCase()),
+                searchText(`${p.nombre} ${p.rubro}`).includes(
+                  searchText(search),
+                ),
               )
               .map((p) => (
                 <tr key={p.id}>
@@ -280,6 +286,7 @@ export function CatalogoAdmin() {
                     <button
                       onClick={() => {
                         setEditing(p);
+                        setRubroCatalogo(p.rubro);
                         setPhoto(undefined);
                         setSavedId(null);
                         window.scrollTo({ top: 0 });

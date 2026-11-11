@@ -591,7 +591,13 @@ test("SUPERADMIN asigna el rubro visible para el negocio", async ({ page }) => {
     .getByLabel("Negocio para habilitar rubros")
     .selectOption(String(company.id));
   await page.getByLabel("Maquillaje", { exact: true }).uncheck();
+  await page.getByLabel("Buscar rubros para habilitar").fill("FERRETERIA");
   await page.getByLabel("Ferretería", { exact: true }).check();
+  await page.getByLabel("Buscar rubros para habilitar").fill("maq");
+  await expect(
+    page.getByLabel("Ferretería", { exact: true }),
+  ).not.toBeVisible();
+  await expect(page.getByLabel("Ferretería", { exact: true })).toBeChecked();
   await page
     .getByRole("button", { name: "Guardar acceso al catálogo", exact: true })
     .click();
@@ -617,9 +623,22 @@ test("SUPERADMIN asigna el rubro visible para el negocio", async ({ page }) => {
       exact: true,
     }),
   ).toHaveCount(0);
-  await expect(
-    page.getByLabel("Rubro", { exact: true }).locator("option"),
-  ).toHaveText(["Todos los rubros", "Ferretería"]);
+  const rubro = page.getByRole("combobox", { name: "Rubro", exact: true });
+  await rubro.click();
+  await expect(page.getByRole("option")).toHaveText([
+    "Todos los rubros",
+    "Ferretería",
+  ]);
+  await rubro.fill("FERRETERIA");
+  await expect(page.getByRole("option")).toHaveText(["Ferretería"]);
+  await rubro.press("ArrowDown");
+  await rubro.press("Enter");
+  await expect(rubro).toHaveValue("Ferretería");
+  await rubro.click();
+  await page
+    .getByRole("option", { name: "Todos los rubros", exact: true })
+    .click();
+  await expect(rubro).toHaveValue("Todos los rubros");
 });
 
 test("Editar negocio conserva su código y permite continuar con sus productos", async ({
@@ -692,4 +711,68 @@ test("Editar negocio conserva su código y permite continuar con sus productos",
   await expect(
     page.getByText("Mercadería que se conserva", { exact: true }),
   ).toBeVisible();
+});
+
+test("Buscar rubro del catálogo, elegir con teclado y crear uno propio", async ({
+  page,
+}) => {
+  await page.goto("/admin/login");
+  await page
+    .getByLabel("Correo electrónico")
+    .fill(process.env.TEST_SUPERADMIN_EMAIL!);
+  await page
+    .getByLabel("Contraseña", { exact: true })
+    .fill(process.env.TEST_SUPERADMIN_PASSWORD!);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Catálogo común", exact: true }).click();
+  const name = "Plantilla búsqueda " + randomUUID().slice(0, 8);
+  await page.getByLabel("Nombre del producto común").fill(name);
+  const rubro = page.getByRole("combobox", {
+    name: "Rubro del catálogo",
+    exact: true,
+  });
+  await rubro.fill("ferreteria");
+  await expect(page.getByRole("option")).toHaveText(["Ferretería"]);
+  await rubro.press("ArrowDown");
+  await rubro.press("Enter");
+  await expect(rubro).toHaveValue("Ferretería");
+  await expect(page.getByRole("row").filter({ hasText: name })).toHaveCount(0);
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  const row = page.getByRole("row").filter({ hasText: name });
+  await expect(row).toBeVisible();
+  await row.getByRole("button", { name: /Editar/ }).click();
+  await expect(rubro).toHaveValue("Ferretería");
+  await page
+    .getByRole("button", { name: "Cancelar edición", exact: true })
+    .click();
+  const custom = "Rubro propio " + randomUUID().slice(0, 8);
+  await page.getByLabel("Nombre del producto común").fill(name + " nuevo");
+  await rubro.fill(custom);
+  await expect(
+    page.getByText("Sin coincidencias. Puedes guardar este rubro nuevo.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(
+    page.getByRole("row").filter({ hasText: name + " nuevo" }),
+  ).toContainText(custom);
+  await page.setViewportSize({ width: 320, height: 900 });
+  await rubro.fill("ferre");
+  await expect(
+    page.getByRole("option", { name: "Ferretería", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBeTruthy();
+  await rubro.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
 });

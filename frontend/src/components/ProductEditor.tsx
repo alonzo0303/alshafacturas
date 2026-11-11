@@ -1,3 +1,4 @@
+import SearchChoice from "./SearchChoice";
 import { ImageEditor } from "./ProductImage";
 import { uploadImage } from "../lib/images";
 import { useState, type FormEvent } from "react";
@@ -24,6 +25,7 @@ type Props = {
   template?: Plantilla;
   barcode?: string;
   purchase?: boolean;
+  categories?: string[];
   onSaved: (
     product: Producto,
     initial?: { cantidad: number; costo: number },
@@ -47,6 +49,7 @@ function ProductForm({
   onSaved,
   onCancel,
   config,
+  categories = [],
 }: Props & { config: TaxConfig }) {
   const [code, setCode] = useState(product?.codigo_barras || barcode || ""),
     [tax, setTax] = useState(
@@ -58,6 +61,9 @@ function ProductForm({
     ),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [category, setCategory] = useState(
+    product?.categoria || template?.rubro || "General",
+  );
   const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [existing, setExisting] = useState(product);
   const [photo, setPhoto] = useState<File | null | undefined>();
@@ -159,10 +165,17 @@ function ProductForm({
             />
           </Field>
           <Field label="Rubro / categoría">
-            <input
+            <SearchChoice
               name="categoria"
-              maxLength={100}
-              defaultValue={product?.categoria || template?.rubro || "General"}
+              value={category}
+              onChange={setCategory}
+              options={[
+                ...categories,
+                product?.categoria || "",
+                template?.rubro || "",
+                "General",
+              ]}
+              allowCustom
               required
             />
           </Field>

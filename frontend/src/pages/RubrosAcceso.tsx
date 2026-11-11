@@ -1,3 +1,4 @@
+import { searchText } from "../lib/search";
 import { useState } from "react";
 import { api, type Empresa } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -5,6 +6,7 @@ import { Field, Form, ErrorNotice } from "../components/ui";
 type Access = { disponibles: string[]; habilitados: string[] };
 function Selector({ empresa }: { empresa: string }) {
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
   const { data, error, loading, refresh } = useData(
     () => api<Access>(`/empresas/${empresa}/rubros-catalogo`),
     null,
@@ -30,9 +32,23 @@ function Selector({ empresa }: { empresa: string }) {
               void refresh();
             }}
           >
+            <Field label="Buscar rubros para habilitar">
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Por ejemplo: ferretería"
+              />
+            </Field>
+            {!data.disponibles.some((r) =>
+              searchText(r).includes(searchText(search)),
+            ) && <p role="status">No se encontraron rubros.</p>}
             <div className="permission-list">
               {data.disponibles.map((r) => (
-                <label key={r}>
+                <label
+                  key={r}
+                  hidden={!searchText(r).includes(searchText(search))}
+                >
                   <input
                     name="rubros"
                     type="checkbox"
@@ -44,9 +60,9 @@ function Selector({ empresa }: { empresa: string }) {
               ))}
             </div>
             <p className="hint">
-              Sin rubros seleccionados, el negocio no verá plantillas comunes.
-              Sus productos propios se conservan. Puedes habilitar más de un
-              rubro.
+              La selección se conserva al buscar. Sin rubros seleccionados, el
+              negocio no verá plantillas comunes. Sus productos propios se
+              conservan. Puedes habilitar más de un rubro.
             </p>
           </Form>
         )
