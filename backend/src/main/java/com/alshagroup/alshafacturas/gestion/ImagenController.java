@@ -30,7 +30,8 @@ public class ImagenController {
         db.queryForList(
             catalogo
                 ? "SELECT id FROM catalogo_comun WHERE id=?"
-                : "SELECT id FROM productos WHERE id=? AND empresa_id=?",
+                : "SELECT id FROM productos WHERE id=? AND empresa_id=? AND local_id="
+                    + LocalesService.actual(),
             catalogo ? new Object[] {id} : new Object[] {id, p.getEmpresaId()});
     if (rows.isEmpty()
         || catalogo && !"SUPERADMIN".equals(p.getRol()) && !rubros.permitido(p.getEmpresaId(), id))

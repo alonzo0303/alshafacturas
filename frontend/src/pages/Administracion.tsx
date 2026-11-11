@@ -168,6 +168,7 @@ export function Empresas() {
               api(`/empresas/${editing.id}`, "PUT", {
                 razonSocial: d.get("razonSocial"),
                 direccion: d.get("direccion"),
+                ruc: d.get("ruc") || null,
               })
             }
             onDone={() => {
@@ -193,15 +194,22 @@ export function Empresas() {
                 defaultValue={editing.direccion || ""}
               />
             </Field>
-            <Field label="RUC actual">
+            <Field
+              label={editing.ruc ? "RUC actual" : "Agregar RUC (opcional)"}
+            >
               <input
-                readOnly
-                value={editing.ruc || "Sin RUC · Gestión interna"}
+                name="ruc"
+                readOnly={!!editing.ruc}
+                defaultValue={editing.ruc || ""}
+                inputMode="numeric"
+                pattern="[0-9]{11}"
+                maxLength={11}
               />
             </Field>
             <p className="hint">
-              Esta edición cambia nombre y dirección. El RUC, las cuentas de
-              acceso y el plan se conservan.
+              Puedes agregar el RUC si el negocio no tiene uno. Los documentos
+              anteriores conservan sus importes y tratamiento tributario.
+              Registrar RUC no activa SUNAT automáticamente.
             </p>
           </Form>
         </Modal>

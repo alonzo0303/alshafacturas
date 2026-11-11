@@ -6,7 +6,9 @@ export type Session = {
   rol: string;
   permisos: string[];
   modalidad: "COMERCIO" | "ATENCION";
-  tipoAtencion: "RESTAURANTE" | "BARBERIA" | "OTROS_SERVICIOS" | null;
+  tipoAtencion: string | null;
+  localId: number | null;
+  localNombre: string | null;
 };
 export class ApiError extends Error {
   status: number;
@@ -15,6 +17,7 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+let currentLocal: number | null = null;
 type Csrf = { headerName: string; token: string };
 async function transport(
   path: string,
@@ -41,6 +44,7 @@ export async function api<T>(
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
+  if (currentLocal !== null) headers["X-Local-Id"] = String(currentLocal);
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (!["GET", "HEAD"].includes(method)) {
     const response = await transport("/api/auth/csrf", {
@@ -80,7 +84,10 @@ export async function api<T>(
     );
   }
   const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  const result = text ? JSON.parse(text) : undefined;
+  if (result && ["/auth/me", "/auth/login", "/auth/admin/login"].includes(path))
+    currentLocal = result.localId ?? null;
+  return result as T;
 }
 export const money = (value: number) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(
@@ -137,6 +144,9 @@ export type Venta = {
   metodo_pago: string;
   cliente?: string;
   cliente_documento?: string;
+  local_id?: number;
+  local_nombre?: string;
+  local_direccion?: string;
   razon_social?: string;
   ruc?: string;
   direccion?: string;

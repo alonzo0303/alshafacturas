@@ -82,3 +82,7 @@ La interfaz usa el morado #7C3AED de Alsha Group. Incluye fotos de productos/pla
 ## Visualización por usuario
 
 SUPERADMIN asigna **Comercio** o **Atención y servicios** a cada usuario, con tipo Restaurante, Barbería u Otros servicios. Los usuarios existentes conservan Comercio. Atención tiene un inicio independiente y acceso administrativo a personal, roles y plan; sus operaciones específicas se desarrollarán por separado. Consulta la [guía de visualizaciones](docs/MODALIDADES_USUARIO.md).
+
+## Servicios, sucursales y accesos
+
+Incluye tipos de atención ampliables, catálogo y cobro interno de servicios sin stock, selector de negocio para correo compartido, edición de correo/contraseña por SUPERADMIN, incorporación de RUC y locales con datos operativos separados bajo una empresa. Consulta la [guía de uso y límites](docs/SERVICIOS_LOCALES_ACCESOS.md).

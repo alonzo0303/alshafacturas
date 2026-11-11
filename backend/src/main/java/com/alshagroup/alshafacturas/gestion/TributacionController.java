@@ -78,14 +78,18 @@ public class TributacionController {
         db.queryForMap(
             "SELECT COALESCE(SUM(igv),0) AS igv_ventas_registrado,COALESCE(SUM(igv) FILTER(WHERE"
                 + " estado_fiscal='PRODUCCION_ACEPTADO'),0) AS igv_ventas_con_cdr FROM ventas WHERE"
-                + " empresa_id=? AND estado='CONFIRMADA' AND fecha>=? AND fecha<?",
+                + " local_id="
+                + LocalesService.actual()
+                + " AND empresa_id=? AND estado='CONFIRMADA' AND fecha>=? AND fecha<?",
             p.getEmpresaId(),
             start,
             end));
     result.putAll(
         db.queryForMap(
             "SELECT COALESCE(SUM(igv),0) AS igv_compras_registrado,COALESCE(SUM(igv) FILTER(WHERE"
-                + " credito_fiscal),0) AS credito_fiscal_potencial FROM compras WHERE empresa_id=?"
+                + " credito_fiscal),0) AS credito_fiscal_potencial FROM compras WHERE local_id="
+                + LocalesService.actual()
+                + " AND empresa_id=?"
                 + " AND fecha>=? AND fecha<?",
             p.getEmpresaId(),
             start,

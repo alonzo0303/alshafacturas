@@ -18,6 +18,8 @@ public class RolesService {
 
   public static final Set<String> PERMISOS =
       Set.of(
+          "SERVICIOS_VER",
+          "SERVICIOS_EDITAR",
           "RESUMEN_VER",
           "PRODUCTOS_VER",
           "PRODUCTOS_EDITAR",
@@ -105,6 +107,7 @@ public class RolesService {
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST, "Código reservado o permisos no válidos");
     var permisos = new HashSet<>(r.permisos());
+    if (permisos.contains("SERVICIOS_EDITAR")) permisos.add("SERVICIOS_VER");
     if (permisos.contains("INVENTARIO_EDITAR")) permisos.add("INVENTARIO_VER");
     if (permisos.contains("RESUMEN_VER")
         || permisos.contains("PRODUCTOS_EDITAR")

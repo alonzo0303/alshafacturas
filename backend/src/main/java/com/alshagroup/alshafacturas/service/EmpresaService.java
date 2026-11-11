@@ -62,10 +62,27 @@ public class EmpresaService {
   public record DatosRequest(
       @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 200)
           String razonSocial,
-      @jakarta.validation.constraints.Size(max = 255) String direccion) {}
+      @jakarta.validation.constraints.Size(max = 255) String direccion,
+      @jakarta.validation.constraints.Pattern(regexp = "(?:[0-9]{11})?") String ruc) {}
 
   @org.springframework.transaction.annotation.Transactional
   public Empresa editarDatos(Long id, DatosRequest r) {
+    var actual =
+        empresaRepository
+            .paraEditar(id)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "La empresa no existe"));
+    String nuevo = r.ruc() == null || r.ruc().isBlank() ? null : r.ruc().trim();
+    if (nuevo != null && !nuevo.equals(actual.getRuc())) {
+      if (actual.getRuc() != null)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT, "El RUC ya registrado no se cambia desde esta opción");
+      if ("00000000000".equals(nuevo) || empresaRepository.existsByRuc(nuevo))
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "El RUC no está disponible");
+      actual.setRuc(nuevo);
+      actual.habilitarRuc();
+      empresaRepository.saveAndFlush(actual);
+    }
     if (empresaRepository.editarDatos(
             id, r.razonSocial().trim(), r.direccion() == null ? null : r.direccion().trim())
         == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "La empresa no existe");

@@ -36,7 +36,7 @@ public class VisualizacionController {
 
   public record Seleccion(
       @NotNull @Pattern(regexp = "COMERCIO|ATENCION") String modalidad,
-      @Pattern(regexp = "RESTAURANTE|BARBERIA|OTROS_SERVICIOS") String tipoAtencion) {}
+      @jakarta.validation.constraints.Size(max = 20) String tipoAtencion) {}
 
   @GetMapping
   @Transactional(readOnly = true)
@@ -58,6 +58,13 @@ public class VisualizacionController {
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST,
           "Elige un tipo para Atención y servicios; Comercio no utiliza tipo de atención");
+    if (seleccion.tipoAtencion() != null
+        && db.queryForObject(
+                "SELECT count(*) FROM tipos_atencion WHERE codigo=? AND activo",
+                Long.class,
+                seleccion.tipoAtencion())
+            != 1)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tipo de atención no válido");
     var usuario =
         usuarios
             .findByIdAndEmpresaId(id, empresaId)
@@ -81,6 +88,52 @@ public class VisualizacionController {
         Boolean.TRUE.equals(usuario.getActivo()),
         seleccion.modalidad(),
         seleccion.tipoAtencion());
+  }
+
+  public record Credenciales(
+      @jakarta.validation.constraints.NotBlank
+          @jakarta.validation.constraints.Email
+          @jakarta.validation.constraints.Size(max = 150)
+          String correo,
+      @jakarta.validation.constraints.Size(max = 72) String password) {}
+
+  @PatchMapping("/{id}/credenciales")
+  @Transactional
+  public void credenciales(
+      @PathVariable Long id, @RequestParam Long empresaId, @Valid @RequestBody Credenciales r) {
+    var user =
+        usuarios
+            .findByIdAndEmpresaId(id, empresaId)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+    if ("SUPERADMIN".equals(user.getRol()))
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Esta opción es para cuentas de negocios");
+    String correo = r.correo().trim().toLowerCase(java.util.Locale.ROOT);
+    if (usuarios.existsByEmpresaIdAndCorreo(empresaId, correo) && !correo.equals(user.getCorreo()))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Ese correo ya pertenece a otra cuenta de esta empresa");
+    String password = r.password();
+    if (password != null && !password.isEmpty()) {
+      if (password.length() < 8
+          || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "La contraseña requiere al menos 8 caracteres y hasta 72 bytes");
+      db.update(
+          "UPDATE usuarios SET correo=?,password_hash=?,credenciales_version=credenciales_version+1"
+              + " WHERE id=? AND empresa_id=?",
+          correo,
+          new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(password),
+          id,
+          empresaId);
+    } else if (!correo.equals(user.getCorreo()))
+      db.update(
+          "UPDATE usuarios SET correo=?,credenciales_version=credenciales_version+1 WHERE id=? AND"
+              + " empresa_id=?",
+          correo,
+          id,
+          empresaId);
   }
 
   private VisualizacionUsuario respuesta(com.alshagroup.alshafacturas.entity.Usuario u) {

@@ -3,6 +3,7 @@ package com.alshagroup.alshafacturas.entity;
 import jakarta.persistence.*;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "usuarios")
 public class Usuario {
 
@@ -49,6 +50,13 @@ public class Usuario {
 
   public void setTipoAtencion(String tipoAtencion) {
     this.tipoAtencion = tipoAtencion;
+  }
+
+  @Column(name = "credenciales_version", nullable = false)
+  private long credencialesVersion;
+
+  public long getCredencialesVersion() {
+    return credencialesVersion;
   }
 
   public Usuario() {}

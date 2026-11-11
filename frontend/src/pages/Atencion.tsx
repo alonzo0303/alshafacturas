@@ -1,18 +1,24 @@
 import { Link } from "react-router-dom";
 import { type Session } from "../lib/api";
-import { tiposAtencion } from "../lib/modalidades";
-import { PageTitle } from "../components/ui";
+import { api } from "../lib/api";
+import { useData } from "../lib/useData";
+import { PageTitle, ErrorNotice } from "../components/ui";
 
 export default function Atencion({ session }: { session: Session }) {
-  const tipo = session.tipoAtencion
-    ? tiposAtencion[session.tipoAtencion]
-    : "Atención";
+  const tipos = useData(
+    () => api<{ codigo: string; nombre: string }[]>("/tipos-atencion"),
+    [],
+  );
+  const tipo =
+    tipos.data.find((t) => t.codigo === session.tipoAtencion)?.nombre ||
+    "Atención";
   return (
     <>
       <PageTitle
         title={tipo}
         description="Atención y servicios · Tu espacio de trabajo en AlshaFacturas."
       />
+      <ErrorNotice message={tipos.error} />
       <section className="surface">
         <h2>Tu acceso</h2>
         <dl className="atencion-access">
@@ -34,9 +40,9 @@ export default function Atencion({ session }: { session: Session }) {
           </div>
         </dl>
         <p>
-          Este espacio está separado de Comercio. Las funciones de{" "}
-          {tipo.toLocaleLowerCase("es")} se están desarrollando aquí; este
-          apartado todavía no registra operaciones de atención.
+          Gestiona los servicios, cobros y ventas de este local desde el menú.
+          Las citas, mesas y comandas se desarrollarán en sus módulos
+          específicos.
         </p>
       </section>
       {session.rol === "ADMIN" ? (

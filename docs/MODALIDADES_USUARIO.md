@@ -12,7 +12,7 @@ La migración V10 añade únicamente `modalidad` y `tipo_atencion` a usuarios; a
 
 **Modalidad no es permiso ni una separación de datos.** La empresa sigue delimitando los datos y el rol sigue delimitando las operaciones permitidas por la API. Ocultar las rutas de Comercio en Atención no revoca permisos comerciales previamente otorgados: sus endpoints siguen aplicando los permisos existentes. La modalidad no altera plan, pago, cupos, productos, fotos, existencias, compras ni ventas. Los planes mantienen sus precios de S/35, S/50 y S/70 y sus límites actuales.
 
-Esta entrega prepara la asignación y el espacio separado acordados. No implementa agendas, comisiones, mesas, comandas, recetas ni cobro de servicios. Los permisos específicos de esas funciones se definirán al desarrollarlas; los roles personalizados existentes pueden utilizarse para organizar el personal desde ahora.
+El apartado ya permite registrar y cobrar servicios y crear tipos de atención adicionales. Consulta [Servicios, sucursales y accesos](SERVICIOS_LOCALES_ACCESOS.md). Las agendas, comisiones, mesas, comandas y recetas se desarrollarán por separado. Los roles incluyen permisos de servicios.
 
 ## Verificación
 

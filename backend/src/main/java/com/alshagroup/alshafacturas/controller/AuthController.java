@@ -25,18 +25,21 @@ public class AuthController {
   private final SessionAuthenticationStrategy sessions;
   private final EmpresaRepository empresas;
   private final UsuarioRepository users;
+  private final com.alshagroup.alshafacturas.gestion.LocalesService locales;
 
   public AuthController(
       AuthenticationManager m,
       SecurityContextRepository c,
       SessionAuthenticationStrategy s,
       EmpresaRepository e,
-      UsuarioRepository u) {
+      UsuarioRepository u,
+      com.alshagroup.alshafacturas.gestion.LocalesService locales) {
     manager = m;
     contexts = c;
     sessions = s;
     empresas = e;
     users = u;
+    this.locales = locales;
   }
 
   @GetMapping("/csrf")
@@ -79,6 +82,26 @@ public class AuthController {
     return establish(selected, req, res);
   }
 
+  @PostMapping("/negocios")
+  public java.util.List<java.util.Map<String, Object>> negocios(
+      @Valid @RequestBody LoginRequest r) {
+    var matches = new java.util.ArrayList<java.util.Map<String, Object>>();
+    for (var u : users.findByCorreoAndActivoTrue(r.correo().trim().toLowerCase(Locale.ROOT))) {
+      if ("SUPERADMIN".equals(u.getRol())) continue;
+      try {
+        manager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                u.getEmpresa().getId() + ":" + r.correo(), r.password()));
+        matches.add(
+            java.util.Map.of(
+                "id", u.getEmpresa().getId(), "nombre", u.getEmpresa().getRazonSocial()));
+      } catch (AuthenticationException ignored) {
+      }
+    }
+    if (matches.isEmpty()) throw bad();
+    return matches;
+  }
+
   @PostMapping("/admin/login")
   public LoginResponse admin(
       @Valid @RequestBody LoginRequest r, HttpServletRequest req, HttpServletResponse res) {
@@ -108,7 +131,9 @@ public class AuthController {
   private LoginResponse establish(
       Authentication auth, HttpServletRequest req, HttpServletResponse res) {
     var p = (UsuarioPrincipal) auth.getPrincipal();
+    locales.seleccionar(p, null);
     sessions.onAuthentication(auth, req, res);
+    req.getSession().setAttribute("localId", p.getLocalId());
     var context = SecurityContextHolder.createEmptyContext();
     context.setAuthentication(auth);
     SecurityContextHolder.setContext(context);
@@ -125,7 +150,9 @@ public class AuthController {
         p.getRol(),
         p.getPermisos(),
         p.getModalidad(),
-        p.getTipoAtencion());
+        p.getTipoAtencion(),
+        p.getLocalId(),
+        p.getLocalNombre());
   }
 
   private ResponseStatusException bad() {

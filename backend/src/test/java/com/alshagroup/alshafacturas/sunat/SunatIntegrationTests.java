@@ -47,6 +47,7 @@ class SunatIntegrationTests {
     r.add("SUNAT_CONFIG_DIR", DIRECTORY::toString);
   }
 
+  @Autowired com.alshagroup.alshafacturas.gestion.LocalesService locales;
   @Autowired JdbcTemplate db;
   @Autowired EmpresaRepository empresas;
   @Autowired ComercialService comercial;
@@ -117,6 +118,8 @@ class SunatIntegrationTests {
     u.setRol("ADMIN");
     u.setActivo(true);
     principal = new UsuarioPrincipal(u);
+    locales.seleccionar(principal, null);
+    contextoLocal();
     cliente =
         ((Number)
                 comercial
@@ -124,6 +127,19 @@ class SunatIntegrationTests {
                         empresa, null, new ClienteRequest(RUC, "Cliente de prueba", null, null))
                     .get("id"))
             .longValue();
+  }
+
+  @org.junit.jupiter.api.BeforeEach
+  void contextoLocal() {
+    org.springframework.security.core.context.SecurityContextHolder.getContext()
+        .setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal, null, principal.getAuthorities()));
+  }
+
+  @org.junit.jupiter.api.AfterEach
+  void limpiarContexto() {
+    org.springframework.security.core.context.SecurityContextHolder.clearContext();
   }
 
   Map<String, Object> venta(String tipo) {
@@ -343,6 +359,35 @@ class SunatIntegrationTests {
   void cleanSecrets() throws Exception {
     try (var paths = Files.walk(DIRECTORY)) {
       for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p);
+    }
+  }
+
+  @org.junit.jupiter.api.Test
+  void fiscalDocumentsStayInsideSelectedLocal() throws Exception {
+    accepted();
+    var sale = venta("FACTURA");
+    Long ventaId = ((Number) sale.get("id")).longValue();
+    var prepared = sunat.emitir(principal, ventaId);
+    Long doc = ((Number) prepared.get("id")).longValue();
+    Long original = principal.getLocalId();
+    String nombre = principal.getLocalNombre();
+    Long otro =
+        db.queryForObject(
+            "INSERT INTO locales(empresa_id,nombre) VALUES (?,?) RETURNING id",
+            Long.class,
+            principal.getEmpresaId(),
+            "Otro local " + UUID.randomUUID());
+    principal.seleccionarLocal(otro, "Otro local");
+    org.mockito.Mockito.clearInvocations(soap);
+    try {
+      assertTrue(sunat.listar(principal).isEmpty());
+      assertThrows(ResponseStatusException.class, () -> sunat.archivo(principal, doc, "xml"));
+      assertThrows(ResponseStatusException.class, () -> sunat.consultar(principal, doc));
+      assertThrows(ResponseStatusException.class, () -> sunat.reintentar(principal, doc));
+      assertThrows(ResponseStatusException.class, () -> sunat.emitir(principal, ventaId));
+      org.mockito.Mockito.verifyNoInteractions(soap);
+    } finally {
+      principal.seleccionarLocal(original, nombre);
     }
   }
 }

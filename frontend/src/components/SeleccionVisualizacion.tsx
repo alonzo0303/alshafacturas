@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, type Session } from "../lib/api";
-import { tiposAtencion } from "../lib/modalidades";
+
 import { ErrorNotice, Field } from "./ui";
 type Usuario = Session & { activo: boolean };
 
@@ -8,7 +8,9 @@ export default function SeleccionUsuario({
   usuario,
   empresaId,
   onSaved,
+  tipos,
 }: {
+  tipos: { codigo: string; nombre: string }[];
   usuario: Usuario;
   empresaId: number;
   onSaved: (usuario: Usuario) => void;
@@ -85,7 +87,7 @@ export default function SeleccionUsuario({
                   setMensaje("");
                 }}
               >
-                {Object.entries(tiposAtencion).map(([value, label]) => (
+                {tipos.map(({ codigo: value, nombre: label }) => (
                   <option key={value} value={value}>
                     {label}
                   </option>

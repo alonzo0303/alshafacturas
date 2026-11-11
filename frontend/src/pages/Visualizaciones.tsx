@@ -1,12 +1,21 @@
 import { useState } from "react";
 import { api, type Empresa, type Session } from "../lib/api";
+import EditarCredenciales from "../components/EditarCredenciales";
+import { Form } from "../components/ui";
 import SeleccionUsuario from "../components/SeleccionVisualizacion";
 import { useData } from "../lib/useData";
 import { Empty, ErrorNotice, Field, PageTitle } from "../components/ui";
 
 type Usuario = Session & { activo: boolean };
 
-function UsuariosEmpresa({ empresaId }: { empresaId: number }) {
+function UsuariosEmpresa({
+  empresaId,
+  tipos,
+}: {
+  empresaId: number;
+  tipos: { codigo: string; nombre: string }[];
+}) {
+  const [credenciales, setCredenciales] = useState<Usuario | null>(null);
   const { data, loading, error, refresh } = useData(
     () => api<Usuario[]>(`/admin/visualizaciones?empresaId=${empresaId}`),
     [],
@@ -42,22 +51,41 @@ function UsuariosEmpresa({ empresaId }: { empresaId: number }) {
           />
         </Field>
       </section>
+      {credenciales && (
+        <EditarCredenciales
+          usuario={credenciales}
+          empresaId={empresaId}
+          onClose={() => setCredenciales(null)}
+          onDone={() => {
+            setCredenciales(null);
+            setGuardados({});
+            setRevision((r) => r + 1);
+            void refresh();
+          }}
+        />
+      )}
       <ErrorNotice message={error} />
       {loading ? (
         <p role="status">Cargando usuarios…</p>
       ) : usuarios.length ? (
         usuarios.map((u) => (
-          <SeleccionUsuario
-            key={`${u.id}-${revision}`}
-            usuario={guardados[u.id] || u}
-            empresaId={empresaId}
-            onSaved={(actualizado) =>
-              setGuardados((prev) => ({
-                ...prev,
-                [actualizado.id]: actualizado,
-              }))
-            }
-          />
+          <div key={`${u.id}-${revision}`}>
+            <SeleccionUsuario
+              key={`${u.id}-${revision}`}
+              tipos={tipos}
+              usuario={guardados[u.id] || u}
+              empresaId={empresaId}
+              onSaved={(actualizado) =>
+                setGuardados((prev) => ({
+                  ...prev,
+                  [actualizado.id]: actualizado,
+                }))
+              }
+            />
+            <button onClick={() => setCredenciales(guardados[u.id] || u)}>
+              Editar correo y contraseña de {u.nombre}
+            </button>
+          </div>
         ))
       ) : (
         <Empty>No hay usuarios que coincidan.</Empty>
@@ -67,6 +95,10 @@ function UsuariosEmpresa({ empresaId }: { empresaId: number }) {
 }
 
 export default function Visualizaciones() {
+  const tipos = useData(
+    () => api<{ codigo: string; nombre: string }[]>("/tipos-atencion"),
+    [],
+  );
   const { data, loading, error, refresh } = useData(
     () => api<Empresa[]>("/empresas"),
     [],
@@ -78,7 +110,24 @@ export default function Visualizaciones() {
         title="Visualizaciones de usuarios"
         description="Asigna a cada persona su modalidad y tipo de atención."
       />
-      <ErrorNotice message={error} />
+      <ErrorNotice message={error || tipos.error} />
+      <section className="surface">
+        <h2>Agregar tipo de atención</h2>
+        <Form
+          label="Agregar tipo"
+          onSave={(d) => api("/tipos-atencion", "POST", Object.fromEntries(d))}
+          onDone={() => void tipos.refresh()}
+        >
+          <Field label="Nombre del tipo de atención">
+            <input
+              name="nombre"
+              required
+              maxLength={100}
+              placeholder="Por ejemplo: Spa o Discoteca"
+            />
+          </Field>
+        </Form>
+      </section>
       <section className="surface">
         <div className="section-toolbar">
           <h2>Seleccionar negocio</h2>
@@ -109,7 +158,11 @@ export default function Visualizaciones() {
         </p>
       </section>
       {empresaId && (
-        <UsuariosEmpresa key={empresaId} empresaId={Number(empresaId)} />
+        <UsuariosEmpresa
+          key={empresaId}
+          empresaId={Number(empresaId)}
+          tipos={tipos.data}
+        />
       )}
     </>
   );

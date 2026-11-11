@@ -12,6 +12,27 @@ public class UsuarioPrincipal implements UserDetails {
     return nombre;
   }
 
+  private Long localId;
+  private String localNombre;
+  private long credencialesVersion;
+
+  public Long getLocalId() {
+    return localId;
+  }
+
+  public String getLocalNombre() {
+    return localNombre;
+  }
+
+  public long getCredencialesVersion() {
+    return credencialesVersion;
+  }
+
+  public void seleccionarLocal(Long id, String nombre) {
+    localId = id;
+    localNombre = nombre;
+  }
+
   private final Long id;
   private final Long empresaId;
   private final String nombre;
@@ -42,6 +63,7 @@ public class UsuarioPrincipal implements UserDetails {
     this.modalidad = usuario.getModalidad();
     this.tipoAtencion = usuario.getTipoAtencion();
     this.id = usuario.getId();
+    this.credencialesVersion = usuario.getCredencialesVersion();
     this.empresaId = usuario.getEmpresa().getId();
     this.nombre = usuario.getNombre();
     this.correo = usuario.getCorreo();

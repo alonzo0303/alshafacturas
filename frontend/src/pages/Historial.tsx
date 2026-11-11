@@ -6,9 +6,11 @@ import Recibo from "./Recibo";
 export function Ventas({
   admin,
   fiscal = false,
+  atencion = false,
 }: {
   admin: boolean;
   fiscal?: boolean;
+  atencion?: boolean;
 }) {
   const { data, loading, error, refresh } = useData(
     () => api<Venta[]>("/ventas"),
@@ -42,7 +44,9 @@ export function Ventas({
   }
   async function anular(v: Venta) {
     const motivo = window.prompt(
-      `Motivo de anulación de ${v.numero}. Se devolverán las unidades al inventario.`,
+      atencion
+        ? `Motivo de anulación de ${v.numero}. Los servicios no generan movimientos de almacén.`
+        : `Motivo de anulación de ${v.numero}. Se devolverán las unidades al inventario.`,
     );
     if (!motivo?.trim()) return;
     setBusy(true);

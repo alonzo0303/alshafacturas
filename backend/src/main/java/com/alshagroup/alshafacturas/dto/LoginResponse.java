@@ -8,4 +8,6 @@ public record LoginResponse(
     String rol,
     java.util.List<String> permisos,
     String modalidad,
-    String tipoAtencion) {}
+    String tipoAtencion,
+    Long localId,
+    String localNombre) {}

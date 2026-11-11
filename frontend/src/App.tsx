@@ -22,6 +22,10 @@ import { MiPlan, PagosAdmin } from "./pages/Planes";
 import { CatalogoAdmin, CatalogoNegocio } from "./pages/CatalogoComun";
 import Tributacion from "./pages/Tributacion";
 import Visualizaciones from "./pages/Visualizaciones";
+import LocalesAdmin, { LocalesNegocio } from "./pages/Locales";
+import SelectorLocal from "./components/SelectorLocal";
+import Servicios from "./pages/Servicios";
+import CobrarServicios from "./pages/CobrarServicios";
 import Atencion from "./pages/Atencion";
 const empresaLinks = [
   ["Resumen", "/panel", "RESUMEN_VER"],
@@ -35,6 +39,7 @@ const empresaLinks = [
   ["Compras", "/panel/compras", "COMPRAS_GESTIONAR"],
   ["Facturación electrónica", "/panel/facturacion", "FACTURACION_VER"],
   ["IGV y compras", "/panel/tributacion", "IMPUESTOS_VER"],
+  ["Locales", "/panel/locales", "ADMIN"],
   ["Usuarios", "/panel/usuarios", "ADMIN"],
   ["Roles", "/panel/roles", "ADMIN"],
   ["Mi plan", "/panel/plan", "ADMIN"],
@@ -70,13 +75,24 @@ function Shell({
         ["Empresas", "/admin/empresas"],
         ["Pagos y planes", "/admin/pagos"],
         ["Catálogo común", "/admin/catalogo"],
+        ["Sucursales", "/admin/locales"],
         ["Visualizaciones de usuarios", "/admin/visualizaciones"],
       ]
     : atencion
       ? [
           ["Atención y servicios", "/atencion"],
+          ...(can(session, "SERVICIOS_VER") || can(session, "VENTAS_GESTIONAR")
+            ? [["Servicios", "/atencion/servicios"]]
+            : []),
+          ...(can(session, "VENTAS_GESTIONAR")
+            ? [
+                ["Cobrar servicios", "/atencion/cobrar"],
+                ["Ventas", "/atencion/ventas"],
+              ]
+            : []),
           ...(admin
             ? [
+                ["Locales", "/atencion/locales"],
                 ["Personal", "/atencion/usuarios"],
                 ["Roles", "/atencion/roles"],
                 ["Mi plan", "/atencion/plan"],
@@ -136,6 +152,7 @@ function Shell({
       <div className="workspace">
         <header className="topbar">
           <p>{superadmin ? "Plataforma" : `Empresa #${session.empresaId}`}</p>
+          {!superadmin && <SelectorLocal session={session} />}
           <div className="account">
             <span>
               <strong>{session.nombre}</strong>
@@ -151,6 +168,7 @@ function Shell({
           <Routes>
             {superadmin ? (
               <>
+                <Route path="/admin/locales" element={<LocalesAdmin />} />
                 <Route path="/admin/empresas" element={<Empresas />} />
                 <Route path="/admin/pagos" element={<PagosAdmin />} />
                 <Route path="/admin/catalogo" element={<CatalogoAdmin />} />
@@ -165,8 +183,36 @@ function Shell({
                   path="/atencion"
                   element={<Atencion session={session} />}
                 />
+                {(can(session, "SERVICIOS_VER") ||
+                  can(session, "VENTAS_GESTIONAR")) && (
+                  <Route
+                    path="/atencion/servicios"
+                    element={<Servicios session={session} />}
+                  />
+                )}
+                {can(session, "VENTAS_GESTIONAR") && (
+                  <>
+                    <Route
+                      path="/atencion/cobrar"
+                      element={<CobrarServicios session={session} />}
+                    />
+                    <Route
+                      path="/atencion/ventas"
+                      element={
+                        <Ventas
+                          atencion
+                          admin={can(session, "VENTAS_ANULAR")}
+                        />
+                      }
+                    />
+                  </>
+                )}
                 {admin && (
                   <>
+                    <Route
+                      path="/atencion/locales"
+                      element={<LocalesNegocio />}
+                    />
                     <Route
                       path="/atencion/usuarios"
                       element={<Usuarios session={session} />}
@@ -227,6 +273,7 @@ function Shell({
                 )}
                 {admin && (
                   <>
+                    <Route path="/panel/locales" element={<LocalesNegocio />} />
                     <Route
                       path="/panel/usuarios"
                       element={<Usuarios session={session} />}
