@@ -1,4 +1,3 @@
-
 package com.alshagroup.alshafacturas.dto;
 
 public record LoginResponse(
@@ -6,6 +5,5 @@ public record LoginResponse(
     Long empresaId,
     String nombre,
     String correo,
-    String rol
-) {
-}
+    String rol,
+    java.util.List<String> permisos) {}

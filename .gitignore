@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+work/
+**/node_modules/
+**/dist/
+**/target/
+**/test-results/
+**/playwright-report/
+**/__pycache__/
+*.log
+.DS_Store
+
+sunat-secrets/
+*.p12
+*.pfx

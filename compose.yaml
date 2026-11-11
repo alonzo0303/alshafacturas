@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: alshafacturas_db
+      POSTGRES_USER: alshafacturas_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Configura DB_PASSWORD en .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alshafacturas_app -d alshafacturas_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/alshafacturas_db
+      DB_USER: alshafacturas_app
+      DB_PASSWORD: ${DB_PASSWORD:?Configura DB_PASSWORD en .env}
+      APP_BOOTSTRAP_SUPERADMIN_ENABLED: ${APP_BOOTSTRAP_SUPERADMIN_ENABLED:-false}
+      SUPERADMIN_CORREO: ${SUPERADMIN_CORREO:-}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SUNAT_CONFIG_DIR: /run/secrets/sunat
+    volumes:
+      - "${SUNAT_SECRETS_DIR:-./sunat-secrets}:/run/secrets/sunat:ro"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8088}:8080"
+    depends_on:
+      - backend
+    restart: unless-stopped
+volumes:
+  postgres_data:

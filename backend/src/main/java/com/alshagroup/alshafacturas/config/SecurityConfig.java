@@ -1,107 +1,85 @@
-
 package com.alshagroup.alshafacturas.config;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.web.SecurityFilterChain;
-
+import com.alshagroup.alshafacturas.security.*;
+import org.springframework.context.annotation.*;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
-import com.alshagroup.alshafacturas.security.UsuarioDetailsService;
-
-import org.springframework.security.config.http.SessionCreationPolicy;
-
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.security.web.context.SecurityContextRepository;
-
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
-
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.*;
+import org.springframework.security.web.authentication.session.*;
+import org.springframework.security.web.context.*;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-
-
-@Bean
-public SessionAuthenticationStrategy sessionAuthenticationStrategy() {
-    return new ChangeSessionIdAuthenticationStrategy();
-}
-
-
-@Bean
-public SecurityFilterChain securityFilterChain(
-        HttpSecurity http,
-        SecurityContextRepository securityContextRepository
-) throws Exception {
-
-   http
-    .csrf(csrf -> csrf
-        .csrfTokenRepository(
-            CookieCsrfTokenRepository.withHttpOnlyFalse()
-        )
-    )
-    
-
-.authorizeHttpRequests(auth -> auth
-    .requestMatchers("/error").permitAll()
-
-    .requestMatchers(
-        org.springframework.http.HttpMethod.GET,
-        "/api/auth/csrf"
-    ).permitAll()
-
-    .requestMatchers(
-        org.springframework.http.HttpMethod.POST,
-        "/api/auth/login"
-    ).permitAll()
-
-    .anyRequest().authenticated()
-)
-
-        .securityContext(context -> context
-            .securityContextRepository(securityContextRepository)
-        )
-        .sessionManagement(session -> session
-            .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-        )
-        .httpBasic(basic -> {});
-
-    return http.build();
-}
-
-
-@Bean
-public SecurityContextRepository securityContextRepository() {
+  @Bean
+  SecurityContextRepository securityContextRepository() {
     return new HttpSessionSecurityContextRepository();
-}
+  }
 
-    
-@Bean
-public DaoAuthenticationProvider authenticationProvider(
-        UsuarioDetailsService usuarioDetailsService,
-        PasswordEncoder passwordEncoder
-) {
-    DaoAuthenticationProvider provider =
-            new DaoAuthenticationProvider(usuarioDetailsService);
+  @Bean
+  SessionAuthenticationStrategy sessionAuthenticationStrategy() {
+    return new ChangeSessionIdAuthenticationStrategy();
+  }
 
-    provider.setPasswordEncoder(passwordEncoder);
+  @Bean
+  AuthenticationManager authenticationManager(
+      UsuarioDetailsService users, PasswordEncoder passwords) {
+    var provider = new DaoAuthenticationProvider(users);
+    provider.setPasswordEncoder(passwords);
+    return new ProviderManager(provider);
+  }
 
-    return provider;
-}
-
-@Bean
-public AuthenticationManager authenticationManager(
-        AuthenticationConfiguration configuration
-) throws Exception {
-    return configuration.getAuthenticationManager();
-}
-
+  @Bean
+  SecurityFilterChain securityFilterChain(
+      HttpSecurity http, SecurityContextRepository contexts, AccesoEmpresaFilter acceso)
+      throws Exception {
+    http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+        .authorizeHttpRequests(
+            auth ->
+                auth.requestMatchers("/error")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/auth/csrf")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/admin/login")
+                    .permitAll()
+                    .requestMatchers("/api/empresas/mi-empresa")
+                    .authenticated()
+                    .requestMatchers("/api/empresas/**")
+                    .hasRole("SUPERADMIN")
+                    .requestMatchers("/api/auth/**")
+                    .authenticated()
+                    .requestMatchers("/api/**")
+                    .authenticated()
+                    .anyRequest()
+                    .denyAll())
+        .securityContext(c -> c.securityContextRepository(contexts))
+        .addFilterAfter(acceso, SecurityContextHolderFilter.class)
+        .logout(
+            l ->
+                l.logoutUrl("/api/auth/logout")
+                    .logoutSuccessHandler((req, res, auth) -> res.setStatus(204)))
+        .exceptionHandling(
+            e ->
+                e.authenticationEntryPoint(
+                        (req, res, ex) -> {
+                          res.setStatus(401);
+                          res.setContentType("application/json;charset=UTF-8");
+                          res.getWriter().write("{\"mensaje\":\"Inicia sesión para continuar\"}");
+                        })
+                    .accessDeniedHandler(
+                        (req, res, ex) -> {
+                          res.setStatus(403);
+                          res.setContentType("application/json;charset=UTF-8");
+                          res.getWriter()
+                              .write(
+                                  "{\"mensaje\":\"No tienes permiso o el token CSRF ha vencido\"}");
+                        }));
+    return http.build();
+  }
 }

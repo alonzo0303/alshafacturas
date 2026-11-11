@@ -1,65 +1,79 @@
-
 package com.alshagroup.alshafacturas.security;
 
+import com.alshagroup.alshafacturas.entity.Usuario;
 import java.util.Collection;
 import java.util.List;
-
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import com.alshagroup.alshafacturas.entity.Usuario;
-
 public class UsuarioPrincipal implements UserDetails {
-    public String getNombre() {
+  public String getNombre() {
     return nombre;
-}
+  }
 
-    private final Long id;
-    private final Long empresaId;
-    private final String nombre;
-    private final String correo;
-    private final String passwordHash;
-    private final String rol;   
-    private final boolean activo;
+  private final Long id;
+  private final Long empresaId;
+  private final String nombre;
+  private final String correo;
+  private final String passwordHash;
+  private final String rol;
+  private final boolean activo;
+  private final List<String> permisos;
 
-    public UsuarioPrincipal(Usuario usuario) {
-        this.id = usuario.getId();
-        this.empresaId = usuario.getEmpresa().getId();
-        this.nombre = usuario.getNombre();
-        this.correo = usuario.getCorreo();
-        this.passwordHash = usuario.getPasswordHash();
-        this.rol = usuario.getRol();
-        this.activo = Boolean.TRUE.equals(usuario.getActivo());
-    }
+  public UsuarioPrincipal(Usuario usuario) {
+    this(
+        usuario,
+        com.alshagroup.alshafacturas.gestion.RolesService.predeterminados(usuario.getRol()));
+  }
 
-    public Long getId() {
-        return id;
-    }
+  public UsuarioPrincipal(Usuario usuario, List<String> permisos) {
+    this.permisos = List.copyOf(permisos);
+    this.id = usuario.getId();
+    this.empresaId = usuario.getEmpresa().getId();
+    this.nombre = usuario.getNombre();
+    this.correo = usuario.getCorreo();
+    this.passwordHash = usuario.getPasswordHash();
+    this.rol = usuario.getRol();
+    this.activo = Boolean.TRUE.equals(usuario.getActivo());
+  }
 
-    public Long getEmpresaId() {
-        return empresaId;
-    }
+  public List<String> getPermisos() {
+    return permisos;
+  }
 
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(
-            new SimpleGrantedAuthority("ROLE_" + rol)
-        );
-    }
+  public String getRol() {
+    return rol;
+  }
 
-    @Override
-    public String getPassword() {
-        return passwordHash;
-    }
+  public Long getId() {
+    return id;
+  }
 
-    @Override
-    public String getUsername() {
-        return correo;
-    }
+  public Long getEmpresaId() {
+    return empresaId;
+  }
 
-    @Override
-    public boolean isEnabled() {
-        return activo;
-    }
+  @Override
+  public Collection<? extends GrantedAuthority> getAuthorities() {
+    var authorities = new java.util.ArrayList<GrantedAuthority>();
+    authorities.add(new SimpleGrantedAuthority("ROLE_" + rol));
+    for (String permiso : permisos) authorities.add(new SimpleGrantedAuthority(permiso));
+    return authorities;
+  }
+
+  @Override
+  public String getPassword() {
+    return passwordHash;
+  }
+
+  @Override
+  public String getUsername() {
+    return correo;
+  }
+
+  @Override
+  public boolean isEnabled() {
+    return activo;
+  }
 }
