@@ -72,3 +72,11 @@ Las fotos se confirman al guardar el formulario; se impide confirmar mientras se
 ## Actualización: búsqueda de rubros
 
 Compilación TypeScript/Vite y lint aprobados. Nueve recorridos de navegador aprobados; las dos pruebas de búsqueda/asignación se repitieron tras el ajuste final del selector y pasaron. Incluye búsqueda sin tilde/mayúsculas, selección con teclado sin enviar accidentalmente el formulario, volver a Todos los rubros, rubro nuevo, valor conservado al editar y casillas seleccionadas fuera del filtro. Se comprobó el selector a 320 px y axe A/AA sin infracciones en la pantalla probada. Solo cambia frontend; no requiere migración ni modifica datos existentes.
+
+## Actualización: marca del catálogo común
+
+Verificado: Maven verify (8 pruebas aprobadas y 2 externas omitidas), 25 pruebas API, 10 de navegador, compilación TypeScript/Vite y lint aprobados. La migración V9 se aplicó sobre la base de pruebas existente.
+
+La prueba API cubre marca predeterminada Genérico, creación/edición de marca común, incorporación con marca heredada o propia, incorporación directa con catalogoId, compatibilidad de ediciones que omiten marca y rechazo de valores demasiado largos o cambios no autorizados. Comprueba que editar la marca común no modifica los productos ya incorporados.
+
+El navegador verifica creación y edición por SUPERADMIN, columna Marca, búsqueda por marca, visualización en tarjetas del negocio, valor inicial al incorporar y una marca propia conservada en Productos sin alterar la plantilla común. Solo datos ficticios de prueba.

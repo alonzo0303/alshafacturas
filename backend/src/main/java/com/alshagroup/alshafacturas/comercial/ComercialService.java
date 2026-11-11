@@ -68,17 +68,23 @@ public class ComercialService {
         normalized(r.sku(), "P-" + UUID.randomUUID().toString().substring(0, 12))
             .toUpperCase(Locale.ROOT);
     boolean nuevo = id == null;
+    Map<String, Object> plantilla = null;
     if (r.catalogoId() != null
         && (nuevo
             || !Objects.equals(
                 one("SELECT catalogo_id FROM productos WHERE empresa_id=? AND id=?", empresa, id)
                     .get("catalogo_id"),
-                r.catalogoId())))
-      one(
-          "SELECT c.id FROM catalogo_comun c JOIN empresa_rubros_catalogo a ON a.rubro=c.rubro"
-              + " WHERE a.empresa_id=? AND c.id=? AND c.activo=true",
-          empresa,
-          r.catalogoId());
+                r.catalogoId()))) {
+      plantilla =
+          one(
+              "SELECT c.id,c.marca FROM catalogo_comun c JOIN empresa_rubros_catalogo a ON"
+                  + " a.rubro=c.rubro WHERE a.empresa_id=? AND c.id=? AND c.activo=true",
+              empresa,
+              r.catalogoId());
+    }
+    String marca =
+        normalized(
+            r.marca(), nuevo && plantilla != null ? plantilla.get("marca").toString() : "Genérico");
     if (id == null)
       id =
           db.queryForObject(
@@ -92,7 +98,7 @@ public class ComercialService {
               precio,
               r.minimo(),
               r.activo(),
-              normalized(r.marca(), "Genérico"),
+              marca,
               normalized(r.categoria(), "General"),
               normalized(r.presentacion(), ""),
               normalized(r.codigoBarras(), null),
@@ -109,7 +115,7 @@ public class ComercialService {
           precio,
           r.minimo(),
           r.activo(),
-          normalized(r.marca(), "Genérico"),
+          marca,
           normalized(r.categoria(), "General"),
           normalized(r.presentacion(), ""),
           normalized(r.codigoBarras(), null),

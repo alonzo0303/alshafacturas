@@ -218,6 +218,29 @@ class ApiRegression(unittest.TestCase):
         self.assertEqual(owner.request('/roles','POST',{'codigo':'R_BAD','nombre':'Escalar','permisos':['ADMIN']})[0],400)
         self.assertEqual(owner.request(f"/usuarios/{owner.ok('/auth/me')['id']}/rol",'PATCH',{'rol':'VENDEDOR'})[0],409)
 
+    def test_common_brand_defaults_copy_override_and_independence(self):
+        template={'nombre':'Plantilla con marca','rubro':'Maquillaje','descripcion':'Prueba de marca','activo':True,'marca':'  Marca compartida  '}
+        item=self.platform.ok('/catalogo-comun','POST',template)
+        self.assertEqual(item['marca'],'Marca compartida')
+        body={'nombre':'Copia con marca','precio':10,'minimo':1,'activo':True}
+        inherited=self.a.ok(f"/catalogo-comun/{item['id']}/incorporar",'POST',body)
+        custom=self.a.ok(f"/catalogo-comun/{item['id']}/incorporar",'POST',{**body,'marca':'Marca propia'})
+        self.assertEqual(inherited['marca'],'Marca compartida')
+        self.assertEqual(custom['marca'],'Marca propia')
+        updated=self.platform.ok(f"/catalogo-comun/{item['id']}",'PUT',{**template,'marca':'Marca nueva'})
+        self.assertEqual(updated['marca'],'Marca nueva')
+        products={p['id']:p for p in self.a.ok('/productos')}
+        self.assertEqual(products[inherited['id']]['marca'],'Marca compartida')
+        self.assertEqual(products[custom['id']]['marca'],'Marca propia')
+        self.assertEqual(self.a.ok('/productos','POST',{**body,'catalogoId':item['id']})['marca'],'Marca nueva')
+        legacy={k:v for k,v in template.items() if k!='marca'}
+        self.assertEqual(self.platform.ok(f"/catalogo-comun/{item['id']}",'PUT',legacy)['marca'],'Marca nueva')
+        generic=self.platform.ok('/catalogo-comun','POST',legacy)
+        self.assertEqual(generic['marca'],'Genérico')
+        self.assertEqual(self.a.ok(f"/catalogo-comun/{generic['id']}/incorporar",'POST',body)['marca'],'Genérico')
+        self.assertEqual(self.a.request(f"/catalogo-comun/{item['id']}",'PUT',template)[0],403)
+        self.assertEqual(self.platform.request('/catalogo-comun','POST',{**template,'marca':'x'*101})[0],400)
+
     def test_shared_catalog_barcode_brand_and_draft_price(self):
         template = self.platform.ok('/catalogo-comun','POST',{'nombre':'Artículo común','rubro':'Ferretería','descripcion':'Base de catálogo','activo':True})
         self.assertEqual(self.a.request('/catalogo-comun','POST',{'nombre':'No permitido','rubro':'General','activo':True})[0],403)

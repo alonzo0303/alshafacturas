@@ -51,3 +51,9 @@ Los campos **Rubro** del catálogo y **Rubro del catálogo** permiten escribir p
 En la edición/alta de plantilla común se puede elegir un rubro existente o escribir uno nuevo y confirmarlo con Guardar. En productos, Rubro / categoría ofrece las categorías del negocio y permite escribir una propia. Al editar se conserva el valor actual.
 
 En **Acceso al catálogo por rubro**, Buscar rubros para habilitar filtra las casillas. Las casillas marcadas que no coinciden con la búsqueda siguen seleccionadas y se guardan. Buscar no modifica permisos hasta confirmar Guardar acceso al catálogo.
+
+## Marca en ambos catálogos
+
+SUPERADMIN puede registrar y editar **Marca** en las plantillas comunes; se muestra en la tabla, en las tarjetas disponibles para el negocio y se incluye en la búsqueda. Al incorporar, el campo Marca del producto comienza con la marca de la plantilla y el negocio puede conservarla o reemplazarla por una propia. Si no se define marca de plantilla, se usa Genérico.
+
+La migración V9 asigna Genérico a las plantillas antiguas y no modifica las marcas de productos existentes. Cambiar la marca común no actualiza copias ya incorporadas. El API también aplica la marca de plantilla a nuevas incorporaciones sin marca explícita y respeta una marca propia enviada por el negocio. Las ediciones de plantilla desde clientes antiguos que omiten el campo conservan su marca actual.

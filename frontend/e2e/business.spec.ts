@@ -776,3 +776,77 @@ test("Buscar rubro del catálogo, elegir con teclado y crear uno propio", async 
     .analyze();
   expect(accessibility.violations).toEqual([]);
 });
+
+test("Marca del catálogo visible en ambos lados y marca propia al incorporar", async ({
+  page,
+}) => {
+  const company = await setup(),
+    suffix = randomUUID().slice(0, 8),
+    name = "Mercadería marca " + suffix,
+    brand = "Marca común " + suffix,
+    ownBrand = "Marca propia " + suffix;
+  await page.goto("/admin/login");
+  await page
+    .getByLabel("Correo electrónico")
+    .fill(process.env.TEST_SUPERADMIN_EMAIL!);
+  await page
+    .getByLabel("Contraseña", { exact: true })
+    .fill(process.env.TEST_SUPERADMIN_PASSWORD!);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Catálogo común", exact: true }).click();
+  await page.getByLabel("Nombre del producto común").fill(name);
+  await page.getByLabel("Marca", { exact: true }).fill(brand);
+  const rubro = page.getByRole("combobox", {
+    name: "Rubro del catálogo",
+    exact: true,
+  });
+  await rubro.fill("maquillaje");
+  await rubro.press("ArrowDown");
+  await rubro.press("Enter");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  const rootRow = page.getByRole("row").filter({ hasText: name });
+  await expect(
+    rootRow.getByRole("cell", { name: brand, exact: true }),
+  ).toBeVisible();
+  await rootRow.getByRole("button", { name: /Editar/ }).click();
+  await expect(page.getByLabel("Marca", { exact: true })).toHaveValue(brand);
+  const editedBrand = brand + " editada";
+  await page.getByLabel("Marca", { exact: true }).fill(editedBrand);
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(
+    rootRow.getByRole("cell", { name: editedBrand, exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Cerrar sesión", exact: true })
+    .click();
+  await page.goto("/login");
+  await page.getByLabel("Correo electrónico").fill(company.correo);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Iniciar sesión", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Catálogo común", exact: true }).click();
+  await page.getByLabel("Buscar en catálogo común").fill(editedBrand);
+  const card = page
+    .locator(".catalog-item")
+    .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  await expect(card.getByText(editedBrand, { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: /Usar producto/ }).click();
+  const modal = page.getByRole("dialog");
+  await expect(modal.getByLabel("Marca", { exact: true })).toHaveValue(
+    editedBrand,
+  );
+  await modal.getByLabel("Marca", { exact: true }).fill(ownBrand);
+  await modal.getByLabel("Precio de venta ingresado (S/)").fill("12.50");
+  await modal
+    .getByRole("button", { name: "Guardar producto", exact: true })
+    .click();
+  await expect(modal).not.toBeVisible();
+  await expect(card.getByText(editedBrand, { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Productos", exact: true }).click();
+  await expect(page.getByRole("row").filter({ hasText: name })).toContainText(
+    ownBrand,
+  );
+});

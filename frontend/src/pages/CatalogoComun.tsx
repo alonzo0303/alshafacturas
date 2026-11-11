@@ -30,7 +30,9 @@ export function CatalogoPicker({
   const list = data.filter(
     (p) =>
       (!rubro || p.rubro === rubro) &&
-      searchText(`${p.nombre} ${p.rubro}`).includes(searchText(search)),
+      searchText(`${p.nombre} ${p.marca || "Genérico"} ${p.rubro}`).includes(
+        searchText(search),
+      ),
   );
   return (
     <>
@@ -68,6 +70,9 @@ export function CatalogoPicker({
               />
               <h3>{p.nombre}</h3>
               <small>{p.rubro}</small>
+              <p className="catalog-brand">
+                Marca: <strong>{p.marca || "Genérico"}</strong>
+              </p>
               {p.descripcion && <p>{p.descripcion}</p>}
               <button type="button" onClick={() => onChoose(p)}>
                 Usar producto<span className="sr-only"> {p.nombre}</span>
@@ -165,6 +170,7 @@ export function CatalogoAdmin() {
               id ? "PUT" : "POST",
               {
                 nombre: d.get("nombre"),
+                marca: d.get("marca"),
                 rubro: d.get("rubro"),
                 descripcion: d.get("descripcion"),
                 activo: d.get("activo") === "on",
@@ -201,6 +207,14 @@ export function CatalogoAdmin() {
                 maxLength={200}
                 required
                 defaultValue={editing?.nombre}
+              />
+            </Field>
+            <Field label="Marca">
+              <input
+                name="marca"
+                maxLength={100}
+                required
+                defaultValue={editing?.marca || "Genérico"}
               />
             </Field>
             <Field label="Rubro del catálogo">
@@ -253,18 +267,20 @@ export function CatalogoAdmin() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nombre o rubro"
+            placeholder="Nombre, marca o rubro"
           />
         </div>
         {loading ? (
           <p role="status">Cargando plantillas…</p>
         ) : (
-          <Table headers={["Producto común", "Rubro", "Estado", "Acciones"]}>
+          <Table
+            headers={["Producto común", "Marca", "Rubro", "Estado", "Acciones"]}
+          >
             {data
               .filter((p) =>
-                searchText(`${p.nombre} ${p.rubro}`).includes(
-                  searchText(search),
-                ),
+                searchText(
+                  `${p.nombre} ${p.marca || "Genérico"} ${p.rubro}`,
+                ).includes(searchText(search)),
               )
               .map((p) => (
                 <tr key={p.id}>
@@ -280,6 +296,7 @@ export function CatalogoAdmin() {
                       {p.nombre}
                     </div>
                   </td>
+                  <td>{p.marca || "Genérico"}</td>
                   <td>{p.rubro}</td>
                   <td>{p.activo ? "Disponible" : "Oculto"}</td>
                   <td>

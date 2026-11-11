@@ -1,0 +1,1 @@
+ALTER TABLE catalogo_comun ADD COLUMN marca VARCHAR(100) NOT NULL DEFAULT 'Genérico';
