@@ -94,3 +94,14 @@ El navegador verifica creación y edición por SUPERADMIN, columna Marca, búsqu
 - Dependencias: npm audit sin avisos; OSV detectó 7 avisos en Jackson 3.1.5, corregidos con BOM 3.1.7. Nueva consulta de las 33 coordenadas Maven identificadas sin avisos conocidos.
 
 Los registros, capturas y PDFs de ejecución se guardaron fuera del repositorio, sin credenciales ni datos reales. La CI ejecuta Maven, compilación/lint, ambas baterías API y todos los recorridos Playwright. Ver [guía operativa](OPERACION_CONTROL.md) e [informe de seguridad y límites](SEGURIDAD_OPERATIVA.md).
+
+
+## Rubros y suscripciones (12/11/2026)
+
+- Maven verify: 17 pruebas aprobadas, 2 externas SUNAT omitidas. Cinco nuevas verifican límite de día de Perú, D-5…D-0 sin duplicados, plan futuro, plan corto futuro y renovación sin retirar suspensión manual.
+- API: 49 pruebas aprobadas (30 existentes + 11 operativas + 8 de rubros/suscripciones). Incluye altas y cambios de rubro, herencia/override por local, conservación de copias, denegación por ID e imagen, costos/fechas/estado, sesiones y login vencidos, contraseña incorrecta sin información de membresía, renovación con datos intactos, cron concurrente y aislamiento de avisos.
+- Navegador: 19 recorridos aprobados; tras el último ajuste de recordatorios se repitieron los 3 nuevos. Rubro desde el formulario, incorporación de servicio, plan programado, bloqueo y reingreso tras pago. Axe sin infracciones en las vistas nuevas comprobadas; planes/notificaciones a 320, 768, 1024 y 1440 px y bloqueo a 320 px sin desbordamiento global.
+- TypeScript/Vite y oxlint aprobados, sin advertencias de lint.
+- Actualización V13→V14 en copia independiente: 29 tablas originales comparadas por conteo/hash de sus columnas y registros preexistentes, sin alteraciones; se permiten únicamente las altas de rubros/plantillas previstas en V14. La copia arrancó correctamente con Hibernate validate.
+
+Instancias, bases de prueba, registros y capturas quedan fuera del repositorio. No se cambió la base del equipo del usuario ni se enviaron notificaciones externas. Ver [Rubros y suscripciones](RUBROS_SUSCRIPCIONES.md) para reglas de acceso, cron, canales e instrucciones de actualización.

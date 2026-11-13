@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional(readOnly = true)
 public class ComercialService {
   private final JdbcTemplate db;
+  private final com.alshagroup.alshafacturas.gestion.RubrosService rubros;
   private final com.alshagroup.alshafacturas.gestion.CajaService cajas;
   private final com.alshagroup.alshafacturas.gestion.AuditoriaService audit;
 
@@ -24,9 +25,11 @@ public class ComercialService {
 
   public ComercialService(
       JdbcTemplate db,
+      com.alshagroup.alshafacturas.gestion.RubrosService rubros,
       com.alshagroup.alshafacturas.gestion.CajaService cajas,
       com.alshagroup.alshafacturas.gestion.AuditoriaService audit) {
     this.db = db;
+    this.rubros = rubros;
     this.cajas = cajas;
     this.audit = audit;
   }
@@ -93,12 +96,10 @@ public class ComercialService {
                         id)
                     .get("catalogo_id"),
                 r.catalogoId()))) {
-      plantilla =
-          one(
-              "SELECT c.id,c.marca FROM catalogo_comun c JOIN empresa_rubros_catalogo a ON"
-                  + " a.rubro=c.rubro WHERE a.empresa_id=? AND c.id=? AND c.activo=true",
-              empresa,
-              r.catalogoId());
+      if (!rubros.permitido(empresa, r.catalogoId()))
+        throw new ResponseStatusException(
+            HttpStatus.NOT_FOUND, "Plantilla no disponible para el rubro de este local");
+      plantilla = one("SELECT id,marca FROM catalogo_comun WHERE id=?", r.catalogoId());
     }
     String marca =
         normalized(

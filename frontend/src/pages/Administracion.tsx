@@ -1,4 +1,5 @@
 import ConfirmarAccion from "../components/ConfirmarAccion";
+import RubroNegocio from "../components/RubroNegocio";
 import RubrosAcceso from "./RubrosAcceso";
 import { PlanInfo, type PlanState } from "./Planes";
 import { useData } from "../lib/useData";
@@ -65,6 +66,7 @@ export function Empresas() {
           onDone={() => void refresh()}
         >
           <div className="form-grid">
+            <RubroNegocio />
             <Field label="RUC (opcional)">
               <input
                 name="ruc"
@@ -111,11 +113,21 @@ export function Empresas() {
         {loading ? (
           <p role="status">Cargando empresas…</p>
         ) : data.length ? (
-          <Table headers={["Código", "Empresa", "RUC", "Estado", "Acciones"]}>
+          <Table
+            headers={[
+              "Código",
+              "Empresa",
+              "Rubro",
+              "RUC",
+              "Estado",
+              "Acciones",
+            ]}
+          >
             {data.map((e) => (
               <tr key={e.id}>
                 <td className="mono">{e.id}</td>
                 <td>{e.razonSocial}</td>
+                <td>{e.rubroNegocio || "Sin rubro principal"}</td>
                 <td className="mono">{e.ruc || "Sin RUC · Gestión interna"}</td>
                 <td>
                   <Badge neutral={e.estado === "ACTIVA"}>{e.estado}</Badge>
@@ -170,6 +182,7 @@ export function Empresas() {
                 razonSocial: d.get("razonSocial"),
                 direccion: d.get("direccion"),
                 ruc: d.get("ruc") || null,
+                rubroNegocio: d.get("rubroNegocio"),
               })
             }
             onDone={() => {
@@ -180,6 +193,7 @@ export function Empresas() {
               void refresh();
             }}
           >
+            <RubroNegocio initial={editing.rubroNegocio} />
             <Field label="Nombre del negocio o razón social">
               <input
                 name="razonSocial"

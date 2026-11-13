@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthController {
   private final org.springframework.jdbc.core.JdbcTemplate db;
   private final AuthenticationManager manager;
+  private final com.alshagroup.alshafacturas.gestion.PlanesService planes;
   private final SecurityContextRepository contexts;
   private final SessionAuthenticationStrategy sessions;
   private final EmpresaRepository empresas;
@@ -30,6 +31,7 @@ public class AuthController {
 
   public AuthController(
       AuthenticationManager m,
+      com.alshagroup.alshafacturas.gestion.PlanesService planes,
       org.springframework.jdbc.core.JdbcTemplate db,
       SecurityContextRepository c,
       SessionAuthenticationStrategy s,
@@ -37,6 +39,7 @@ public class AuthController {
       UsuarioRepository u,
       com.alshagroup.alshafacturas.gestion.LocalesService locales) {
     manager = m;
+    this.planes = planes;
     this.db = db;
     contexts = c;
     sessions = s;
@@ -134,6 +137,12 @@ public class AuthController {
   private LoginResponse establish(
       Authentication auth, HttpServletRequest req, HttpServletResponse res) {
     var p = (UsuarioPrincipal) auth.getPrincipal();
+    if (!"SUPERADMIN".equals(p.getRol())) {
+      var bloqueo = planes.bloqueo(p.getEmpresaId());
+      if (bloqueo != null)
+        throw new com.alshagroup.alshafacturas.exception.MembresiaException(bloqueo);
+      if (!planes.permiteAcceso(p.getEmpresaId(), p.getId())) throw bad();
+    }
     locales.seleccionar(p, null);
     sessions.onAuthentication(auth, req, res);
     req.getSession().setAttribute("localId", p.getLocalId());

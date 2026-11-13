@@ -24,6 +24,7 @@ export function CatalogoPicker({
   clase?: "PRODUCTO" | "SERVICIO" | "TODOS";
   onChoose: (item: Plantilla) => void;
 }) {
+  const session = useSession();
   const { data, error, loading, refresh } = useData(
       () => api<Plantilla[]>("/catalogo-comun"),
       [],
@@ -46,7 +47,7 @@ export function CatalogoPicker({
           aria-label="Buscar en catálogo común"
           value={search}
           type="search"
-          placeholder="Buscar un producto común"
+          placeholder="Buscar un producto o servicio"
           onChange={(e) => setSearch(e.target.value)}
         />
         <Field label="Rubro">
@@ -78,7 +79,18 @@ export function CatalogoPicker({
                 Marca: <strong>{p.marca || "Genérico"}</strong>
               </p>
               {p.descripcion && <p>{p.descripcion}</p>}
-              <button type="button" onClick={() => onChoose(p)}>
+              <button
+                type="button"
+                disabled={
+                  !can(
+                    session,
+                    p.clase === "SERVICIO"
+                      ? "SERVICIOS_EDITAR"
+                      : "PRODUCTOS_EDITAR",
+                  )
+                }
+                onClick={() => onChoose(p)}
+              >
                 {p.clase === "SERVICIO" ? "Usar servicio" : "Usar producto"}
                 <span className="sr-only"> {p.nombre}</span>
               </button>
@@ -87,9 +99,9 @@ export function CatalogoPicker({
         </div>
       ) : (
         <Empty>
-          No hay plantillas habilitadas para este filtro. Solicita a la
-          plataforma acceso al rubro de tu negocio. Puedes crear mercadería
-          propia desde Productos o Compras.
+          {data.length
+            ? "No hay coincidencias con la búsqueda o el tipo de plantilla seleccionado."
+            : "No hay plantillas disponibles para este local. SuperAdmin puede asignar su rubro desde Empresas o Sucursales; las plantillas publicadas de ese rubro se habilitarán automáticamente."}
         </Empty>
       )}
     </>
@@ -103,17 +115,17 @@ export function CatalogoNegocio() {
     <>
       <PageTitle
         title="Catálogo común"
-        description="Productos habituales por rubro. Cada negocio decide su marca, presentación y precio."
+        description="Productos y servicios de tu rubro. Cada negocio define su presentación y precio."
       />
       <p className="notice">
-        Las plantillas no incluyen precios de venta ni existencias. Al
-        incorporarlas se crean productos propios de tu negocio.
+        Las plantillas no incluyen precios ni existencias. Al incorporarlas se
+        crean productos o servicios propios de tu negocio.
       </p>
       <p role="status">{message}</p>
       {can(session, "PRODUCTOS_EDITAR") || can(session, "SERVICIOS_EDITAR") ? (
         <section className="surface">
           <CatalogoPicker
-            clase={session.modalidad === "ATENCION" ? "SERVICIO" : "PRODUCTO"}
+            clase="TODOS"
             onChoose={(p) => {
               setMessage("");
               setSelected(p);

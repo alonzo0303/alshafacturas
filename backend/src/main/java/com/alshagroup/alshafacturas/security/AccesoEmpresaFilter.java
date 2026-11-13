@@ -44,6 +44,27 @@ public class AccesoEmpresaFilter extends OncePerRequestFilter {
     var auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth != null && auth.getPrincipal() instanceof UsuarioPrincipal principal) {
       var user = users.findById(principal.getId()).orElse(null);
+      if (user != null
+          && Boolean.TRUE.equals(user.getActivo())
+          && user.getCredencialesVersion() == principal.getCredencialesVersion()
+          && !"SUPERADMIN".equals(user.getRol())
+          && user.getEmpresa().getEstado() == EstadoEmpresa.ACTIVA) {
+        var bloqueo = planes.bloqueo(user.getEmpresa().getId());
+        if (bloqueo != null) {
+          SecurityContextHolder.clearContext();
+          var session = req.getSession(false);
+          if (session != null) session.invalidate();
+          res.setStatus(402);
+          res.setHeader("Cache-Control", "no-store");
+          res.setContentType("application/json;charset=UTF-8");
+          res.getWriter()
+              .write(
+                  tools.jackson.databind.json.JsonMapper.builder()
+                      .build()
+                      .writeValueAsString(bloqueo));
+          return;
+        }
+      }
       boolean allowed =
           user != null
               && Boolean.TRUE.equals(user.getActivo())

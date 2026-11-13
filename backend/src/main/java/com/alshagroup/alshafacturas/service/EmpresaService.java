@@ -13,9 +13,14 @@ public class EmpresaService {
 
   private final EmpresaRepository empresaRepository;
   private final UsuarioService usuarios;
+  private final com.alshagroup.alshafacturas.gestion.RubrosService rubros;
 
-  public EmpresaService(EmpresaRepository empresaRepository, UsuarioService usuarios) {
+  public EmpresaService(
+      EmpresaRepository empresaRepository,
+      UsuarioService usuarios,
+      com.alshagroup.alshafacturas.gestion.RubrosService rubros) {
     this.usuarios = usuarios;
+    this.rubros = rubros;
     this.empresaRepository = empresaRepository;
   }
 
@@ -23,6 +28,7 @@ public class EmpresaService {
     return empresaRepository.findAll();
   }
 
+  @org.springframework.transaction.annotation.Transactional
   public Empresa guardarEmpresa(Empresa empresa) {
 
     if (empresa.getRuc() != null && empresaRepository.existsByRuc(empresa.getRuc())) {
@@ -30,7 +36,10 @@ public class EmpresaService {
           HttpStatus.CONFLICT, "Ya existe una empresa registrada con este RUC");
     }
 
-    return empresaRepository.save(empresa);
+    empresa.setRubroNegocio(rubros.validar(empresa.getRubroNegocio()));
+    var saved = empresaRepository.saveAndFlush(empresa);
+    rubros.asociar(saved.getId(), saved.getRubroNegocio());
+    return saved;
   }
 
   public Empresa obtenerEmpresaPorId(Long empresaId) {
@@ -45,6 +54,7 @@ public class EmpresaService {
   public Empresa alta(com.alshagroup.alshafacturas.dto.EmpresaAltaRequest r) {
     var e = new Empresa();
     e.setRuc(r.ruc());
+    e.setRubroNegocio(rubros.validar(r.rubroNegocio()));
     e.setRazonSocial(r.razonSocial().trim());
     e.setDireccion(r.direccion());
     e.setEstado(EstadoEmpresa.ACTIVA);
@@ -63,7 +73,8 @@ public class EmpresaService {
       @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 200)
           String razonSocial,
       @jakarta.validation.constraints.Size(max = 255) String direccion,
-      @jakarta.validation.constraints.Pattern(regexp = "(?:[0-9]{11})?") String ruc) {}
+      @jakarta.validation.constraints.Pattern(regexp = "(?:[0-9]{11})?") String ruc,
+      @jakarta.validation.constraints.Size(max = 100) String rubroNegocio) {}
 
   @org.springframework.transaction.annotation.Transactional
   public Empresa editarDatos(Long id, DatosRequest r) {
@@ -72,6 +83,11 @@ public class EmpresaService {
             .paraEditar(id)
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "La empresa no existe"));
+    if (r.rubroNegocio() != null) {
+      actual.setRubroNegocio(rubros.validar(r.rubroNegocio()));
+      empresaRepository.saveAndFlush(actual);
+      rubros.asociar(id, actual.getRubroNegocio());
+    }
     String nuevo = r.ruc() == null || r.ruc().isBlank() ? null : r.ruc().trim();
     if (nuevo != null && !nuevo.equals(actual.getRuc())) {
       if (actual.getRuc() != null)

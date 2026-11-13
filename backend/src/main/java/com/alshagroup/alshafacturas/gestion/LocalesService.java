@@ -35,7 +35,8 @@ public class LocalesService {
             + " 1 FROM locales l WHERE l.empresa_id=e.id) ON CONFLICT DO NOTHING",
         empresa);
     return db.queryForList(
-        "SELECT id,nombre,direccion FROM locales WHERE empresa_id=? ORDER BY id", empresa);
+        "SELECT id,nombre,direccion,rubro_negocio FROM locales WHERE empresa_id=? ORDER BY id",
+        empresa);
   }
 
   public List<Map<String, Object>> permitidos(UsuarioPrincipal p) {

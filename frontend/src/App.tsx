@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   BrowserRouter,
+  useNavigate,
   NavLink,
   Navigate,
   Route,
   Routes,
 } from "react-router-dom";
 import { api, ApiError, type Session } from "./lib/api";
+import AvisoMembresia from "./components/AvisoMembresia";
+import BloqueoMembresia, { type Bloqueo } from "./components/BloqueoMembresia";
+import Notificaciones from "./pages/Notificaciones";
 import Login from "./auth/Login";
 import Sunat from "./pages/Sunat";
 import Dashboard, { Configuracion } from "./pages/Dashboard";
@@ -56,6 +60,7 @@ const empresaLinks = [
   ["Usuarios", "/panel/usuarios", "ADMIN"],
   ["Roles", "/panel/roles", "ADMIN"],
   ["Mi plan", "/panel/plan", "ADMIN"],
+  ["Notificaciones", "/panel/notificaciones", "TODOS"],
   ["Configuración", "/panel/configuracion", "ADMIN"],
 ] as const;
 function Shell({
@@ -126,6 +131,7 @@ function Shell({
                 ["Ventas", "/atencion/ventas"],
               ]
             : []),
+          ["Notificaciones", "/atencion/notificaciones"],
           ...(admin
             ? [
                 ["Locales", "/atencion/locales"],
@@ -139,7 +145,8 @@ function Shell({
           (l) =>
             (l[1] !== "/panel/preparaciones" ||
               config.data.preparacion_habilitada) &&
-            (l[2] === "ADMIN" ? admin : can(session, l[2])),
+            (l[2] === "TODOS" ||
+              (l[2] === "ADMIN" ? admin : can(session, l[2]))),
         );
   const home = links[0]?.[1] || "/sin-acceso";
   return (
@@ -212,7 +219,26 @@ function Shell({
         </header>
         <main id="contenido" className="content" tabIndex={-1}>
           <ErrorNotice message={error} />
+          {!superadmin && (
+            <AvisoMembresia
+              href={
+                atencion ? "/atencion/notificaciones" : "/panel/notificaciones"
+              }
+            />
+          )}
           <Routes>
+            {!superadmin && (
+              <>
+                <Route
+                  path="/panel/notificaciones"
+                  element={<Notificaciones />}
+                />
+                <Route
+                  path="/atencion/notificaciones"
+                  element={<Notificaciones />}
+                />
+              </>
+            )}
             {superadmin ? (
               <>
                 <Route path="/admin/personal" element={<PersonalAdmin />} />
@@ -411,6 +437,8 @@ function Shell({
   );
 }
 function SessionApp() {
+  const navigate = useNavigate();
+  const [bloqueo, setBloqueo] = useState<Bloqueo | null>(null);
   const [session, setSession] = useState<Session | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
@@ -420,7 +448,7 @@ function SessionApp() {
     try {
       setSession(await api<Session>("/auth/me"));
     } catch (e) {
-      if (!(e instanceof ApiError && [401, 403].includes(e.status)))
+      if (!(e instanceof ApiError && [401, 402, 403].includes(e.status)))
         setError(
           "No se pudo conectar con el servidor. Comprueba que esté disponible.",
         );
@@ -437,7 +465,7 @@ function SessionApp() {
       .catch((e) => {
         if (
           !cancelled &&
-          !(e instanceof ApiError && [401, 403].includes(e.status))
+          !(e instanceof ApiError && [401, 402, 403].includes(e.status))
         )
           setError(
             "No se pudo conectar con el servidor. Comprueba que esté disponible.",
@@ -446,11 +474,18 @@ function SessionApp() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    const blocked = (e: Event) => {
+      setBloqueo((e as CustomEvent<Bloqueo>).detail);
+      setSession(null);
+      setError("");
+    };
     const invalidate = () => setSession(null);
+    window.addEventListener("subscription-blocked", blocked);
     window.addEventListener("session-invalid", invalidate);
     return () => {
       cancelled = true;
       window.removeEventListener("session-invalid", invalidate);
+      window.removeEventListener("subscription-blocked", blocked);
     };
   }, []);
   if (loading)
@@ -458,6 +493,17 @@ function SessionApp() {
       <main className="loading-page" role="status">
         Conectando con AlshaFacturas…
       </main>
+    );
+  if (bloqueo)
+    return (
+      <BloqueoMembresia
+        data={bloqueo}
+        onClose={() => {
+          setBloqueo(null);
+          setSession(null);
+          navigate("/login");
+        }}
+      />
     );
   if (error)
     return (

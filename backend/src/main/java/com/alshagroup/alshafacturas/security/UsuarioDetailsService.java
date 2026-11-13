@@ -13,15 +13,12 @@ public class UsuarioDetailsService implements UserDetailsService {
 
   private final UsuarioRepository usuarioRepository;
   private final com.alshagroup.alshafacturas.gestion.RolesService roles;
-  private final com.alshagroup.alshafacturas.gestion.PlanesService planes;
 
   public UsuarioDetailsService(
       UsuarioRepository usuarioRepository,
-      com.alshagroup.alshafacturas.gestion.RolesService roles,
-      com.alshagroup.alshafacturas.gestion.PlanesService planes) {
+      com.alshagroup.alshafacturas.gestion.RolesService roles) {
     this.usuarioRepository = usuarioRepository;
     this.roles = roles;
-    this.planes = planes;
   }
 
   @Override
@@ -48,9 +45,6 @@ public class UsuarioDetailsService implements UserDetailsService {
               != com.alshagroup.alshafacturas.entity.EstadoEmpresa.ACTIVA) {
         throw new UsernameNotFoundException("Credenciales incorrectas");
       }
-      if (!"SUPERADMIN".equals(usuario.getRol())
-          && !planes.permiteAcceso(empresaId, usuario.getId()))
-        throw new UsernameNotFoundException("Cuenta sin cupo vigente");
       return new UsuarioPrincipal(usuario, roles.permisos(empresaId, usuario.getRol()));
 
     } catch (IllegalArgumentException e) {

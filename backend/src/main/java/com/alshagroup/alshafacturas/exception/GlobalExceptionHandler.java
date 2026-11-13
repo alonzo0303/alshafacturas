@@ -11,6 +11,11 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+  @ExceptionHandler(MembresiaException.class)
+  public ResponseEntity<Map<String, Object>> membresia(MembresiaException ex) {
+    return ResponseEntity.status(402).header("Cache-Control", "no-store").body(ex.datos());
+  }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<Map<String, String>> manejarValidaciones(
       MethodArgumentNotValidException ex) {

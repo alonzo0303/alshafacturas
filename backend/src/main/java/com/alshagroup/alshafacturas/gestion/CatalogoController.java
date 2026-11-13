@@ -43,9 +43,14 @@ public class CatalogoController {
     return db.queryForList(
         "SELECT c.*,f.version AS imagen_version FROM catalogo_comun c LEFT JOIN fotos_catalogo f ON"
             + " f.catalogo_id=c.id WHERE ? OR (c.activo AND EXISTS(SELECT 1 FROM"
-            + " empresa_rubros_catalogo r WHERE r.empresa_id=? AND r.rubro=c.rubro)) ORDER BY"
+            + " empresa_rubros_catalogo r WHERE r.empresa_id=? AND r.rubro=c.rubro) AND"
+            + " EXISTS(SELECT 1 FROM locales l JOIN empresas e ON e.id=l.empresa_id WHERE l.id=?"
+            + " AND l.empresa_id=? AND (COALESCE(l.rubro_negocio,e.rubro_negocio) IS NULL OR"
+            + " c.rubro=COALESCE(l.rubro_negocio,e.rubro_negocio)))) ORDER BY"
             + " c.rubro,c.nombre,c.id",
         "SUPERADMIN".equals(p.getRol()),
+        p.getEmpresaId(),
+        p.getLocalId(),
         p.getEmpresaId());
   }
 

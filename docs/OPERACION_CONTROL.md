@@ -63,3 +63,5 @@ npm.cmd run dev --prefix frontend
 ```
 
 Abre la dirección que Vite muestre (normalmente http://localhost:5173). Mantén ambas terminales abiertas. La interfaz no se inicia con Maven. No cambies ni vuelvas a ejecutar manualmente migraciones ya aplicadas.
+
+Las actualizaciones de rubros, avisos D-5 a D-0 y bloqueo por vencimiento se explican en [Rubros y suscripciones](RUBROS_SUSCRIPCIONES.md).

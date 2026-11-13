@@ -40,6 +40,17 @@ public class Empresa {
   @Column(name = "afectacion_default", nullable = false)
   private String afectacionDefault = "GRAVADO";
 
+  @Column(name = "rubro_negocio", length = 100)
+  private String rubroNegocio;
+
+  public String getRubroNegocio() {
+    return rubroNegocio;
+  }
+
+  public void setRubroNegocio(String value) {
+    rubroNegocio = value;
+  }
+
   public void habilitarRuc() {
     if ("SIN_IGV".equals(afectacionDefault)) afectacionDefault = "GRAVADO";
   }

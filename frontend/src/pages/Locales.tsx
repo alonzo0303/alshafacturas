@@ -1,3 +1,4 @@
+import RubroNegocio from "../components/RubroNegocio";
 import { useState } from "react";
 import { api, type Empresa } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -9,7 +10,12 @@ import {
   Modal,
   Table,
 } from "../components/ui";
-type Local = { id: number; nombre: string; direccion: string };
+type Local = {
+  id: number;
+  nombre: string;
+  direccion: string;
+  rubro_negocio?: string | null;
+};
 type Usuario = {
   id: number;
   nombre: string;
@@ -17,9 +23,16 @@ type Usuario = {
   rol: string;
   locales: string;
 };
-function DatosLocal({ local }: { local?: Local }) {
+function DatosLocal({
+  local,
+  admin = false,
+}: {
+  local?: Local;
+  admin?: boolean;
+}) {
   return (
     <>
+      {admin && <RubroNegocio local initial={local?.rubro_negocio} />}
       <Field label="Nombre del local">
         <input
           name="nombre"
@@ -61,7 +74,7 @@ export function LocalesNegocio({ empresaId }: { empresaId?: number }) {
           onSave={(d) => api(`/locales${query}`, "POST", Object.fromEntries(d))}
           onDone={() => void refresh()}
         >
-          <DatosLocal />
+          <DatosLocal admin={!!empresaId} />
         </Form>
       </section>
       <section className="surface">
@@ -72,10 +85,11 @@ export function LocalesNegocio({ empresaId }: { empresaId?: number }) {
         {locales.loading ? (
           <p role="status">Cargando locales…</p>
         ) : (
-          <Table headers={["Local", "Dirección", "Acciones"]}>
+          <Table headers={["Local", "Rubro", "Dirección", "Acciones"]}>
             {locales.data.map((l) => (
               <tr key={l.id}>
                 <td>{l.nombre}</td>
+                <td>{l.rubro_negocio || "Hereda el rubro del negocio"}</td>
                 <td>{l.direccion}</td>
                 <td>
                   <button onClick={() => setEdit(l)}>
@@ -149,7 +163,7 @@ export function LocalesNegocio({ empresaId }: { empresaId?: number }) {
               void refresh();
             }}
           >
-            <DatosLocal local={edit} />
+            <DatosLocal local={edit} admin={!!empresaId} />
           </Form>
         </Modal>
       )}

@@ -1609,3 +1609,16 @@ a {
     white-space: normal;
   }
 }
+
+.payment-instructions {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.subscription-lock h2 {
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.review-subscriptions {
+  margin-top: 1rem;
+}

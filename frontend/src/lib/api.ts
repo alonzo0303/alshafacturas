@@ -27,7 +27,18 @@ async function transport(
   options: RequestInit,
 ): Promise<Response> {
   try {
-    return await fetch(path, options);
+    const response = await fetch(path, options);
+    if (response.status === 402) {
+      const data = await response
+        .clone()
+        .json()
+        .catch(() => null);
+      if (data?.codigo?.startsWith("MEMBRESIA_"))
+        window.dispatchEvent(
+          new CustomEvent("subscription-blocked", { detail: data }),
+        );
+    }
+    return response;
   } catch {
     throw new Error(
       "No se pudo completar la conexión. Revisa el historial antes de repetir una venta o compra.",
@@ -133,6 +144,7 @@ export type Empresa = {
   razonSocial: string;
   direccion: string;
   estado: "ACTIVA" | "PENDIENTE" | "SUSPENDIDA";
+  rubroNegocio?: string | null;
 };
 export type Venta = {
   id: number;

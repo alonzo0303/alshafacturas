@@ -18,10 +18,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class LocalesController {
   private final LocalesService locales;
   private final JdbcTemplate db;
+  private final RubrosService rubros;
 
-  public LocalesController(LocalesService locales, JdbcTemplate db) {
+  public LocalesController(LocalesService locales, JdbcTemplate db, RubrosService rubros) {
     this.locales = locales;
     this.db = db;
+    this.rubros = rubros;
   }
 
   private Long empresa(UsuarioPrincipal p, Long id) {
@@ -39,31 +41,50 @@ public class LocalesController {
   }
 
   public record Datos(
-      @NotBlank @Size(max = 100) String nombre, @Size(max = 255) String direccion) {}
+      @NotBlank @Size(max = 100) String nombre,
+      @Size(max = 255) String direccion,
+      @Size(max = 100) String rubroNegocio) {}
 
   @PostMapping
   @PreAuthorize("hasAnyRole('ADMIN','SUPERADMIN')")
+  @Transactional
   public List<Map<String, Object>> crear(
       @AuthenticationPrincipal UsuarioPrincipal p,
       @RequestParam(required = false) Long empresaId,
       @Valid @RequestBody Datos r) {
     Long e = empresa(p, empresaId);
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, e);
     locales.todos(e);
+    if (r.rubroNegocio() != null && !"SUPERADMIN".equals(p.getRol()))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El rubro lo asigna SuperAdmin");
+    String rubro = rubros.validar(r.rubroNegocio());
+    rubros.asociar(e, rubro);
     db.update(
-        "INSERT INTO locales(empresa_id,nombre,direccion) VALUES (?,?,?)",
+        "INSERT INTO locales(empresa_id,nombre,direccion,rubro_negocio) VALUES (?,?,?,?)",
         e,
         r.nombre().trim(),
-        Objects.requireNonNullElse(r.direccion(), ""));
+        Objects.requireNonNullElse(r.direccion(), ""),
+        rubro);
     return locales.todos(e);
   }
 
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('ADMIN','SUPERADMIN')")
+  @Transactional
   public void editar(
       @AuthenticationPrincipal UsuarioPrincipal p,
       @PathVariable Long id,
       @RequestParam(required = false) Long empresaId,
       @Valid @RequestBody Datos r) {
+    Long e = empresa(p, empresaId);
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, e);
+    if (r.rubroNegocio() != null) {
+      if (!"SUPERADMIN".equals(p.getRol()))
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El rubro lo asigna SuperAdmin");
+      String rubro = rubros.validar(r.rubroNegocio());
+      rubros.asociar(e, rubro);
+      db.update("UPDATE locales SET rubro_negocio=? WHERE empresa_id=? AND id=?", rubro, e, id);
+    }
     if (db.update(
             "UPDATE locales SET nombre=?,direccion=? WHERE empresa_id=? AND id=?",
             r.nombre().trim(),

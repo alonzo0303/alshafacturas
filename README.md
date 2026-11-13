@@ -88,3 +88,5 @@ SUPERADMIN asigna **Comercio** o **Atención y servicios** a cada usuario, con t
 Incluye tipos de atención ampliables, catálogo y cobro interno de servicios sin stock, selector de negocio para correo compartido, edición de correo/contraseña por SUPERADMIN, incorporación de RUC y locales con datos operativos separados bajo una empresa. Consulta la [guía de uso y límites](docs/SERVICIOS_LOCALES_ACCESOS.md).
 
 Consulta [operación, personal y documentos](docs/OPERACION_CONTROL.md) y la [revisión de seguridad](docs/SEGURIDAD_OPERATIVA.md).
+
+La asignación automática de catálogo por rubro y los recordatorios/bloqueos de membresía se explican en [Rubros y suscripciones](docs/RUBROS_SUSCRIPCIONES.md).
