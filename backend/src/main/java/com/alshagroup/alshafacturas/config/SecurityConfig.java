@@ -37,7 +37,11 @@ public class SecurityConfig {
 
   @Bean
   SecurityFilterChain securityFilterChain(
-      HttpSecurity http, SecurityContextRepository contexts, AccesoEmpresaFilter acceso)
+      HttpSecurity http,
+      SecurityContextRepository contexts,
+      AccesoEmpresaFilter acceso,
+      LoginLimitFilter loginLimit,
+      JsonSizeFilter jsonSize)
       throws Exception {
     http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
         .authorizeHttpRequests(
@@ -63,7 +67,13 @@ public class SecurityConfig {
                     .anyRequest()
                     .denyAll())
         .securityContext(c -> c.securityContextRepository(contexts))
+        .addFilterBefore(jsonSize, SecurityContextHolderFilter.class)
+        .addFilterBefore(loginLimit, JsonSizeFilter.class)
         .addFilterAfter(acceso, SecurityContextHolderFilter.class)
+        .headers(
+            h ->
+                h.contentSecurityPolicy(
+                    c -> c.policyDirectives("default-src 'none'; frame-ancestors 'none'")))
         .logout(
             l ->
                 l.logoutUrl("/api/auth/logout")

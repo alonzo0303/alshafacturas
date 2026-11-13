@@ -26,6 +26,14 @@ import LocalesAdmin, { LocalesNegocio } from "./pages/Locales";
 import SelectorLocal from "./components/SelectorLocal";
 import Servicios from "./pages/Servicios";
 import CobrarServicios from "./pages/CobrarServicios";
+import PersonalAdmin from "./pages/PersonalAdmin";
+import ControlAdmin from "./pages/ControlAdmin";
+import Cajas from "./pages/Cajas";
+import Rendimiento from "./pages/Rendimiento";
+import Auditoria from "./pages/Auditoria";
+import Preparaciones, { Mesas } from "./pages/Pedidos";
+import OrdenesCompra from "./pages/OrdenesCompra";
+import { useData } from "./lib/useData";
 import Atencion from "./pages/Atencion";
 const empresaLinks = [
   ["Resumen", "/panel", "RESUMEN_VER"],
@@ -37,6 +45,11 @@ const empresaLinks = [
   ["Inventario", "/panel/inventario", "INVENTARIO_VER"],
   ["Registrar compra", "/panel/compra", "COMPRAS_GESTIONAR"],
   ["Compras", "/panel/compras", "COMPRAS_GESTIONAR"],
+  ["Órdenes de compra", "/panel/ordenes-compra", "COMPRAS_GESTIONAR"],
+  ["Preparaciones", "/panel/preparaciones", "PREPARACION_GESTIONAR"],
+  ["Caja y cierres", "/panel/cajas", "CAJA_GESTIONAR"],
+  ["Rendimiento", "/panel/rendimiento", "RENDIMIENTO_VER"],
+  ["Auditoría", "/panel/auditoria", "ADMIN"],
   ["Facturación electrónica", "/panel/facturacion", "FACTURACION_VER"],
   ["IGV y compras", "/panel/tributacion", "IMPUESTOS_VER"],
   ["Locales", "/panel/locales", "ADMIN"],
@@ -55,6 +68,13 @@ function Shell({
   const admin = session.rol === "ADMIN",
     superadmin = session.rol === "SUPERADMIN";
   const atencion = !superadmin && session.modalidad === "ATENCION";
+  const config = useData(
+    () =>
+      superadmin
+        ? Promise.resolve({ preparacion_habilitada: false })
+        : api<{ preparacion_habilitada: boolean }>("/operacion/configuracion"),
+    { preparacion_habilitada: false },
+  );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -73,6 +93,8 @@ function Shell({
   const links = superadmin
     ? [
         ["Empresas", "/admin/empresas"],
+        ["Personal y accesos", "/admin/personal"],
+        ["Control operativo", "/admin/control"],
         ["Pagos y planes", "/admin/pagos"],
         ["Catálogo común", "/admin/catalogo"],
         ["Sucursales", "/admin/locales"],
@@ -81,6 +103,20 @@ function Shell({
     : atencion
       ? [
           ["Atención y servicios", "/atencion"],
+          ...(session.nichoTema === "RESTAURANTE" &&
+          can(session, "MESAS_GESTIONAR")
+            ? [["Mesas", "/atencion/mesas"]]
+            : []),
+          ...(can(session, "SERVICIOS_VER") || can(session, "PRODUCTOS_VER")
+            ? [["Catálogo común", "/atencion/catalogo"]]
+            : []),
+          ...(can(session, "CAJA_GESTIONAR")
+            ? [["Caja y cierres", "/atencion/cajas"]]
+            : []),
+          ...(can(session, "RENDIMIENTO_VER")
+            ? [["Rendimiento", "/atencion/rendimiento"]]
+            : []),
+          ...(admin ? [["Auditoría", "/atencion/auditoria"]] : []),
           ...(can(session, "SERVICIOS_VER") || can(session, "VENTAS_GESTIONAR")
             ? [["Servicios", "/atencion/servicios"]]
             : []),
@@ -99,12 +135,18 @@ function Shell({
               ]
             : []),
         ]
-      : empresaLinks.filter((l) =>
-          l[2] === "ADMIN" ? admin : can(session, l[2]),
+      : empresaLinks.filter(
+          (l) =>
+            (l[1] !== "/panel/preparaciones" ||
+              config.data.preparacion_habilitada) &&
+            (l[2] === "ADMIN" ? admin : can(session, l[2])),
         );
   const home = links[0]?.[1] || "/sin-acceso";
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      data-nicho={atencion ? session.nichoTema || "OTRO" : "COMERCIO"}
+    >
       <a href="#contenido" className="skip-link">
         Saltar al contenido
       </a>
@@ -113,10 +155,15 @@ function Shell({
           ALSHA<span>FACTURAS</span>
         </NavLink>
         <p className="sidebar-caption">
+          {!superadmin && (
+            <span className="niche-emoji" aria-hidden="true">
+              {session.nichoEmoji || "🛒"}{" "}
+            </span>
+          )}
           {superadmin
             ? "Administración de plataforma"
             : atencion
-              ? "Atención y servicios"
+              ? session.tipoNombre || "Atención y servicios"
               : "Gestión empresarial"}
         </p>
         <button
@@ -168,6 +215,11 @@ function Shell({
           <Routes>
             {superadmin ? (
               <>
+                <Route path="/admin/personal" element={<PersonalAdmin />} />
+                <Route
+                  path="/admin/control"
+                  element={<ControlAdmin session={session} />}
+                />
                 <Route path="/admin/locales" element={<LocalesAdmin />} />
                 <Route path="/admin/empresas" element={<Empresas />} />
                 <Route path="/admin/pagos" element={<PagosAdmin />} />
@@ -179,6 +231,32 @@ function Shell({
               </>
             ) : atencion ? (
               <>
+                {can(session, "MESAS_GESTIONAR") &&
+                  session.nichoTema === "RESTAURANTE" && (
+                    <Route path="/atencion/mesas" element={<Mesas />} />
+                  )}
+                {(can(session, "SERVICIOS_VER") ||
+                  can(session, "PRODUCTOS_VER")) && (
+                  <Route
+                    path="/atencion/catalogo"
+                    element={<CatalogoNegocio />}
+                  />
+                )}
+                {can(session, "CAJA_GESTIONAR") && (
+                  <Route
+                    path="/atencion/cajas"
+                    element={<Cajas session={session} />}
+                  />
+                )}
+                {can(session, "RENDIMIENTO_VER") && (
+                  <Route
+                    path="/atencion/rendimiento"
+                    element={<Rendimiento />}
+                  />
+                )}
+                {admin && (
+                  <Route path="/atencion/auditoria" element={<Auditoria />} />
+                )}
                 <Route
                   path="/atencion"
                   element={<Atencion session={session} />}
@@ -224,6 +302,31 @@ function Shell({
               </>
             ) : (
               <>
+                {config.data.preparacion_habilitada &&
+                  can(session, "PREPARACION_GESTIONAR") && (
+                    <Route
+                      path="/panel/preparaciones"
+                      element={<Preparaciones />}
+                    />
+                  )}
+                {can(session, "CAJA_GESTIONAR") && (
+                  <Route
+                    path="/panel/cajas"
+                    element={<Cajas session={session} />}
+                  />
+                )}
+                {can(session, "RENDIMIENTO_VER") && (
+                  <Route path="/panel/rendimiento" element={<Rendimiento />} />
+                )}
+                {can(session, "COMPRAS_GESTIONAR") && (
+                  <Route
+                    path="/panel/ordenes-compra"
+                    element={<OrdenesCompra />}
+                  />
+                )}
+                {admin && (
+                  <Route path="/panel/auditoria" element={<Auditoria />} />
+                )}
                 {can(session, "RESUMEN_VER") && (
                   <Route path="/panel" element={<Dashboard />} />
                 )}

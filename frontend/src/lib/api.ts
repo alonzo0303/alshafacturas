@@ -9,6 +9,9 @@ export type Session = {
   tipoAtencion: string | null;
   localId: number | null;
   localNombre: string | null;
+  tipoNombre?: string;
+  nichoEmoji?: string;
+  nichoTema?: string;
 };
 export class ApiError extends Error {
   status: number;
@@ -138,6 +141,8 @@ export type Venta = {
   estado: string;
   tipo: string;
   estado_fiscal: string;
+  stock_alerta?: boolean;
+  tiene_productos?: boolean;
   total: number;
   subtotal: number;
   igv: number;
@@ -164,7 +169,7 @@ export type Venta = {
 export function exportCsv(name: string, headers: string[], rows: unknown[][]) {
   const cell = (v: unknown) => {
     let s = String(v ?? "");
-    if (/^[=+@-]/.test(s)) s = "'" + s;
+    if (/^[=+@-]/.test(s.trimStart()) || /^[\t\r\n]/.test(s)) s = "'" + s;
     return '"' + s.replaceAll('"', '""') + '"';
   };
   const url = URL.createObjectURL(
@@ -180,5 +185,52 @@ export function exportCsv(name: string, headers: string[], rows: unknown[][]) {
   a.href = url;
   a.download = name;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function localHeaders(): Record<string, string> {
+  return currentLocal === null ? {} : { "X-Local-Id": String(currentLocal) };
+}
+export async function binary(
+  path: string,
+  method = "GET",
+  file?: File,
+): Promise<Response> {
+  const headers: Record<string, string> = { ...localHeaders() };
+  if (method !== "GET") {
+    const token = await api<{ headerName: string; token: string }>(
+      "/auth/csrf",
+    );
+    headers[token.headerName] = token.token;
+  }
+  if (file) headers["Content-Type"] = file.type;
+  const response = await transport("/api" + path, {
+    method,
+    headers,
+    body: file,
+    credentials: "same-origin",
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    if (
+      response.status === 401 ||
+      (response.status === 403 && data.codigo === "SESION_REVOCADA")
+    )
+      window.dispatchEvent(new Event("session-invalid"));
+    throw new ApiError(
+      data.mensaje || "No se pudo completar la descarga o subida.",
+      response.status,
+    );
+  }
+  return response;
+}
+export async function downloadFile(path: string, name: string) {
+  const response = await binary(path);
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

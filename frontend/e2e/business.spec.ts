@@ -630,7 +630,9 @@ test("SUPERADMIN asigna el rubro visible para el negocio", async ({ page }) => {
     "Ferretería",
   ]);
   await rubro.fill("FERRETERIA");
-  await expect(page.getByRole("option")).toHaveText(["Ferretería"]);
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveText([
+    "Ferretería",
+  ]);
   await rubro.press("ArrowDown");
   await rubro.press("Enter");
   await expect(rubro).toHaveValue("Ferretería");
@@ -709,7 +711,10 @@ test("Editar negocio conserva su código y permite continuar con sus productos",
     .click();
   await page.getByRole("link", { name: "Productos", exact: true }).click();
   await expect(
-    page.getByText("Mercadería que se conserva", { exact: true }),
+    page
+      .getByRole("cell")
+      .filter({ hasText: "Mercadería que se conserva" })
+      .first(),
   ).toBeVisible();
 });
 
@@ -734,7 +739,9 @@ test("Buscar rubro del catálogo, elegir con teclado y crear uno propio", async 
     exact: true,
   });
   await rubro.fill("ferreteria");
-  await expect(page.getByRole("option")).toHaveText(["Ferretería"]);
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveText([
+    "Ferretería",
+  ]);
   await rubro.press("ArrowDown");
   await rubro.press("Enter");
   await expect(rubro).toHaveValue("Ferretería");

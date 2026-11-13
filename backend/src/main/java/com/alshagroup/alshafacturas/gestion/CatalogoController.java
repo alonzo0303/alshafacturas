@@ -28,14 +28,17 @@ public class CatalogoController {
       @NotBlank @Size(max = 100) String rubro,
       @Size(max = 500) String descripcion,
       boolean activo,
-      @Size(max = 100) String marca) {}
+      @Size(max = 100) String marca,
+      @Pattern(regexp = "PRODUCTO|SERVICIO") String clase,
+      @Min(0) @Max(1440) Integer duracionMinutos) {}
 
   private String marca(String value) {
     return value == null || value.isBlank() ? "Genérico" : value.trim();
   }
 
   @GetMapping
-  @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('PRODUCTOS_VER')")
+  @PreAuthorize(
+      "hasRole('SUPERADMIN') or hasAuthority('PRODUCTOS_VER') or hasAuthority('SERVICIOS_VER')")
   public List<Map<String, Object>> listado(@AuthenticationPrincipal UsuarioPrincipal p) {
     return db.queryForList(
         "SELECT c.*,f.version AS imagen_version FROM catalogo_comun c LEFT JOIN fotos_catalogo f ON"
@@ -54,14 +57,17 @@ public class CatalogoController {
         "INSERT INTO rubros_catalogo(nombre) VALUES (?) ON CONFLICT DO NOTHING", r.rubro().trim());
     Long id =
         db.queryForObject(
-            "INSERT INTO catalogo_comun(nombre,rubro,descripcion,activo,marca) VALUES (?,?,?,?,?)"
-                + " RETURNING id",
+            "INSERT INTO"
+                + " catalogo_comun(nombre,rubro,descripcion,activo,marca,clase,duracion_minutos)"
+                + " VALUES (?,?,?,?,?,?,?) RETURNING id",
             Long.class,
             r.nombre().trim(),
             r.rubro().trim(),
             r.descripcion(),
             r.activo(),
-            marca(r.marca()));
+            marca(r.marca()),
+            Objects.requireNonNullElse(r.clase(), "PRODUCTO"),
+            Objects.requireNonNullElse(r.duracionMinutos(), 0));
     return db.queryForMap("SELECT * FROM catalogo_comun WHERE id=?", id);
   }
 
@@ -73,12 +79,15 @@ public class CatalogoController {
         "INSERT INTO rubros_catalogo(nombre) VALUES (?) ON CONFLICT DO NOTHING", r.rubro().trim());
     if (db.update(
             "UPDATE catalogo_comun SET"
-                + " nombre=?,rubro=?,descripcion=?,activo=?,marca=COALESCE(?,marca) WHERE id=?",
+                + " nombre=?,rubro=?,descripcion=?,activo=?,marca=COALESCE(?,marca),clase=COALESCE(?,clase),duracion_minutos=COALESCE(?,duracion_minutos)"
+                + " WHERE id=?",
             r.nombre().trim(),
             r.rubro().trim(),
             r.descripcion(),
             r.activo(),
             r.marca() == null ? null : marca(r.marca()),
+            r.clase(),
+            r.duracionMinutos(),
             id)
         == 0)
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto común no encontrado");
@@ -86,26 +95,50 @@ public class CatalogoController {
   }
 
   @PostMapping("/{id}/incorporar")
-  @PreAuthorize("hasAuthority('PRODUCTOS_EDITAR')")
+  @PreAuthorize("hasAuthority('PRODUCTOS_EDITAR') or hasAuthority('SERVICIOS_EDITAR')")
+  @org.springframework.transaction.annotation.Transactional
   public Map<String, Object> incorporar(
       @AuthenticationPrincipal UsuarioPrincipal p,
       @PathVariable Long id,
       @Valid @RequestBody ComercialDtos.ProductoRequest r) {
-    return productos.producto(
-        p.getEmpresaId(),
-        null,
-        new ComercialDtos.ProductoRequest(
-            r.sku(),
-            r.nombre(),
-            r.precio(),
-            r.minimo(),
-            r.activo(),
-            r.marca(),
-            r.categoria(),
-            r.presentacion(),
-            r.codigoBarras(),
-            id,
-            r.afectacionIgv(),
-            r.precioIncluyeIgv()));
+    var templates =
+        db.queryForList("SELECT clase,duracion_minutos FROM catalogo_comun WHERE id=?", id);
+    if (templates.isEmpty())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Plantilla no encontrada");
+    var template = templates.getFirst();
+    if ("SERVICIO".equals(template.get("clase")) && r.precio().signum() <= 0)
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Define un precio positivo para el servicio");
+    String permiso =
+        "SERVICIO".equals(template.get("clase")) ? "SERVICIOS_EDITAR" : "PRODUCTOS_EDITAR";
+    if (p.getAuthorities().stream().noneMatch(a -> permiso.equals(a.getAuthority())))
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "No puedes incorporar este tipo de plantilla");
+    var result =
+        productos.producto(
+            p.getEmpresaId(),
+            null,
+            new ComercialDtos.ProductoRequest(
+                r.sku(),
+                r.nombre(),
+                r.precio(),
+                r.minimo(),
+                r.activo(),
+                r.marca(),
+                r.categoria(),
+                r.presentacion(),
+                r.codigoBarras(),
+                id,
+                r.afectacionIgv(),
+                r.precioIncluyeIgv()));
+    if ("SERVICIO".equals(template.get("clase"))) {
+      db.update(
+          "UPDATE productos SET clase='SERVICIO',duracion_minutos=? WHERE id=?",
+          template.get("duracion_minutos"),
+          result.get("id"));
+      result.put("clase", "SERVICIO");
+      result.put("duracion_minutos", template.get("duracion_minutos"));
+    }
+    return result;
   }
 }

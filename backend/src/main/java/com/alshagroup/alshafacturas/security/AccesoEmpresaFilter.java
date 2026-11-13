@@ -85,10 +85,11 @@ public class AccesoEmpresaFilter extends OncePerRequestFilter {
             .write("{\"mensaje\":\"El local cambió en otra pestaña. Recarga antes de continuar\"}");
         return;
       }
-      SecurityContextHolder.getContext()
-          .setAuthentication(
-              new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                  refreshed, null, refreshed.getAuthorities()));
+      var requestContext = SecurityContextHolder.createEmptyContext();
+      requestContext.setAuthentication(
+          new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+              refreshed, null, refreshed.getAuthorities()));
+      SecurityContextHolder.setContext(requestContext);
     }
     chain.doFilter(req, res);
   }

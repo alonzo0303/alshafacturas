@@ -19,6 +19,7 @@ type Servicio = {
   duracion_minutos: number;
   activo: boolean;
   afectacion_igv: string;
+  es_comida?: boolean;
 };
 export default function Servicios({ session }: { session: Session }) {
   const { data, loading, error, refresh } = useData(
@@ -106,6 +107,7 @@ export default function Servicios({ session }: { session: Session }) {
                   duracionMinutos: Number(d.get("duracionMinutos")),
                   activo: d.get("activo") === "on",
                   afectacionIgv: d.get("afectacionIgv"),
+                  esComida: d.get("esComida") === "on",
                 },
               )
             }
@@ -163,6 +165,16 @@ export default function Servicios({ session }: { session: Session }) {
               El precio ingresado es el final. Si el negocio no tiene RUC, se
               guarda como gestión interna sin IGV.
             </p>
+            {session.nichoTema === "RESTAURANTE" && (
+              <label className="check">
+                <input
+                  name="esComida"
+                  type="checkbox"
+                  defaultChecked={editing?.es_comida ?? false}
+                />
+                Contabilizar como comida en rendimiento
+              </label>
+            )}
             <label>
               <input
                 name="activo"

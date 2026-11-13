@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, type Empresa, type Session } from "../lib/api";
+import AparienciaNichos from "../components/AparienciaNichos";
 import EditarCredenciales from "../components/EditarCredenciales";
 import { Form } from "../components/ui";
 import SeleccionUsuario from "../components/SeleccionVisualizacion";
@@ -69,7 +70,7 @@ function UsuariosEmpresa({
         <p role="status">Cargando usuarios…</p>
       ) : usuarios.length ? (
         usuarios.map((u) => (
-          <div key={`${u.id}-${revision}`}>
+          <section className="visual-user-card" key={`${u.id}-${revision}`}>
             <SeleccionUsuario
               key={`${u.id}-${revision}`}
               tipos={tipos}
@@ -85,7 +86,7 @@ function UsuariosEmpresa({
             <button onClick={() => setCredenciales(guardados[u.id] || u)}>
               Editar correo y contraseña de {u.nombre}
             </button>
-          </div>
+          </section>
         ))
       ) : (
         <Empty>No hay usuarios que coincidan.</Empty>
@@ -126,7 +127,26 @@ export default function Visualizaciones() {
               placeholder="Por ejemplo: Spa o Discoteca"
             />
           </Field>
+          <Field label="Emoji del nicho">
+            <input name="emoji" maxLength={16} defaultValue="🛎️" />
+          </Field>
+          <Field label="Tema del nicho">
+            <select name="tema">
+              <option value="OTRO">Atención general</option>
+              <option value="BARBERIA">Barbería</option>
+              <option value="SPA">Spa</option>
+              <option value="RESTAURANTE">Restaurante</option>
+              <option value="COMERCIO">Comercio</option>
+            </select>
+          </Field>
         </Form>
+      </section>
+      <section className="surface">
+        <h2>Apariencia de nichos</h2>
+        <AparienciaNichos
+          tipos={tipos.data}
+          onUpdated={() => void tipos.refresh()}
+        />
       </section>
       <section className="surface">
         <div className="section-toolbar">

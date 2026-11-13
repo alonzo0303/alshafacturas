@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Security fixes for Jackson core/databind; keep the BOM aligned. -->
+		<jackson-bom.version>3.1.7</jackson-bom.version>
 	</properties>
 	<dependencies>
 	

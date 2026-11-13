@@ -23,7 +23,7 @@ public class TributacionController {
   }
 
   @GetMapping("/configuracion")
-  @PreAuthorize("hasAuthority('PRODUCTOS_VER')")
+  @PreAuthorize("hasAuthority('PRODUCTOS_VER') or hasAuthority('SERVICIOS_EDITAR')")
   public Map<String, Object> config(@AuthenticationPrincipal UsuarioPrincipal p) {
     return db.queryForMap(
         "SELECT ruc,CASE WHEN ruc IS NULL THEN 'SIN_IGV' ELSE afectacion_default END AS"

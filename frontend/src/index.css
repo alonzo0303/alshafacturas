@@ -1481,3 +1481,131 @@ a {
   color: var(--muted);
   margin: 8px 0;
 }
+
+/* El color de marca se conserva; el nicho aporta un acento secundario. */
+.app-shell[data-nicho="BARBERIA"] {
+  --niche-accent: #166534;
+  --niche-surface: #f0fdf4;
+}
+.app-shell[data-nicho="SPA"] {
+  --niche-accent: #0f766e;
+  --niche-surface: #f0fdfa;
+}
+.app-shell[data-nicho="RESTAURANTE"] {
+  --niche-accent: #9a3412;
+  --niche-surface: #fff7ed;
+}
+.app-shell[data-nicho="OTRO"] {
+  --niche-accent: #6d28d9;
+  --niche-surface: #faf5ff;
+}
+.app-shell:not([data-nicho="COMERCIO"]) .topbar {
+  background: var(--niche-surface);
+  border-bottom: 3px solid var(--niche-accent);
+}
+.niche-emoji {
+  font-size: 1.25rem;
+  vertical-align: middle;
+}
+.visual-user-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+  min-width: 0;
+}
+.visual-user-card .visual-user-form {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.visual-user-card > button {
+  margin-top: 12px;
+}
+.visual-user-form h3,
+.visual-user-form p {
+  overflow-wrap: anywhere;
+}
+.visual-user-form .form-grid {
+  align-items: start;
+}
+.visual-user-form fieldset {
+  min-width: 0;
+}
+.stock-level {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stock-low {
+  color: #991b1b;
+  background: #fef2f2;
+}
+.stock-optimal {
+  color: #1e40af;
+  background: #eff6ff;
+}
+.danger-button {
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 24px;
+  margin-block: 24px;
+}
+.metric-grid strong,
+.metric-grid small {
+  display: block;
+}
+.metric-grid strong {
+  font-size: 24px;
+  margin-top: 8px;
+}
+.daily-bars {
+  list-style: none;
+  padding: 0;
+}
+.daily-bars li {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) 7rem;
+  gap: 12px;
+  align-items: center;
+  margin-block: 12px;
+}
+.daily-bars meter {
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .visual-user-card {
+    padding: 16px;
+  }
+  .daily-bars li {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .daily-bars meter {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+}
+@media print {
+  body:has(.receipt-dialog[open]) .editor-dialog {
+    display: none !important;
+  }
+  .internal-print .table-scroll {
+    overflow: visible;
+  }
+  .internal-print .section-toolbar,
+  .internal-print .table-slider {
+    display: none !important;
+  }
+  .internal-print td,
+  .internal-print th {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}

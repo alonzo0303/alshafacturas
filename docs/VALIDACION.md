@@ -80,3 +80,17 @@ Verificado: Maven verify (8 pruebas aprobadas y 2 externas omitidas), 25 pruebas
 La prueba API cubre marca predeterminada Genérico, creación/edición de marca común, incorporación con marca heredada o propia, incorporación directa con catalogoId, compatibilidad de ediciones que omiten marca y rechazo de valores demasiado largos o cambios no autorizados. Comprueba que editar la marca común no modifica los productos ya incorporados.
 
 El navegador verifica creación y edición por SUPERADMIN, columna Marca, búsqueda por marca, visualización en tarjetas del negocio, valor inicial al incorporar y una marca propia conservada en Productos sin alterar la plantilla común. Solo datos ficticios de prueba.
+
+
+## Operación, auditoría y ciclo de personal (12/11/2026)
+
+- Java 21 / Maven verify: 12 pruebas aprobadas y 2 externas SUNAT omitidas. Incluye expiración de gracia sin borrar cuenta, límite de intentos concurrentes y regresión fiscal simulada (XXE, aislamiento y reintentos).
+- API sobre PostgreSQL 17: 30 regresiones existentes + 11 pruebas operativas/de seguridad. `python -m unittest discover -s tests -p 'test_*.py' -v`.
+- Playwright: 16 recorridos aprobados. Después del parche Jackson se repitieron los 3 nuevos con éxito. Incluyen confirmaciones, restablecimiento/reactivación/eliminación, mesas, hoja previa sin movimiento de stock, cobro único, caja/corte, CSV, orden de compra y adjunto privado.
+- Interfaz: TypeScript/Vite y oxlint aprobados. Axe sin infracciones en las pantallas incluidas en los recorridos; tamaños 320, 768, 1024 y 1440 px sin desbordamiento global en el flujo nuevo de restaurante.
+- Impresión: PDFs reales generados por Chromium para A4, 80 mm y 58 mm, verificando MediaBox; no se imprimió en hardware físico.
+- Concurrencia: 48 peticiones de una sesión con cambios de local, sin intercambio de datos; sobreventa, cupos, versiones de pedido e idempotencia entre flujos comprobados.
+- Migración: copia independiente de base V11, actualización a V13; conteos y hashes de todas las columnas originales de 22 tablas idénticos antes/después. La base fuente no se modificó.
+- Dependencias: npm audit sin avisos; OSV detectó 7 avisos en Jackson 3.1.5, corregidos con BOM 3.1.7. Nueva consulta de las 33 coordenadas Maven identificadas sin avisos conocidos.
+
+Los registros, capturas y PDFs de ejecución se guardaron fuera del repositorio, sin credenciales ni datos reales. La CI ejecuta Maven, compilación/lint, ambas baterías API y todos los recorridos Playwright. Ver [guía operativa](OPERACION_CONTROL.md) e [informe de seguridad y límites](SEGURIDAD_OPERATIVA.md).

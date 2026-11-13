@@ -31,7 +31,8 @@ public class ServiciosController {
           BigDecimal precio,
       @Min(0) @Max(1440) int duracionMinutos,
       boolean activo,
-      @Pattern(regexp = "GRAVADO|EXONERADO|INAFECTO|SIN_IGV") String afectacionIgv) {}
+      @Pattern(regexp = "GRAVADO|EXONERADO|INAFECTO|SIN_IGV") String afectacionIgv,
+      Boolean esComida) {}
 
   @GetMapping
   @PreAuthorize("hasAuthority('SERVICIOS_VER') or hasAuthority('VENTAS_GESTIONAR')")
@@ -93,8 +94,9 @@ public class ServiciosController {
                 true));
     Long saved = ((Number) prod.get("id")).longValue();
     db.update(
-        "UPDATE productos SET clase='SERVICIO',duracion_minutos=? WHERE id=?",
+        "UPDATE productos SET clase='SERVICIO',duracion_minutos=?,es_comida=? WHERE id=?",
         r.duracionMinutos(),
+        Boolean.TRUE.equals(r.esComida()),
         saved);
     return db.queryForMap("SELECT * FROM productos WHERE id=?", saved);
   }

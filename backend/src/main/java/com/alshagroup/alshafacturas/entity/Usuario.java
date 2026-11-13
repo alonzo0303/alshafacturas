@@ -59,6 +59,17 @@ public class Usuario {
     return credencialesVersion;
   }
 
+  @Column(name = "desactivado_en")
+  private java.time.Instant desactivadoEn;
+
+  public java.time.Instant getDesactivadoEn() {
+    return desactivadoEn;
+  }
+
+  public void setDesactivadoEn(java.time.Instant v) {
+    desactivadoEn = v;
+  }
+
   public Usuario() {}
 
   public Long getId() {

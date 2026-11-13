@@ -18,6 +18,10 @@ public class RolesService {
 
   public static final Set<String> PERMISOS =
       Set.of(
+          "MESAS_GESTIONAR",
+          "PREPARACION_GESTIONAR",
+          "CAJA_GESTIONAR",
+          "RENDIMIENTO_VER",
           "SERVICIOS_VER",
           "SERVICIOS_EDITAR",
           "RESUMEN_VER",
@@ -37,7 +41,15 @@ public class RolesService {
     return switch (rol) {
       case "ADMIN" -> PERMISOS.stream().sorted().toList();
       case "VENDEDOR" ->
-          List.of("PRODUCTOS_VER", "INVENTARIO_VER", "VENTAS_GESTIONAR", "CLIENTES_GESTIONAR");
+          List.of(
+              "PRODUCTOS_VER",
+              "INVENTARIO_VER",
+              "VENTAS_GESTIONAR",
+              "CLIENTES_GESTIONAR",
+              "CAJA_GESTIONAR",
+              "RENDIMIENTO_VER",
+              "MESAS_GESTIONAR",
+              "PREPARACION_GESTIONAR");
       case "ALMACENERO" ->
           List.of("PRODUCTOS_VER", "PRODUCTOS_EDITAR", "INVENTARIO_VER", "INVENTARIO_EDITAR");
       case "COMPRAS" ->

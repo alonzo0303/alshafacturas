@@ -43,4 +43,18 @@ public class GlobalExceptionHandler {
     return ResponseEntity.badRequest()
         .body(Map.of("mensaje", "Revisa el formato de los datos enviados"));
   }
+
+  @ExceptionHandler({
+    jakarta.validation.ConstraintViolationException.class,
+    org.springframework.web.method.annotation.HandlerMethodValidationException.class
+  })
+  public ResponseEntity<Map<String, String>> parametros(Exception e) {
+    return ResponseEntity.badRequest()
+        .body(Map.of("mensaje", "Revisa los parámetros y sus límites"));
+  }
+
+  @ExceptionHandler(org.springframework.dao.EmptyResultDataAccessException.class)
+  public ResponseEntity<Map<String, String>> noEncontrado(Exception e) {
+    return ResponseEntity.status(404).body(Map.of("mensaje", "Registro no encontrado"));
+  }
 }

@@ -28,7 +28,7 @@ Las notas NV01 son internas. Las solicitudes de factura/boleta se preparan y env
 
 Se usa moneda PEN y cantidades enteras. Cada producto puede estar gravado al 18%, exonerado o inafecto; sin RUC se usa gestión interna sin desglose fiscal. Los precios finales se conservan separados del costo de compra. Descuentos, detracciones, notas de crédito, guías y múltiples almacenes requieren reglas adicionales. El medio de pago registra información; no cobra mediante un banco o pasarela.
 
-Incluye registro manual de pagos de planes y control de cupos; no cobra con una pasarela. No incluye recuperación/cambio de contraseña, MFA ni un servicio de soporte. Las listas de ventas, compras y movimientos muestran las últimas 500 operaciones; el resumen considera todo el historial. Consulta [pendientes de producción](docs/PRODUCCION.md).
+Incluye registro manual de pagos de planes y control de cupos; no cobra con una pasarela. SUPERADMIN puede cambiar correo y restablecer contraseñas, revocando sesiones anteriores. No incluye recuperación por correo, MFA ni un servicio de soporte. Las listas de ventas, compras y movimientos muestran las últimas 500 operaciones; el resumen considera todo el historial. Consulta [pendientes de producción](docs/PRODUCCION.md).
 
 ## Requisitos
 
@@ -86,3 +86,5 @@ SUPERADMIN asigna **Comercio** o **Atención y servicios** a cada usuario, con t
 ## Servicios, sucursales y accesos
 
 Incluye tipos de atención ampliables, catálogo y cobro interno de servicios sin stock, selector de negocio para correo compartido, edición de correo/contraseña por SUPERADMIN, incorporación de RUC y locales con datos operativos separados bajo una empresa. Consulta la [guía de uso y límites](docs/SERVICIOS_LOCALES_ACCESOS.md).
+
+Consulta [operación, personal y documentos](docs/OPERACION_CONTROL.md) y la [revisión de seguridad](docs/SEGURIDAD_OPERATIVA.md).

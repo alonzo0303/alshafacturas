@@ -33,6 +33,17 @@ public class ImagenController {
                 : "SELECT id FROM productos WHERE id=? AND empresa_id=? AND local_id="
                     + LocalesService.actual(),
             catalogo ? new Object[] {id} : new Object[] {id, p.getEmpresaId()});
+    if (!catalogo
+        && p.getAuthorities().stream()
+            .noneMatch(
+                a -> (escribir ? "PRODUCTOS_EDITAR" : "PRODUCTOS_VER").equals(a.getAuthority()))
+        && db.queryForObject(
+                "SELECT count(*) FROM productos WHERE id=? AND empresa_id=? AND clase='SERVICIO'",
+                Long.class,
+                id,
+                p.getEmpresaId())
+            != 1)
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes permiso para esta imagen");
     if (rows.isEmpty()
         || catalogo && !"SUPERADMIN".equals(p.getRol()) && !rubros.permitido(p.getEmpresaId(), id))
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagen o producto no disponible");
@@ -84,7 +95,8 @@ public class ImagenController {
   }
 
   @GetMapping("/{tipo:productos|catalogo-comun}/{id}/imagen")
-  @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('PRODUCTOS_VER')")
+  @PreAuthorize(
+      "hasRole('SUPERADMIN') or hasAuthority('PRODUCTOS_VER') or hasAuthority('SERVICIOS_VER')")
   public ResponseEntity<byte[]> imagen(
       @PathVariable String tipo,
       @PathVariable Long id,
@@ -106,7 +118,7 @@ public class ImagenController {
       consumes = {"image/jpeg", "image/png"})
   @PreAuthorize(
       "(#tipo == 'catalogo-comun' and hasRole('SUPERADMIN')) or (#tipo == 'productos' and"
-          + " hasAuthority('PRODUCTOS_EDITAR'))")
+          + " (hasAuthority('PRODUCTOS_EDITAR') or hasAuthority('SERVICIOS_EDITAR')))")
   public Map<String, Object> guardar(
       @PathVariable String tipo,
       @PathVariable Long id,
@@ -134,7 +146,7 @@ public class ImagenController {
   @DeleteMapping("/{tipo:productos|catalogo-comun}/{id}/imagen")
   @PreAuthorize(
       "(#tipo == 'catalogo-comun' and hasRole('SUPERADMIN')) or (#tipo == 'productos' and"
-          + " hasAuthority('PRODUCTOS_EDITAR'))")
+          + " (hasAuthority('PRODUCTOS_EDITAR') or hasAuthority('SERVICIOS_EDITAR')))")
   public void quitar(
       @PathVariable String tipo,
       @PathVariable Long id,

@@ -10,4 +10,7 @@ public record LoginResponse(
     String modalidad,
     String tipoAtencion,
     Long localId,
-    String localNombre) {}
+    String localNombre,
+    String tipoNombre,
+    String nichoEmoji,
+    String nichoTema) {}

@@ -15,13 +15,20 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional(readOnly = true)
 public class ComercialService {
   private final JdbcTemplate db;
+  private final com.alshagroup.alshafacturas.gestion.CajaService cajas;
+  private final com.alshagroup.alshafacturas.gestion.AuditoriaService audit;
 
   private static long local() {
     return com.alshagroup.alshafacturas.gestion.LocalesService.actual();
   }
 
-  public ComercialService(JdbcTemplate db) {
+  public ComercialService(
+      JdbcTemplate db,
+      com.alshagroup.alshafacturas.gestion.CajaService cajas,
+      com.alshagroup.alshafacturas.gestion.AuditoriaService audit) {
     this.db = db;
+    this.cajas = cajas;
+    this.audit = audit;
   }
 
   private ResponseStatusException error(String m) {
@@ -234,17 +241,19 @@ public class ComercialService {
         producto);
     db.update(
         "INSERT INTO"
-            + " movimientos(local_id,empresa_id,producto_id,usuario_id,tipo,cantidad,saldo,motivo)"
+            + " movimientos(local_id,empresa_id,producto_id,usuario_id,tipo,cantidad,saldo,motivo,usuario_original_id,usuario_nombre)"
             + " VALUES ("
             + local()
-            + ",?,?,?,?,?,?,?)",
+            + ",?,?,?,?,?,?,?,?,?)",
         p.getEmpresaId(),
         producto,
         p.getId(),
         tipo,
         cantidad,
         saldo,
-        motivo);
+        motivo,
+        p.getId(),
+        p.getNombre());
   }
 
   @Transactional
@@ -256,8 +265,11 @@ public class ComercialService {
 
   public List<Map<String, Object>> ventas(Long empresa) {
     return db.queryForList(
-        "SELECT v.*,c.nombre AS cliente FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id"
-            + " WHERE v.local_id="
+        "SELECT v.*,c.nombre AS cliente,EXISTS(SELECT 1 FROM venta_detalles d JOIN productos pr ON"
+            + " pr.id=d.producto_id WHERE d.venta_id=v.id AND d.clase='PRODUCTO' AND"
+            + " pr.stock<=pr.minimo AND pr.activo) AS stock_alerta,EXISTS(SELECT 1 FROM"
+            + " venta_detalles d WHERE d.venta_id=v.id AND d.clase='PRODUCTO') AS tiene_productos"
+            + " FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.local_id="
             + local()
             + " AND v.empresa_id=? ORDER BY v.id DESC LIMIT 500",
         empresa);
@@ -318,6 +330,7 @@ public class ComercialService {
                 + " crear una nueva operación");
       return previous;
     }
+    Long caja = cajas.paraVenta(p);
     if (!"TICKET".equals(r.tipo())
         && db.queryForObject("SELECT ruc FROM empresas WHERE id=?", String.class, empresa) == null)
       throw error(
@@ -387,10 +400,10 @@ public class ComercialService {
     Long id =
         db.queryForObject(
             "INSERT INTO"
-                + " ventas(local_id,empresa_id,usuario_id,cliente_id,numero,tipo,estado_fiscal,metodo_pago,subtotal,igv,total,idempotencia)"
+                + " ventas(local_id,empresa_id,usuario_id,cliente_id,numero,tipo,estado_fiscal,metodo_pago,subtotal,igv,total,idempotencia,usuario_original_id,usuario_nombre,caja_id)"
                 + " VALUES ("
                 + local()
-                + ",?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+                + ",?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
             Long.class,
             empresa,
             p.getId(),
@@ -402,14 +415,17 @@ public class ComercialService {
             subtotal,
             total.subtract(subtotal),
             total,
-            r.idempotencia());
+            r.idempotencia(),
+            p.getId(),
+            p.getNombre(),
+            caja);
     for (var l : lineas) {
       Long producto = ((Number) l.get("id")).longValue();
       int cantidad = ((Number) l.get("cantidad")).intValue();
       db.update(
           "INSERT INTO"
-              + " venta_detalles(venta_id,producto_id,sku,nombre,cantidad,precio,total,base,igv,afectacion_igv,clase)"
-              + " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+              + " venta_detalles(venta_id,producto_id,sku,nombre,cantidad,precio,total,base,igv,afectacion_igv,clase,es_comida)"
+              + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
           id,
           producto,
           l.get("sku"),
@@ -420,9 +436,11 @@ public class ComercialService {
           l.get("base_linea"),
           l.get("igv_linea"),
           l.get("afectacion_igv"),
-          l.get("clase"));
+          l.get("clase"),
+          l.get("es_comida"));
       mover(p, producto, -cantidad, "VENTA", numero);
     }
+    audit.registrar(p, empresa, local(), "VENTA_CONFIRMADA", id, numero + ", total=" + total);
     return venta(empresa, id);
   }
 
@@ -431,6 +449,7 @@ public class ComercialService {
     lock(p.getEmpresaId());
     var v = venta(p.getEmpresaId(), id);
     if ("ANULADA".equals(v.get("estado"))) return v;
+    cajas.validarAnulacion(v.get("caja_id"));
     Long fiscales =
         db.queryForObject(
             "SELECT COUNT(*) FROM comprobantes WHERE empresa_id=? AND venta_id=?",
@@ -458,6 +477,7 @@ public class ComercialService {
         motivo,
         p.getEmpresaId(),
         id);
+    audit.registrar(p, p.getEmpresaId(), local(), "VENTA_ANULADA", id, motivo);
     return venta(p.getEmpresaId(), id);
   }
 
@@ -558,10 +578,10 @@ public class ComercialService {
     Long id =
         db.queryForObject(
             "INSERT INTO"
-                + " compras(local_id,empresa_id,proveedor,referencia,total,idempotencia,subtotal,igv,proveedor_ruc,tipo_documento,credito_fiscal,gravada,costo_incluye_igv)"
+                + " compras(local_id,empresa_id,proveedor,referencia,total,idempotencia,subtotal,igv,proveedor_ruc,tipo_documento,credito_fiscal,gravada,costo_incluye_igv,usuario_original_id,usuario_nombre)"
                 + " VALUES ("
                 + local()
-                + ",?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+                + ",?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
             Long.class,
             empresa,
             r.proveedor().trim(),
@@ -574,7 +594,9 @@ public class ComercialService {
             tipo,
             Boolean.TRUE.equals(r.creditoFiscal()),
             gravada,
-            incluye);
+            incluye,
+            p.getId(),
+            p.getNombre());
     for (var l : r.lineas()) {
       BigDecimal costoNeto =
           gravada && incluye
@@ -597,6 +619,7 @@ public class ComercialService {
           l.productoId());
       mover(p, l.productoId(), l.cantidad(), "COMPRA", r.referencia());
     }
+    audit.registrar(p, empresa, local(), "COMPRA_REGISTRADA", id, r.referencia());
     return one(
         "SELECT * FROM compras WHERE local_id=" + local() + " AND empresa_id=? AND id=?",
         empresa,

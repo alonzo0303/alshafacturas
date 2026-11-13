@@ -17,6 +17,10 @@ import OperationCart, { type CartLine } from "../components/OperationCart";
 import PurchaseFields from "../components/PurchaseFields";
 import { emptyPurchaseTax, type PurchaseTax } from "../lib/purchase";
 import { CatalogoPicker } from "./CatalogoComun";
+import ImprimirPedido from "../components/ImprimirPedido";
+import DetalleCompra from "../components/DetalleCompra";
+import type { Pedido } from "../lib/pedidos";
+import { Link } from "react-router-dom";
 import Recibo from "./Recibo";
 export default function Operacion({ compra = false }: { compra?: boolean }) {
   const { data, loading, error, refresh } = useData<{
@@ -31,6 +35,21 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
     }),
     { productos: [], clientes: [], empresa: null },
   );
+  const [mostrarCompra, setMostrarCompra] = useState(false),
+    [modoCompra, setModoCompra] = useState("INGRESO");
+  const [tienePreparacion, setTienePreparacion] = useState(false);
+  const configuracion = useData(
+    () => api<{ preparacion_habilitada: boolean }>("/operacion/configuracion"),
+    { preparacion_habilitada: false },
+  );
+  const preparacion = useRef<{
+    id: number;
+    version: number;
+    fingerprint: string;
+  } | null>(null);
+  const preparacionKey = useRef(crypto.randomUUID());
+  const [hoja, setHoja] = useState<Pedido | null>(null),
+    [compraRegistrada, setCompraRegistrada] = useState<number | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]),
     [search, setSearch] = useState(""),
     [actionError, setActionError] = useState(""),
@@ -146,7 +165,29 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         tax.gravada &&
         /^\d{11}$/.test(tax.ruc),
       );
-      const result = await api<Venta>(compra ? "/compras" : "/ventas", "POST", {
+      const esOrden = compra && values.get("registroCompra") === "ORDEN";
+      const fingerprint = JSON.stringify(
+        cart.map((l) => ({ productoId: l.producto.id, cantidad: l.cantidad })),
+      );
+      if (
+        !compra &&
+        preparacion.current &&
+        preparacion.current.fingerprint !== fingerprint
+      )
+        throw new Error(
+          "El carrito cambió. Actualiza la preparación antes de cobrar.",
+        );
+      const url = compra
+        ? esOrden
+          ? "/ordenes-compra"
+          : "/compras"
+        : preparacion.current
+          ? `/pedidos/${preparacion.current.id}/cobrar`
+          : "/ventas";
+      const result = await api<Venta>(url, "POST", {
+        ...(!compra && preparacion.current
+          ? { version: preparacion.current.version }
+          : {}),
         idempotencia: key.current,
         lineas,
         ...(compra
@@ -168,16 +209,55 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
             }),
       });
       key.current = crypto.randomUUID();
+      preparacion.current = null;
+      setTienePreparacion(false);
+      preparacionKey.current = crypto.randomUUID();
       setCart([]);
       setTax(emptyPurchaseTax);
       form.reset();
+      setModoCompra("INGRESO");
       setSuccess(
         compra
-          ? "Compra registrada. El inventario se ha actualizado."
+          ? esOrden
+            ? `Orden ${result.numero} creada. El stock no cambió; registra la recepción desde Órdenes de compra.`
+            : "Compra registrada. El inventario se ha actualizado."
           : `Venta ${result.numero} registrada.`,
       );
       if (!compra) setReceipt(result);
+      else if (!esOrden) setCompraRegistrada(result.id);
       await refresh();
+    } catch (e) {
+      setActionError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function generarPreparacion() {
+    if (!cart.length || busy) return;
+    setBusy(true);
+    setActionError("");
+    try {
+      let p = preparacion.current
+        ? await api<Pedido>(`/pedidos/${preparacion.current.id}`)
+        : await api<Pedido>("/pedidos", "POST", {
+            clase: "PREPARACION",
+            idempotencia: preparacionKey.current,
+          });
+      const fingerprint = JSON.stringify(
+        cart.map((l) => ({ productoId: l.producto.id, cantidad: l.cantidad })),
+      );
+      if (!p.lineas.length || preparacion.current?.fingerprint !== fingerprint)
+        p = await api<Pedido>(`/pedidos/${p.id}`, "PUT", {
+          version: p.version,
+          lineas: cart.map((l) => ({
+            productoId: l.producto.id,
+            cantidad: l.cantidad,
+          })),
+          observacion: "Preparación desde punto de venta",
+        });
+      preparacion.current = { id: p.id, version: p.version, fingerprint };
+      setTienePreparacion(true);
+      setHoja(p);
     } catch (e) {
       setActionError((e as Error).message);
     } finally {
@@ -194,7 +274,24 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
             : "Escanea o selecciona mercadería y registra la venta."
         }
       />
-      <ErrorNotice message={error || actionError} />
+      <ErrorNotice message={error || actionError || configuracion.error} />
+      {hoja && <ImprimirPedido pedido={hoja} onClose={() => setHoja(null)} />}
+      {compraRegistrada && (
+        <button type="button" onClick={() => setMostrarCompra(true)}>
+          Ver / descargar última compra
+        </button>
+      )}
+      {compraRegistrada && mostrarCompra && (
+        <DetalleCompra
+          id={compraRegistrada}
+          onClose={() => setMostrarCompra(false)}
+        />
+      )}
+      {compra && (
+        <Link className="button" to="/panel/ordenes-compra">
+          Ver órdenes de compra
+        </Link>
+      )}
       <p role="status">{success}</p>
       <div className="pos-grid">
         <section className="surface">
@@ -289,6 +386,34 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         >
           <h2>{compra ? "Detalle de compra" : "Detalle de venta"}</h2>
           <form className="form" onSubmit={submit}>
+            {compra && (
+              <Field label="Registro de compra">
+                <select
+                  name="registroCompra"
+                  value={modoCompra}
+                  onChange={(e) => setModoCompra(e.target.value)}
+                  disabled={busy}
+                >
+                  <option value="INGRESO">Ingresar mercadería ahora</option>
+                  <option value="ORDEN">
+                    Crear orden de compra sin ingresar stock
+                  </option>
+                </select>
+              </Field>
+            )}
+            {!compra &&
+              configuracion.data.preparacion_habilitada &&
+              can(session, "PREPARACION_GESTIONAR") && (
+                <button
+                  type="button"
+                  disabled={busy || !cart.length}
+                  onClick={() => void generarPreparacion()}
+                >
+                  {tienePreparacion
+                    ? "Actualizar / imprimir preparación"
+                    : "Generar preparación antes de cobrar"}
+                </button>
+              )}
             <OperationCart
               lines={cart}
               purchase={compra}
@@ -373,7 +498,9 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
               {busy
                 ? "Registrando…"
                 : compra
-                  ? "Confirmar compra"
+                  ? modoCompra === "ORDEN"
+                    ? "Crear orden de compra"
+                    : "Confirmar compra"
                   : "Confirmar venta"}
             </button>
           </form>

@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+  private final org.springframework.jdbc.core.JdbcTemplate db;
   private final AuthenticationManager manager;
   private final SecurityContextRepository contexts;
   private final SessionAuthenticationStrategy sessions;
@@ -29,12 +30,14 @@ public class AuthController {
 
   public AuthController(
       AuthenticationManager m,
+      org.springframework.jdbc.core.JdbcTemplate db,
       SecurityContextRepository c,
       SessionAuthenticationStrategy s,
       EmpresaRepository e,
       UsuarioRepository u,
       com.alshagroup.alshafacturas.gestion.LocalesService locales) {
     manager = m;
+    this.db = db;
     contexts = c;
     sessions = s;
     empresas = e;
@@ -142,6 +145,16 @@ public class AuthController {
   }
 
   private LoginResponse response(UsuarioPrincipal p) {
+    var tipos =
+        p.getTipoAtencion() == null
+            ? java.util.List.<java.util.Map<String, Object>>of()
+            : db.queryForList(
+                "SELECT nombre,emoji,tema FROM tipos_atencion WHERE codigo=?", p.getTipoAtencion());
+    var tipo =
+        tipos.isEmpty()
+            ? java.util.Map.<String, Object>of(
+                "nombre", "Comercio", "emoji", "🛒", "tema", "COMERCIO")
+            : tipos.getFirst();
     return new LoginResponse(
         p.getId(),
         p.getEmpresaId(),
@@ -152,7 +165,10 @@ public class AuthController {
         p.getModalidad(),
         p.getTipoAtencion(),
         p.getLocalId(),
-        p.getLocalNombre());
+        p.getLocalNombre(),
+        tipo.get("nombre").toString(),
+        tipo.get("emoji").toString(),
+        tipo.get("tema").toString());
   }
 
   private ResponseStatusException bad() {

@@ -27,7 +27,7 @@ export default function SeleccionUsuario({
     modalidad !== guardado.modalidad || tipo !== guardado.tipoAtencion;
   return (
     <form
-      className="surface form"
+      className="surface form visual-user-form"
       onSubmit={async (e) => {
         e.preventDefault();
         if (busy || !diferente) return;

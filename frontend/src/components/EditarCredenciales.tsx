@@ -6,7 +6,7 @@ export default function EditarCredenciales({
   onClose,
   onDone,
 }: {
-  usuario: Session;
+  usuario: Pick<Session, "id" | "nombre" | "correo"> & { activo?: boolean };
   empresaId: number;
   onClose: () => void;
   onDone: () => void;
@@ -17,6 +17,12 @@ export default function EditarCredenciales({
         Se conserva la cuenta, su rol y sus datos. Cambiar el correo o
         contraseña cerrará sus sesiones anteriores.
       </p>
+      {usuario.activo === false && (
+        <p className="notice">
+          Esta cuenta está desactivada. Cambiar la contraseña no la reactiva:
+          utiliza Personal y accesos para habilitarla y comprobar su cupo.
+        </p>
+      )}
       <Form
         label="Guardar acceso"
         onSave={(d) =>
@@ -32,6 +38,7 @@ export default function EditarCredenciales({
           <input
             name="correo"
             type="email"
+            autoComplete="off"
             defaultValue={usuario.correo}
             maxLength={150}
             required

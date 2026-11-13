@@ -21,6 +21,8 @@ export type Pago = {
 export type PlanState = {
   propietarioId: number;
   empleadosActivos: number;
+  cuposOcupados: number;
+  cuposReservados: number;
   vigente: boolean;
   plan: string;
   limiteEmpleados: number;
@@ -45,9 +47,9 @@ export function PlanInfo({ plan }: { plan: PlanState }) {
           <strong>{plan.vigente ? plan.plan : "Sin pago vigente"}</strong>
         </div>
         <div>
-          <small>Empleados activos / cupos</small>
+          <small>Cupos ocupados / límite</small>
           <strong>
-            {plan.empleadosActivos} /{" "}
+            {plan.cuposOcupados ?? plan.empleadosActivos} /{" "}
             {plan.limiteEmpleados < 0 ? "Ilimitados" : plan.limiteEmpleados}
           </strong>
         </div>
@@ -69,7 +71,9 @@ export function PlanInfo({ plan }: { plan: PlanState }) {
       </div>
       <p className="hint">
         El administrador principal no ocupa un cupo de empleado. Las demás
-        cuentas activas sí lo ocupan, incluso si tienen rol Administrador.
+        cuentas activas y las reservas de 15 días sí lo ocupan, incluso con rol
+        Administrador. Activos: {plan.empleadosActivos}. Reservados:{" "}
+        {plan.cuposReservados || 0}.
       </p>
       {!plan.vigente && (
         <div className="notice">

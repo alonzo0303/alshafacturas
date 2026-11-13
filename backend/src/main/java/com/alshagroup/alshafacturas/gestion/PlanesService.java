@@ -36,13 +36,14 @@ public class PlanesService {
 
   public Long propietario(Long empresa) {
     return db.queryForObject(
-        "SELECT min(id) FROM usuarios WHERE empresa_id=? AND rol='ADMIN'", Long.class, empresa);
+        "SELECT administrador_principal_id FROM empresas WHERE id=?", Long.class, empresa);
   }
 
   public long empleados(Long empresa) {
     var owner = propietario(empresa);
     return db.queryForObject(
-        "SELECT count(*) FROM usuarios WHERE empresa_id=? AND activo=true AND id<>COALESCE(?,0)",
+        "SELECT count(*) FROM usuarios WHERE empresa_id=? AND (activo=true OR"
+            + " desactivado_en>CURRENT_TIMESTAMP-INTERVAL '15 days') AND id<>COALESCE(?,0)",
         Long.class,
         empresa,
         owner);
@@ -69,10 +70,19 @@ public class PlanesService {
 
   public Map<String, Object> estado(Long empresa) {
     var pago = vigente(empresa);
-    long active = empleados(empresa);
+    long occupied = empleados(empresa);
+    long active =
+        db.queryForObject(
+            "SELECT count(*) FROM usuarios WHERE empresa_id=? AND activo=true AND"
+                + " id<>COALESCE(?,0)",
+            Long.class,
+            empresa,
+            propietario(empresa));
     var result = new LinkedHashMap<String, Object>();
     result.put("propietarioId", propietario(empresa));
     result.put("empleadosActivos", active);
+    result.put("cuposOcupados", occupied);
+    result.put("cuposReservados", occupied - active);
     result.put("planes", PLANES);
     result.put("vigente", pago != null);
     result.put("plan", pago == null ? "SIN_PLAN" : pago.get("plan"));
@@ -106,8 +116,25 @@ public class PlanesService {
       throw error(
           "El plan permite "
               + plan.empleados()
-              + " empleados además del administrador principal. Desactiva una cuenta o cambia de"
-              + " plan");
+              + " empleados además del administrador principal. Espera el vencimiento de una"
+              + " reserva, elimina definitivamente una cuenta desactivada o cambia de plan");
+  }
+
+  public void validarReactivar(Long empresa, Long usuario) {
+    if (java.util.Objects.equals(propietario(empresa), usuario)) return;
+    var pago = vigente(empresa);
+    if (pago == null) throw error("El negocio no tiene un plan vigente");
+    var plan = plan(pago.get("plan").toString());
+    long otros =
+        db.queryForObject(
+            "SELECT count(*) FROM usuarios WHERE empresa_id=? AND id<>? AND id<>COALESCE(?,0) AND"
+                + " (activo OR desactivado_en>CURRENT_TIMESTAMP-INTERVAL '15 days')",
+            Long.class,
+            empresa,
+            usuario,
+            propietario(empresa));
+    if (plan.empleados() >= 0 && otros >= plan.empleados())
+      throw error("No hay cupos disponibles para reactivar esta cuenta");
   }
 
   @Transactional

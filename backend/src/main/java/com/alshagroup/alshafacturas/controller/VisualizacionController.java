@@ -16,11 +16,21 @@ import org.springframework.web.server.ResponseStatusException;
 @PreAuthorize("hasRole('SUPERADMIN')")
 public class VisualizacionController {
   private final UsuarioRepository usuarios;
+  private final com.alshagroup.alshafacturas.security.LoginAttemptService attempts;
+  private final com.alshagroup.alshafacturas.gestion.AuditoriaService audit;
+  private final org.springframework.security.crypto.password.PasswordEncoder encoder;
   private final org.springframework.jdbc.core.JdbcTemplate db;
 
   public VisualizacionController(
-      UsuarioRepository usuarios, org.springframework.jdbc.core.JdbcTemplate db) {
+      UsuarioRepository usuarios,
+      org.springframework.jdbc.core.JdbcTemplate db,
+      com.alshagroup.alshafacturas.gestion.AuditoriaService audit,
+      org.springframework.security.crypto.password.PasswordEncoder encoder,
+      com.alshagroup.alshafacturas.security.LoginAttemptService attempts) {
     this.usuarios = usuarios;
+    this.audit = audit;
+    this.encoder = encoder;
+    this.attempts = attempts;
     this.db = db;
   }
 
@@ -101,6 +111,7 @@ public class VisualizacionController {
   @Transactional
   public void credenciales(
       @PathVariable Long id, @RequestParam Long empresaId, @Valid @RequestBody Credenciales r) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresaId);
     var user =
         usuarios
             .findByIdAndEmpresaId(id, empresaId)
@@ -115,7 +126,8 @@ public class VisualizacionController {
           HttpStatus.CONFLICT, "Ese correo ya pertenece a otra cuenta de esta empresa");
     String password = r.password();
     if (password != null && !password.isEmpty()) {
-      if (password.length() < 8
+      if (password.isBlank()
+          || password.length() < 8
           || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
         throw new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
@@ -124,7 +136,7 @@ public class VisualizacionController {
           "UPDATE usuarios SET correo=?,password_hash=?,credenciales_version=credenciales_version+1"
               + " WHERE id=? AND empresa_id=?",
           correo,
-          new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(password),
+          encoder.encode(password),
           id,
           empresaId);
     } else if (!correo.equals(user.getCorreo()))
@@ -134,6 +146,26 @@ public class VisualizacionController {
           correo,
           id,
           empresaId);
+    if (password != null && !password.isEmpty()) {
+      attempts.clear(correo);
+      attempts.clear(user.getCorreo());
+    }
+    var actor =
+        (com.alshagroup.alshafacturas.security.UsuarioPrincipal)
+            org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+    if ((password != null && !password.isEmpty()) || !correo.equals(user.getCorreo()))
+      audit.registrar(
+          actor,
+          empresaId,
+          null,
+          "CREDENCIALES_ACTUALIZADAS",
+          id,
+          "Correo modificado="
+              + !correo.equals(user.getCorreo())
+              + ", contraseña restablecida="
+              + (password != null && !password.isEmpty()));
   }
 
   private VisualizacionUsuario respuesta(com.alshagroup.alshafacturas.entity.Usuario u) {
