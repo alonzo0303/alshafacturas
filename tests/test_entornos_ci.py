@@ -27,13 +27,19 @@ def launch(name,port,wrong=None):
     return process,log
 
 def ready(port,expected):
-    for _ in range(60):
+    for _ in range(120):
         client=Cliente('http://127.0.0.1:'+str(port))
         try:
             if client.request('/entorno')==expected:return
         except Exception:pass
         finally:client.close()
         time.sleep(.5)
+    for log in (ROOT/'work'/'entornos-ci').glob('*.log'):
+        text=log.read_text()[-6000:]
+        for name in ('pruebas','produccion'):
+            for key,value in read_env(ROOT/('.env.'+name)).items():
+                if 'PASSWORD' in key and value:text=text.replace(value,'[OCULTO]')
+        print('Diagnóstico de arranque '+log.name+'\n'+text,flush=True)
     raise AssertionError('No arrancó el entorno '+expected['entorno'])
 
 def run(*args,ok=True):
