@@ -33,6 +33,7 @@ import { CatalogoAdmin, CatalogoNegocio } from "./pages/CatalogoComun";
 import Tributacion from "./pages/Tributacion";
 import Visualizaciones from "./pages/Visualizaciones";
 import LocalesAdmin, { LocalesNegocio } from "./pages/Locales";
+import EtiquetaEntorno from "./components/EtiquetaEntorno";
 import SelectorLocal from "./components/SelectorLocal";
 import Servicios from "./pages/Servicios";
 import CobrarServicios from "./pages/CobrarServicios";
@@ -222,6 +223,7 @@ function Shell({
       </aside>
       <div className="workspace">
         <header className="topbar">
+          <EtiquetaEntorno />
           <p>{superadmin ? "Plataforma" : `Empresa #${session.empresaId}`}</p>
           {!superadmin && <SelectorLocal session={session} />}
           <div className="account">

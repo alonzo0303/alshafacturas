@@ -48,7 +48,7 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers("/error")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/auth/csrf")
+                    .requestMatchers(HttpMethod.GET, "/api/auth/csrf", "/api/entorno")
                     .permitAll()
                     .requestMatchers(
                         HttpMethod.POST,

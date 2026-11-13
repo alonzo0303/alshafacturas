@@ -34,6 +34,10 @@ Incluye registro manual de pagos de planes y control de cupos; no cobra con una 
 
 Java **JDK** 21, Maven 3.9+, Node.js 24, npm y Docker con Compose. En Windows usa PowerShell y `npm.cmd` si tu política de ejecución bloquea `npm.ps1`.
 
+## Pruebas y producción separadas
+
+Para las instalaciones nuevas usa [Entornos y carga simultánea](docs/ENTORNOS_Y_CARGA.md). `python herramientas/entornos.py preparar` genera configuraciones privadas independientes; Pruebas abre en 8091 y Producción se reserva para HTTPS. La base actual se conserva. Incluye un simulador de usuarios concurrentes y un reinicio limitado al nuevo entorno de Pruebas.
+
 ## Arranque con Docker
 
 Desde la raíz del repositorio:

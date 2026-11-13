@@ -109,3 +109,7 @@ Instancias, bases de prueba, registros y capturas quedan fuera del repositorio. 
 ## Perfiles y avisos
 
 Consulta [PERFILES_AVISOS_WORKFLOWS.md](PERFILES_AVISOS_WORKFLOWS.md) para esquema, eventos, configuración y límites del navegador. La suite `tests/test_experiencia.py` y `frontend/e2e/experiencia.spec.ts` cubre los flujos nuevos sobre datos desechables.
+
+## Entornos separados y carga
+
+Ver [ENTORNOS_Y_CARGA.md](ENTORNOS_Y_CARGA.md). CI añade guardas del simulador, validación previa a migraciones y un ensayo desechable con dos bases independientes. La prueba corta confirma funcionamiento; la capacidad real debe medirse sobre el alojamiento elegido.

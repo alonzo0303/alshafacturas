@@ -6,6 +6,10 @@ Se implementó la conexión directa al SEE del Contribuyente. No se requiere con
 
 Consulta [SUNAT.md](SUNAT.md) para el alcance, la configuración y los pendientes fiscales. Antes de producir comprobantes válidos se requieren pruebas reales de estructura y aceptación, reglas del emisor, representación fiscal y resolución de excepciones (CDR perdido, rechazo, notas de crédito/bajas). Las pruebas simuladas no sustituyen una aceptación oficial. No se ha enviado ningún documento real en este trabajo.
 
+## Separación de datos
+
+Usa el perfil `produccion` y su base `alshafacturas_produccion`, independientes de Pruebas. La [guía de entornos](ENTORNOS_Y_CARGA.md) explica credenciales, volúmenes, limpieza de pruebas y carga simultánea. No copiar automáticamente los datos de ensayo. Antes de invitar clientes reales se requieren copias de seguridad y una restauración verificada en otro entorno. La herramienta de carga rechaza Producción.
+
 ## Infraestructura y operación
 
 - Dominio y HTTPS. Compose escucha solo en 127.0.0.1:8088 para quedar detrás de un proxy HTTPS. Configura `COOKIE_SECURE=true` al servir con HTTPS. La configuración incluida no provee certificado ni DNS.
