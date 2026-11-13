@@ -216,7 +216,9 @@ test("Vencimiento bloquea sesión y login; renovación permite volver sin perder
     activo: true,
   });
   await pay(f, days(f.today, -30), days(f.today, -1));
-  await page.reload();
+  // A background notice may already revoke the expired session. Focus refresh
+  // verifies the live lock without discarding that response through a reload.
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(
     page.getByRole("heading", { name: "Membresía vencida", exact: true }),
   ).toBeVisible();
