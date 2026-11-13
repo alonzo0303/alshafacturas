@@ -105,6 +105,12 @@ test("SuperAdmin asigna rubro con búsqueda y habilita servicios sin perder dato
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();
   await login(page, f.correo);
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByRole("heading", { name: "Tu membresía está por vencer" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Entendido", exact: true }).click();
   await page.getByRole("link", { name: "Catálogo común", exact: true }).click();
   await expect(
     page.getByText("Tu membresía vence en 5 días.", { exact: true }),

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
-  BrowserRouter,
+  createBrowserRouter,
+  RouterProvider,
   useNavigate,
   NavLink,
   Navigate,
@@ -11,6 +12,11 @@ import { api, ApiError, type Session } from "./lib/api";
 import AvisoMembresia from "./components/AvisoMembresia";
 import BloqueoMembresia, { type Bloqueo } from "./components/BloqueoMembresia";
 import Notificaciones from "./pages/Notificaciones";
+import DirtyProvider from "./components/experiencia/DirtyProvider";
+import ModalCoordinator from "./components/experiencia/ModalCoordinator";
+import { useDirty } from "./lib/dirty";
+const ExperienciaAdmin = lazy(() => import("./pages/ExperienciaAdmin"));
+import Actividades from "./pages/Actividades";
 import Login from "./auth/Login";
 import Sunat from "./pages/Sunat";
 import Dashboard, { Configuracion } from "./pages/Dashboard";
@@ -53,6 +59,7 @@ const empresaLinks = [
   ["Preparaciones", "/panel/preparaciones", "PREPARACION_GESTIONAR"],
   ["Caja y cierres", "/panel/cajas", "CAJA_GESTIONAR"],
   ["Rendimiento", "/panel/rendimiento", "RENDIMIENTO_VER"],
+  ["Actividades", "/panel/actividades", "ACTIVIDADES_GESTIONAR"],
   ["Auditoría", "/panel/auditoria", "ADMIN"],
   ["Facturación electrónica", "/panel/facturacion", "FACTURACION_VER"],
   ["IGV y compras", "/panel/tributacion", "IMPUESTOS_VER"],
@@ -66,10 +73,13 @@ const empresaLinks = [
 function Shell({
   session,
   onLogout,
+  postLogin = false,
 }: {
+  postLogin?: boolean;
   session: Session;
   onLogout: () => void;
 }) {
+  const drafts = useDirty();
   const admin = session.rol === "ADMIN",
     superadmin = session.rol === "SUPERADMIN";
   const atencion = !superadmin && session.modalidad === "ATENCION";
@@ -100,6 +110,7 @@ function Shell({
         ["Empresas", "/admin/empresas"],
         ["Personal y accesos", "/admin/personal"],
         ["Control operativo", "/admin/control"],
+        ["Perfiles y avisos", "/admin/experiencia"],
         ["Pagos y planes", "/admin/pagos"],
         ["Catálogo común", "/admin/catalogo"],
         ["Sucursales", "/admin/locales"],
@@ -117,6 +128,9 @@ function Shell({
             : []),
           ...(can(session, "CAJA_GESTIONAR")
             ? [["Caja y cierres", "/atencion/cajas"]]
+            : []),
+          ...(can(session, "ACTIVIDADES_GESTIONAR")
+            ? [["Actividades", "/atencion/actividades"]]
             : []),
           ...(can(session, "RENDIMIENTO_VER")
             ? [["Rendimiento", "/atencion/rendimiento"]]
@@ -154,6 +168,9 @@ function Shell({
       className="app-shell"
       data-nicho={atencion ? session.nichoTema || "OTRO" : "COMERCIO"}
     >
+      {!superadmin && (
+        <ModalCoordinator session={session} postLogin={postLogin} />
+      )}
       <a href="#contenido" className="skip-link">
         Saltar al contenido
       </a>
@@ -212,7 +229,10 @@ function Shell({
               <strong>{session.nombre}</strong>
               <small>{session.rol}</small>
             </span>
-            <button disabled={busy} onClick={() => void logout()}>
+            <button
+              disabled={busy}
+              onClick={() => drafts?.confirm(() => void logout())}
+            >
               {busy ? "Cerrando…" : "Cerrar sesión"}
             </button>
           </div>
@@ -227,6 +247,12 @@ function Shell({
             />
           )}
           <Routes>
+            {!superadmin && can(session, "ACTIVIDADES_GESTIONAR") && (
+              <>
+                <Route path="/panel/actividades" element={<Actividades />} />
+                <Route path="/atencion/actividades" element={<Actividades />} />
+              </>
+            )}
             {!superadmin && (
               <>
                 <Route
@@ -241,6 +267,18 @@ function Shell({
             )}
             {superadmin ? (
               <>
+                <Route
+                  path="/admin/experiencia"
+                  element={
+                    <Suspense
+                      fallback={
+                        <p role="status">Cargando perfiles y avisos…</p>
+                      }
+                    >
+                      <ExperienciaAdmin />
+                    </Suspense>
+                  }
+                />
                 <Route path="/admin/personal" element={<PersonalAdmin />} />
                 <Route
                   path="/admin/control"
@@ -438,6 +476,7 @@ function Shell({
 }
 function SessionApp() {
   const navigate = useNavigate();
+  const [postLogin, setPostLogin] = useState(false);
   const [bloqueo, setBloqueo] = useState<Bloqueo | null>(null);
   const [session, setSession] = useState<Session | null>(null),
     [loading, setLoading] = useState(true),
@@ -515,24 +554,45 @@ function SessionApp() {
   if (session)
     return (
       <SessionContext.Provider value={session}>
-        <Shell session={session} onLogout={() => setSession(null)} />
+        <DirtyProvider>
+          <Shell
+            session={session}
+            postLogin={postLogin}
+            onLogout={() => setSession(null)}
+          />
+        </DirtyProvider>
       </SessionContext.Provider>
     );
   return (
     <Routes>
-      <Route path="/login" element={<Login onLogin={setSession} />} />
+      <Route
+        path="/login"
+        element={
+          <Login
+            onLogin={(s) => {
+              setPostLogin(true);
+              setSession(s);
+            }}
+          />
+        }
+      />
       <Route
         path="/admin/login"
-        element={<Login onLogin={setSession} admin />}
+        element={
+          <Login
+            onLogin={(s) => {
+              setPostLogin(true);
+              setSession(s);
+            }}
+            admin
+          />
+        }
       />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }
+const router = createBrowserRouter([{ path: "*", element: <SessionApp /> }]);
 export default function App() {
-  return (
-    <BrowserRouter>
-      <SessionApp />
-    </BrowserRouter>
-  );
+  return <RouterProvider router={router} />;
 }

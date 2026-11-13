@@ -348,6 +348,9 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
   await expect(page.getByRole("alert")).toContainText(/cámara|permiso/i);
   await page.getByRole("link", { name: "Catálogo común", exact: true }).click();
   await page
+    .getByRole("button", { name: "Salir sin guardar", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Usar producto Lápiz de ojos", exact: true })
     .click();
   dialog = page.getByRole("dialog");

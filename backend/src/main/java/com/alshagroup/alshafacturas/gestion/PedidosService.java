@@ -53,6 +53,41 @@ public class PedidosService {
   }
 
   @Transactional
+  public Map<String, Object> servir(UsuarioPrincipal p, Long id, int version) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
+    var r = row(p, id);
+    if (!"MESA".equals(r.get("clase")))
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Solo corresponde a pedidos de mesa");
+    if ("CANCELADO".equals(r.get("estado")))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "El pedido fue cancelado");
+    if (r.get("servido_en") != null) return detalle(p, id);
+    if (((Number) r.get("version")).intValue() != version)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "El pedido cambió; recarga antes de servir");
+    if (db.queryForObject("SELECT count(*) FROM pedido_detalles WHERE pedido_id=?", Long.class, id)
+        == 0)
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Guarda los artículos antes de servir");
+    db.update(
+        "UPDATE pedidos SET"
+            + " servido_en=CURRENT_TIMESTAMP,servido_por_original_id=?,servido_por_nombre=?,version=version+1"
+            + " WHERE id=?",
+        p.getId(),
+        p.getNombre(),
+        id);
+    audit.registrar(
+        p,
+        p.getEmpresaId(),
+        LocalesService.actual(),
+        "PEDIDO_PRIMERA_ENTREGA",
+        id,
+        "Primera entrega a mesa");
+    return detalle(p, id);
+  }
+
+  @Transactional
   public Map<String, Object> detalle(UsuarioPrincipal p, Long id) {
     var r = row(p, id);
     r.remove("cobro_idempotencia");

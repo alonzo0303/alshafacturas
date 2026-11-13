@@ -1,3 +1,4 @@
+import { useUnsaved } from "../lib/dirty";
 import { ProductImage } from "../components/ProductImage";
 import { useRef, useState, type FormEvent } from "react";
 import { useData } from "../lib/useData";
@@ -77,6 +78,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  useUnsaved(cart.length > 0);
   const totals = cart.reduce(
     (sum, l) => {
       const amount = round((compra ? l.costo : l.producto.precio) * l.cantidad);

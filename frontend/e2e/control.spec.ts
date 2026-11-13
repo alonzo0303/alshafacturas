@@ -148,6 +148,20 @@ test("Restaurante: mesa, impresión A4/80/58, cobro único y comidas en rendimie
   page,
 }, testInfo) => {
   const f = await setup("Restaurante UI");
+  const profiles = await (
+    await f.root.get("/api/experiencia/plantillas")
+  ).json();
+  await write(
+    f.root,
+    `/experiencia/configuracion?empresaId=${f.company.id}`,
+    {
+      modo: "ESPECIFICO",
+      plantillaId: profiles.find(
+        (p: { codigo: string }) => p.codigo === "RESTAURANTE",
+      ).id,
+    },
+    "PUT",
+  );
   await write(
     f.root,
     `/admin/visualizaciones/${f.session.id}?empresaId=${f.company.id}`,

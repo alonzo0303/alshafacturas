@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, type Empresa, type Session } from "../lib/api";
 import { useData } from "../lib/useData";
 import { Field, Form, PageTitle, ErrorNotice } from "../components/ui";
+import Actividades from "./Actividades";
 import Cajas from "./Cajas";
 import Rendimiento from "./Rendimiento";
 import Auditoria from "./Auditoria";
@@ -97,7 +98,9 @@ function Locales({
         </Field>
       </section>
       {local &&
-        (vista === "cajas" ? (
+        (vista === "actividades" ? (
+          <Actividades key={query} query={query} session={session} />
+        ) : vista === "cajas" ? (
           <Cajas key={query} session={session} query={query} />
         ) : (
           <Rendimiento key={query} query={query} />
@@ -138,6 +141,7 @@ export default function ControlAdmin({ session }: { session: Session }) {
               <option value="config">Configuración</option>
               <option value="cajas">Cajas y cierres</option>
               <option value="rendimiento">Rendimiento</option>
+              <option value="actividades">Actividades del local</option>
               <option value="auditoria">Auditoría</option>
             </select>
           </Field>

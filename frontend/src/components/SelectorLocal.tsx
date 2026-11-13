@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, type Session } from "../lib/api";
 import { useData } from "../lib/useData";
+import { useDirty } from "../lib/dirty";
 import { Field, ErrorNotice } from "./ui";
 export default function SelectorLocal({ session }: { session: Session }) {
+  const drafts = useDirty();
   const { data, error, refresh } = useData(
     () => api<{ id: number; nombre: string }[]>("/locales"),
     [],
@@ -22,19 +24,26 @@ export default function SelectorLocal({ session }: { session: Session }) {
           <select
             disabled={busy}
             value={session.localId || ""}
-            onChange={async (e) => {
-              setBusy(true);
-              try {
-                await api("/locales/seleccionar", "POST", {
-                  localId: Number(e.target.value),
-                });
-                window.location.assign(
-                  session.modalidad === "ATENCION" ? "/atencion" : "/panel",
-                );
-              } catch (e) {
-                setMessage((e as Error).message);
-                setBusy(false);
-              }
+            onChange={(e) => {
+              const localId = Number(e.target.value);
+              const change = async () => {
+                setBusy(true);
+                setMessage("");
+                try {
+                  await api("/locales/seleccionar", "POST", { localId });
+                  const leave = () =>
+                    window.location.assign(
+                      session.modalidad === "ATENCION" ? "/atencion" : "/panel",
+                    );
+                  if (drafts) drafts.discardAndRun(leave);
+                  else leave();
+                } catch (error) {
+                  setMessage((error as Error).message);
+                  setBusy(false);
+                }
+              };
+              if (drafts) drafts.confirm(() => void change());
+              else void change();
             }}
           >
             {data.map((l) => (

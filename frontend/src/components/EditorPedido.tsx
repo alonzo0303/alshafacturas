@@ -1,3 +1,4 @@
+import { useUnsaved, useDirty } from "../lib/dirty";
 import { useState } from "react";
 import { api, money, type Venta } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -29,6 +30,12 @@ export default function EditorPedido({
     [receipt, setReceipt] = useState<Venta | null>(null),
     [cancel, setCancel] = useState(false),
     [medio, setMedio] = useState("EFECTIVO");
+  useUnsaved(dirty);
+  const drafts = useDirty();
+  const close = () => {
+    if (dirty) drafts?.confirm(onClose);
+    else onClose();
+  };
   const editable = ["ABIERTO", "PREPARADO"].includes(pedido.estado);
   async function run(fn: () => Promise<void>) {
     setError("");
@@ -55,7 +62,7 @@ export default function EditorPedido({
     <>
       <Modal
         title={`Pedido #${pedido.id}${pedido.mesa ? " · " + pedido.mesa : ""}`}
-        onClose={onClose}
+        onClose={close}
       >
         <ErrorNotice message={error || menu.error} />
         <p>
@@ -180,6 +187,32 @@ export default function EditorPedido({
             o cobrar.
           </p>
         )}
+        {pedido.clase === "MESA" &&
+          pedido.estado !== "CANCELADO" &&
+          (pedido.servido_en ? (
+            <p>
+              Primera entrega:{" "}
+              {new Date(pedido.servido_en).toLocaleString("es-PE", {
+                timeZone: "America/Lima",
+              })}{" "}
+              · {pedido.servido_por_nombre}
+            </p>
+          ) : (
+            <button
+              disabled={busy || dirty || !pedido.lineas.length}
+              onClick={() =>
+                void run(async () =>
+                  setPedido(
+                    await api<Pedido>(`/pedidos/${pedido.id}/servir`, "POST", {
+                      version: pedido.version,
+                    }),
+                  ),
+                )
+              }
+            >
+              Marcar primera entrega a mesa
+            </button>
+          ))}
         <div className="row-actions">
           {editable && (
             <button

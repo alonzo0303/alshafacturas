@@ -1622,3 +1622,23 @@ a {
 .review-subscriptions {
   margin-top: 1rem;
 }
+
+.profile-metric {
+  min-width: 0;
+}
+.profile-metric h3 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+}
+.profile-metric strong {
+  display: block;
+  font-size: 1.5rem;
+}
+.profile-metric meter {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.profile-metric p {
+  margin: 0.5rem 0;
+}

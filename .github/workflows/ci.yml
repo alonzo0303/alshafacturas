@@ -49,6 +49,7 @@ jobs:
       - run: python tests/test_api.py
       - run: python tests/test_control.py
       - run: python tests/test_subscriptions.py
+      - run: python tests/test_experiencia.py
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npx playwright test

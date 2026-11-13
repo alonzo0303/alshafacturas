@@ -178,6 +178,17 @@ public class PedidosController {
     return pedidos.estado(p, id, r);
   }
 
+  public record PrimeraEntrega(@NotNull @Min(0) Integer version) {}
+
+  @PostMapping("/pedidos/{id}/servir")
+  @PreAuthorize("hasAuthority('MESAS_GESTIONAR')")
+  public Map<String, Object> servir(
+      @AuthenticationPrincipal UsuarioPrincipal p,
+      @PathVariable Long id,
+      @Valid @RequestBody PrimeraEntrega r) {
+    return pedidos.servir(p, id, r.version());
+  }
+
   @PostMapping("/pedidos/{id}/cobrar")
   @PreAuthorize("hasAuthority('VENTAS_GESTIONAR')")
   public Map<String, Object> cobrar(

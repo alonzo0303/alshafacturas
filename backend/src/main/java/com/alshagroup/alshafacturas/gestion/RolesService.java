@@ -18,6 +18,7 @@ public class RolesService {
 
   public static final Set<String> PERMISOS =
       Set.of(
+          "ACTIVIDADES_GESTIONAR",
           "MESAS_GESTIONAR",
           "PREPARACION_GESTIONAR",
           "CAJA_GESTIONAR",
@@ -48,6 +49,7 @@ public class RolesService {
               "CLIENTES_GESTIONAR",
               "CAJA_GESTIONAR",
               "RENDIMIENTO_VER",
+              "ACTIVIDADES_GESTIONAR",
               "MESAS_GESTIONAR",
               "PREPARACION_GESTIONAR");
       case "ALMACENERO" ->

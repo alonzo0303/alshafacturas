@@ -105,3 +105,7 @@ Los registros, capturas y PDFs de ejecución se guardaron fuera del repositorio,
 - Actualización V13→V14 en copia independiente: 29 tablas originales comparadas por conteo/hash de sus columnas y registros preexistentes, sin alteraciones; se permiten únicamente las altas de rubros/plantillas previstas en V14. La copia arrancó correctamente con Hibernate validate.
 
 Instancias, bases de prueba, registros y capturas quedan fuera del repositorio. No se cambió la base del equipo del usuario ni se enviaron notificaciones externas. Ver [Rubros y suscripciones](RUBROS_SUSCRIPCIONES.md) para reglas de acceso, cron, canales e instrucciones de actualización.
+
+## Perfiles y avisos
+
+Consulta [PERFILES_AVISOS_WORKFLOWS.md](PERFILES_AVISOS_WORKFLOWS.md) para esquema, eventos, configuración y límites del navegador. La suite `tests/test_experiencia.py` y `frontend/e2e/experiencia.spec.ts` cubre los flujos nuevos sobre datos desechables.

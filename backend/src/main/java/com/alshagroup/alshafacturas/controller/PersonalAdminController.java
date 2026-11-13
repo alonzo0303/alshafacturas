@@ -126,6 +126,15 @@ public class PersonalAdminController {
         > 0)
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "Cierra las cajas del usuario antes de eliminarlo");
+    if (db.queryForObject(
+            "SELECT count(*) FROM actividades WHERE ejecutor_original_id=? AND NOT finalizada AND"
+                + " NOT cancelada",
+            Long.class,
+            id)
+        > 0)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Reasigna o cancela las actividades abiertas antes de eliminar la cuenta");
     audit.registrar(
         p,
         empresaId,

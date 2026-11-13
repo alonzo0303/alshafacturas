@@ -18,10 +18,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class ControlController {
   private final JdbcTemplate db;
   private final CajaService cajas;
+  private final com.alshagroup.alshafacturas.experiencia.MetricasService metricas;
 
-  public ControlController(JdbcTemplate db, CajaService cajas) {
+  public ControlController(
+      JdbcTemplate db,
+      CajaService cajas,
+      com.alshagroup.alshafacturas.experiencia.MetricasService metricas) {
     this.db = db;
     this.cajas = cajas;
+    this.metricas = metricas;
   }
 
   private boolean root(UsuarioPrincipal p) {
@@ -183,9 +188,15 @@ public class ControlController {
             end,
             all,
             p.getId());
-    return Map.of(
-        "modo", modo, "desde", desde, "hasta", hasta, "ventas", ventas, "cortes", cortes, "diario",
-        diario);
+    var result = new LinkedHashMap<String, Object>();
+    result.put("modo", modo);
+    result.put("desde", desde);
+    result.put("hasta", hasta);
+    result.put("ventas", ventas);
+    result.put("cortes", cortes);
+    result.put("diario", diario);
+    result.put("personalizado", metricas.reporte(p, e, l, start, end, ventas, cortes));
+    return result;
   }
 
   @GetMapping("/auditoria")

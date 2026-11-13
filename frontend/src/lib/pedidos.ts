@@ -6,6 +6,8 @@ export type PedidoLinea = {
   precio: number;
 };
 export type Pedido = {
+  servido_en?:string|null;
+  servido_por_nombre?:string|null;
   id: number;
   clase: string;
   estado: string;
