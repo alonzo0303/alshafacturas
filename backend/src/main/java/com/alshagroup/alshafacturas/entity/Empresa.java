@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "empresas")
 public class Empresa {
 
@@ -35,6 +36,24 @@ public class Empresa {
   @Enumerated(EnumType.STRING)
   @Column(name = "estado", nullable = false)
   private EstadoEmpresa estado = EstadoEmpresa.PENDIENTE;
+
+  @Column(name = "afectacion_default", nullable = false)
+  private String afectacionDefault = "GRAVADO";
+
+  @Column(name = "rubro_negocio", length = 100)
+  private String rubroNegocio;
+
+  public String getRubroNegocio() {
+    return rubroNegocio;
+  }
+
+  public void setRubroNegocio(String value) {
+    rubroNegocio = value;
+  }
+
+  public void habilitarRuc() {
+    if ("SIN_IGV".equals(afectacionDefault)) afectacionDefault = "GRAVADO";
+  }
 
   public Empresa() {}
 

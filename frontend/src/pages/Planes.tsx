@@ -1,3 +1,5 @@
+import CobranzaAdmin from "../components/CobranzaAdmin";
+import { AvisosSuscripcion } from "./Notificaciones";
 import { useRef, useState } from "react";
 import { api, money, localDay, type Empresa } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -19,8 +21,17 @@ export type Pago = {
   referencia: string;
 };
 export type PlanState = {
+  estadoSuscripcion?: "ACTIVO" | "PROGRAMADO" | "VENCIDO" | "SIN_PLAN";
+  pagoReferencia?: Pago | null;
+  pagoProximo?: Pago | null;
+  fechaActual?: string;
+  zonaHoraria?: string;
+  instruccionesPago?: string;
+  bloqueado?: boolean;
   propietarioId: number;
   empleadosActivos: number;
+  cuposOcupados: number;
+  cuposReservados: number;
   vigente: boolean;
   plan: string;
   limiteEmpleados: number;
@@ -37,45 +48,78 @@ function dateOnly(value: string) {
   return String(value).slice(0, 10).split("-").reverse().join("/");
 }
 export function PlanInfo({ plan }: { plan: PlanState }) {
+  const pago = plan.pagoActual || plan.pagoReferencia;
+  const estado =
+    plan.estadoSuscripcion || (plan.vigente ? "ACTIVO" : "SIN_PLAN");
+  const labels = {
+    ACTIVO: "Activo",
+    PROGRAMADO: "Programado",
+    VENCIDO: "Vencido",
+    SIN_PLAN: "Sin plan registrado",
+  };
   return (
     <>
       <div className="plan-summary">
         <div>
-          <small>Plan actual</small>
-          <strong>{plan.vigente ? plan.plan : "Sin pago vigente"}</strong>
+          <small>Plan asignado</small>
+          <strong>{pago ? plan.plan : "Sin pago vigente"}</strong>
         </div>
         <div>
-          <small>Empleados activos / cupos</small>
+          <small>Estado de membresía</small>
+          <strong>{labels[estado]}</strong>
+        </div>
+        <div>
+          <small>Cupos ocupados / límite</small>
           <strong>
-            {plan.empleadosActivos} /{" "}
+            {plan.cuposOcupados ?? plan.empleadosActivos} /{" "}
             {plan.limiteEmpleados < 0 ? "Ilimitados" : plan.limiteEmpleados}
           </strong>
         </div>
-        {plan.pagoActual && (
+        {pago && (
           <>
             <div>
               <small>Importe registrado</small>
-              <strong>{money(plan.pagoActual.importe)}</strong>
+              <strong>{money(pago.importe)}</strong>
             </div>
             <div>
-              <small>Vigencia</small>
+              <small>Vigencia registrada</small>
               <strong>
-                {dateOnly(plan.pagoActual.desde)} al{" "}
-                {dateOnly(plan.pagoActual.hasta)}
+                {dateOnly(pago.desde)} al {dateOnly(pago.hasta)}
               </strong>
+            </div>
+            <div>
+              <small>Vencimiento a las 23:59 · Perú</small>
+              <strong>{dateOnly(pago.hasta)}</strong>
             </div>
           </>
         )}
       </div>
       <p className="hint">
-        El administrador principal no ocupa un cupo de empleado. Las demás
-        cuentas activas sí lo ocupan, incluso si tienen rol Administrador.
+        El administrador principal no ocupa un cupo de empleado. Activos:{" "}
+        {plan.empleadosActivos}. Reservados durante 15 días:{" "}
+        {plan.cuposReservados || 0}. Los cupos no son un conteo de planes.
       </p>
-      {!plan.vigente && (
-        <div className="notice">
-          El administrador principal puede gestionar el negocio. Para habilitar
-          personal, la plataforma debe confirmar un pago y su vigencia.
-        </div>
+      {estado === "PROGRAMADO" && (
+        <p className="notice">
+          El pago está registrado, pero su vigencia aún no empieza. No se cuenta
+          como plan activo. Fecha de consulta:{" "}
+          {plan.fechaActual ? dateOnly(plan.fechaActual) : "hoy"}, hora de Perú.
+        </p>
+      )}
+      {estado === "VENCIDO" && (
+        <p className="notice">
+          La membresía está vencida. El servicio se restablece al confirmar un
+          pago vigente.
+          {plan.pagoProximo
+            ? ` Hay una renovación programada desde ${dateOnly(plan.pagoProximo.desde)}.`
+            : ""}
+        </p>
+      )}
+      {estado === "SIN_PLAN" && (
+        <p className="notice">
+          Alta inicial sin contrato de pago. El administrador principal puede
+          configurar el negocio; el personal requiere un plan vigente.
+        </p>
       )}
     </>
   );
@@ -179,6 +223,7 @@ export function PagosAdmin() {
         description="Confirma pagos recibidos, define su vigencia y controla los cupos. No se realizan cargos automáticos."
       />
       <ErrorNotice message={companies.error || error} />
+      <CobranzaAdmin key={state?.historial[0]?.id || "inicial"} />
       <section className="surface">
         <Field label="Negocio para gestionar el plan">
           <select value={empresa} onChange={(e) => void choose(e.target.value)}>
@@ -200,12 +245,20 @@ export function PagosAdmin() {
           <>
             <section className="surface">
               <PlanInfo plan={state} />
+              <button onClick={() => void choose(empresa)}>
+                Actualizar plan
+              </button>
             </section>
             <section className="surface">
               <h2>Registrar un pago recibido</h2>
               <p className="compact-note">
                 Registra únicamente pagos que hayas recibido y verificado. Cada
                 registro habilita el plan durante las fechas indicadas.
+              </p>
+              <p className="hint">
+                Seleccionar el plan no registra un pago. Completa referencia,
+                confirmación y toda la vigencia acordada. El acceso termina a
+                las 23:59 de la fecha final, hora de Perú.
               </p>
               <Form
                 key={empresa}
@@ -252,7 +305,7 @@ export function PagosAdmin() {
                       name="desde"
                       type="date"
                       required
-                      defaultValue={today}
+                      defaultValue={state.fechaActual?.slice(0, 10) || today}
                     />
                   </Field>
                   <Field label="Vigencia hasta">
@@ -274,6 +327,7 @@ export function PagosAdmin() {
                 <Badge neutral>Importe y cupos se validan en el servidor</Badge>
               </Form>
             </section>
+            <AvisosSuscripcion key={empresa} empresaId={Number(empresa)} />
             <section className="surface">
               <h2>Historial del negocio</h2>
               <Historial plan={state} />

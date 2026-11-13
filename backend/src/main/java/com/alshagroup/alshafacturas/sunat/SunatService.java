@@ -50,13 +50,19 @@ public class SunatService {
         "SELECT"
             + " c.id,c.venta_id,c.ambiente,c.tipo,c.numero,c.estado,c.ticket,c.codigo,c.mensaje,c.creado,c.actualizado,v.numero"
             + " AS venta_numero FROM comprobantes c JOIN ventas v ON v.id=c.venta_id WHERE"
-            + " c.empresa_id=? ORDER BY c.id DESC LIMIT 500",
+            + " v.local_id="
+            + com.alshagroup.alshafacturas.gestion.LocalesService.actual()
+            + " AND c.empresa_id=? ORDER BY c.id DESC LIMIT 500",
         p.getEmpresaId());
   }
 
   private Map<String, Object> row(Long empresa, Long id) {
     var rows =
-        db.queryForList("SELECT * FROM comprobantes WHERE empresa_id=? AND id=?", empresa, id);
+        db.queryForList(
+            "SELECT * FROM comprobantes WHERE empresa_id=? AND id=?"
+                + com.alshagroup.alshafacturas.gestion.LocalesService.filtroComprobante(),
+            empresa,
+            id);
     if (rows.isEmpty())
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Comprobante no encontrado");
     return rows.getFirst();

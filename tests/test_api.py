@@ -20,8 +20,8 @@ class Client:
     def __init__(self):
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
-    def request(self, path, method='GET', body=None, csrf=True):
-        headers = {'Accept': 'application/json'}
+    def request(self, path, method='GET', body=None, csrf=True, extra_headers=None):
+        headers = {'Accept': 'application/json', **(extra_headers or {})}
         if method != 'GET' and csrf:
             status, token = self.request('/auth/csrf')
             assert status == 200, token
@@ -193,8 +193,13 @@ class ApiRegression(unittest.TestCase):
         owner.ok('/usuarios', 'POST', employee())
         self.assertEqual(owner.request('/usuarios', 'POST', employee())[0], 409)
         owner.ok(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': False})
+        self.assertEqual(owner.request('/usuarios', 'POST', employee())[0],409)
+        self.assertEqual(owner.ok('/plan')['cuposReservados'],1)
+        owner.ok(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': True})
+        self.assertEqual(owner.ok('/plan')['empleadosActivos'],2)
+        owner.ok(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': False})
+        self.platform.ok(f"/admin/personal/{first['id']}?empresaId={company['id']}",'DELETE',{'confirmado':True})
         owner.ok('/usuarios', 'POST', employee())
-        self.assertEqual(owner.request(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': True})[0], 409)
         self.assertEqual(owner.ok('/plan')['empleadosActivos'], 2)
         self.assertEqual(owner.request(f"/empresas/{company['id']}/pagos", 'POST', {})[0], 403)
         other, _, _ = self.company('Plan tres', paid=False)
@@ -291,6 +296,163 @@ class ApiRegression(unittest.TestCase):
         self.assertEqual(self.b.request('/ventas/' + str(sale['id']))[0], 404)
         self.assertEqual(self.b.request('/ventas/' + str(sale['id']) + '/anular', 'POST', {'motivo': 'intrusión'})[0], 404)
         self.assertEqual(self.stock(p), 4)
+
+    def test_visualizaciones_individuales_y_roles(self):
+        company, email, owner = self.company('Modalidades independientes')
+        before = owner.ok('/auth/me')
+        self.assertEqual(before['modalidad'], 'COMERCIO')
+        self.assertIsNone(before['tipoAtencion'])
+        staff = owner.ok('/usuarios', 'POST', {'nombre':'Barbero','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
+        producto = self.product(3, owner)
+        snapshots = {path:owner.ok(path) for path in ['/productos','/ventas','/compras','/inventario','/usuarios','/plan']}
+        base = f"/admin/visualizaciones?empresaId={company['id']}"
+        target = f"/admin/visualizaciones/{before['id']}?empresaId={company['id']}"
+        for client in [owner, self.vendor, self.b, Client()]:
+            self.assertIn(client.request(base)[0], (401,403))
+            self.assertIn(client.request(target,'PATCH',{'modalidad':'ATENCION','tipoAtencion':'BARBERIA'})[0], (401,403))
+        for body in [{}, {'modalidad':'OTRA'}, {'modalidad':'ATENCION'}, {'modalidad':'ATENCION','tipoAtencion':'OTRA'}, {'modalidad':'COMERCIO','tipoAtencion':'BARBERIA'}]:
+            self.assertEqual(self.platform.request(target,'PATCH',body)[0],400)
+        self.assertEqual(self.platform.request(f"/admin/visualizaciones/{before['id']}?empresaId={self.b_company['id']}",'PATCH',{'modalidad':'COMERCIO'})[0],404)
+        for tipo in ['BARBERIA','RESTAURANTE','OTROS_SERVICIOS']:
+            result=self.platform.ok(target,'PATCH',{'modalidad':'ATENCION','tipoAtencion':tipo})
+            self.assertEqual((result['modalidad'],result['tipoAtencion'],result['rol']),('ATENCION',tipo,'ADMIN'))
+            current=owner.ok('/auth/me')  # An already-open session reflects the saved selection.
+            self.assertEqual(current['tipoAtencion'],tipo)
+            self.assertEqual(current['permisos'],before['permisos'])
+        rows=self.platform.ok(base)
+        self.assertEqual(next(u for u in rows if u['id']==staff['id'])['modalidad'],'COMERCIO')
+        for path, snapshot in snapshots.items():
+            self.assertEqual(owner.ok(path),snapshot)
+        custom=owner.ok('/roles','POST',{'codigo':'R_BARBERO','nombre':'Barbero','permisos':['CLIENTES_GESTIONAR']})
+        owner.ok(f"/usuarios/{staff['id']}/rol",'PATCH',{'rol':'R_BARBERO'})
+        staffpath=f"/admin/visualizaciones/{staff['id']}?empresaId={company['id']}"
+        self.platform.ok(staffpath,'PATCH',{'modalidad':'ATENCION','tipoAtencion':'BARBERIA'})
+        employee=Client()
+        session=employee.login(company['ruc'],staff['correo'])
+        self.assertEqual(session['rol'],'R_BARBERO')
+        self.assertEqual(session['modalidad'],'ATENCION')
+        self.assertEqual(employee.request('/usuarios')[0],403)
+        self.assertEqual(employee.request('/roles')[0],403)
+        self.assertEqual(employee.request('/compras')[0],403)
+        self.platform.ok(target,'PATCH',{'modalidad':'COMERCIO','tipoAtencion':None})
+        self.assertEqual(owner.ok('/auth/me'),before)
+        self.assertEqual(self.stock(producto,owner),3)
+        root=self.platform.ok('/auth/me')
+        self.assertEqual(self.platform.request(f"/admin/visualizaciones/{root['id']}?empresaId={root['empresaId']}",'PATCH',{'modalidad':'COMERCIO'})[0],409)
+
+    def test_shared_email_business_selector(self):
+        email=uuid.uuid4().hex+'@test.local'
+        companies=[]
+        for name in ['Tienda A','Tienda B']:
+            companies.append(self.platform.ok('/empresas/alta','POST',{'razonSocial':name,'administradorNombre':'Mismo propietario','administradorCorreo':email,'administradorPassword':PASSWORD}))
+        client=Client()
+        self.assertEqual(client.request('/auth/login','POST',{'correo':email,'password':PASSWORD})[0],409)
+        choices=client.ok('/auth/negocios','POST',{'correo':email,'password':PASSWORD})
+        self.assertEqual({n['id'] for n in choices},{c['id'] for c in companies})
+        self.assertEqual(client.request('/auth/me')[0],401)
+        for company in companies:
+            logged=Client().ok('/auth/login','POST',{'empresaId':company['id'],'correo':email,'password':PASSWORD})
+            self.assertEqual(logged['empresaId'],company['id'])
+        self.assertEqual(Client().request('/auth/negocios','POST',{'correo':email,'password':'incorrecta'})[0],401)
+
+    def test_add_ruc_preserves_internal_history(self):
+        email=uuid.uuid4().hex+'@test.local'
+        company=self.platform.ok('/empresas/alta','POST',{'razonSocial':'Negocio sin RUC','administradorNombre':'Dueño','administradorCorreo':email,'administradorPassword':PASSWORD})
+        client=Client();client.ok('/auth/login','POST',{'empresaId':company['id'],'correo':email,'password':PASSWORD})
+        p=self.product(4,client)
+        sale=client.ok('/ventas','POST',self.sale(p))
+        paths=['/productos','/ventas','/inventario','/usuarios','/plan']
+        snapshots={path:client.ok(path) for path in paths}
+        newruc='20'+str(uuid.uuid4().int)[:9]
+        body={'razonSocial':company['razonSocial'],'direccion':'Nueva dirección','ruc':newruc}
+        self.assertEqual(self.platform.request(f"/empresas/{company['id']}",'PUT',{**body,'ruc':'123'})[0],400)
+        updated=self.platform.ok(f"/empresas/{company['id']}",'PUT',body)
+        self.assertEqual((updated['id'],updated['ruc']),(company['id'],newruc))
+        for path,before in snapshots.items():self.assertEqual(client.ok(path),before,path)
+        old=client.ok(f"/ventas/{sale['id']}")
+        self.assertEqual(old['estado_fiscal'],'NO_APLICA')
+        self.assertEqual(old['lineas'][0]['afectacion_igv'],'SIN_IGV')
+        self.assertEqual(client.request('/ventas','POST',self.sale(p,tipo='BOLETA'))[0],400)
+        self.assertEqual(self.platform.request(f"/empresas/{company['id']}",'PUT',{**body,'ruc':self.a_company['ruc']})[0],409)
+        self.assertEqual(Client().ok('/auth/login','POST',{'ruc':newruc,'correo':email,'password':PASSWORD})['empresaId'],company['id'])
+        self.assertEqual(self.product(client=client)['afectacion_igv'],'GRAVADO')
+
+    def test_credentials_change_revokes_sessions_and_preserves_account(self):
+        company,email,owner=self.company('Credenciales conservadas')
+        session=owner.ok('/auth/me');p=self.product(2,owner)
+        before=owner.ok('/productos');path=f"/admin/visualizaciones/{session['id']}/credenciales?empresaId={company['id']}"
+        self.assertEqual(owner.request(path,'PATCH',{'correo':'nuevo@test.local','password':'NuevaClave2026'})[0],403)
+        self.assertEqual(self.platform.request(path,'PATCH',{'correo':'invalido'})[0],400)
+        self.assertEqual(self.platform.request(path,'PATCH',{'correo':email,'password':'corta'})[0],400)
+        newmail=uuid.uuid4().hex+'@test.local';newpass='NuevaClaveSegura2026'
+        self.platform.ok(path,'PATCH',{'correo':newmail,'password':newpass})
+        self.assertIn(owner.request('/auth/me')[0],(401,403))
+        self.assertEqual(Client().request('/auth/login','POST',{'empresaId':company['id'],'correo':email,'password':PASSWORD})[0],401)
+        fresh=Client();now=fresh.ok('/auth/login','POST',{'empresaId':company['id'],'correo':newmail,'password':newpass})
+        self.assertEqual(now['id'],session['id']);self.assertEqual(now['rol'],session['rol']);self.assertEqual(fresh.ok('/productos'),before)
+        self.platform.ok(path,'PATCH',{'correo':newmail,'password':None})
+        self.assertEqual(fresh.ok('/auth/me')['id'],session['id'])
+        user=fresh.ok('/usuarios','POST',{'nombre':'Personal','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
+        self.assertEqual(self.platform.request(path,'PATCH',{'correo':user['correo']})[0],409)
+
+    def test_locales_services_roles_and_isolation(self):
+        company,email,owner=self.company('Empresa con sucursales')
+        me=owner.ok('/auth/me');main=owner.ok('/locales')[0]
+        for name in ['Tienda A','Tienda B']:owner.ok('/locales','POST',{'nombre':name,'direccion':'Dirección '+name})
+        branches=owner.ok('/locales');self.assertEqual(len(branches),3)
+        a,b=branches[1:]
+        employee=owner.ok('/usuarios','POST',{'nombre':'Barbero','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
+        staff=Client();staff.login(company['ruc'],employee['correo'])
+        self.assertEqual([l['id'] for l in staff.ok('/locales')],[main['id']])
+        self.assertEqual(staff.request('/locales/seleccionar','POST',{'localId':a['id']})[0],403)
+        self.assertEqual(owner.request('/locales/seleccionar','POST',{'localId':self.b.ok('/locales')[0]['id']})[0],403)
+        plan=owner.ok('/plan')
+        p=self.product(8,owner);sale=owner.ok('/ventas','POST',self.sale(p))
+        owner.ok('/locales/seleccionar','POST',{'localId':a['id']})
+        self.assertEqual(owner.ok('/productos'),[]);self.assertEqual(owner.ok('/ventas'),[]);self.assertEqual(owner.ok('/inventario'),[])
+        self.assertEqual(owner.request(f"/ventas/{sale['id']}")[0],404)
+        self.assertEqual(owner.request(f"/ventas/{sale['id']}/anular",'POST',{'motivo':'Intrusión'})[0],404)
+        self.assertEqual(owner.raw(f"/productos/{p['id']}/imagen")[0],404)
+        self.assertEqual(owner.request('/ventas','POST',self.sale(p))[0],404)
+        self.assertEqual(owner.request('/inventario/ajustes','POST',{'productoId':p['id'],'cantidad':1,'motivo':'Intrusión'})[0],404)
+        q=owner.ok('/productos','POST',{'sku':p['sku'],'nombre':'Mismo código, otro local','precio':7,'minimo':0,'activo':True})
+        custom=self.platform.ok('/tipos-atencion','POST',{'nombre':'Spa '+uuid.uuid4().hex})
+        self.assertEqual(owner.request('/tipos-atencion','POST',{'nombre':'No permitido'})[0],403)
+        self.platform.ok(f"/admin/visualizaciones/{me['id']}?empresaId={company['id']}",'PATCH',{'modalidad':'ATENCION','tipoAtencion':custom['codigo']})
+        self.assertEqual(owner.ok('/auth/me')['tipoAtencion'],custom['codigo'])
+        service=owner.ok('/servicios','POST',{'nombre':'Corte de cabello','precio':25,'duracionMinutos':30,'activo':True})
+        self.assertEqual(service['stock'],0)
+        self.assertNotIn(service['id'],[r['id'] for r in owner.ok('/productos')])
+        before=owner.ok('/inventario')
+        payload=self.sale(service,2)
+        sold=owner.ok('/ventas','POST',payload)
+        self.assertEqual(sold['total'],50);self.assertEqual(sold['lineas'][0]['clase'],'SERVICIO')
+        self.assertEqual(owner.ok('/ventas','POST',payload)['id'],sold['id'])
+        self.assertEqual(owner.ok('/inventario'),before)
+        self.assertEqual(owner.request('/inventario/ajustes','POST',{'productoId':service['id'],'cantidad':1,'motivo':'No stock'})[0],400)
+        purchases=owner.ok('/compras')
+        self.assertEqual(owner.request('/compras','POST',{'idempotencia':str(uuid.uuid4()),'proveedor':'No','referencia':uuid.uuid4().hex,'lineas':[{'productoId':service['id'],'cantidad':1,'costo':10}]})[0],400)
+        self.assertEqual(owner.ok('/compras'),purchases)
+        owner.ok(f"/ventas/{sold['id']}/anular",'POST',{'motivo':'Prueba'})
+        self.assertEqual(owner.ok('/inventario'),before)
+        owner.ok(f"/locales/usuarios/{employee['id']}",'PUT',{'locales':[a['id'],b['id']]})
+        self.assertEqual({l['id'] for l in staff.ok('/locales')},{a['id'],b['id']})
+        staff.ok('/locales/seleccionar','POST',{'localId':a['id']})
+        self.assertEqual(staff.ok('/servicios')[0]['id'],service['id'])
+        self.assertEqual(staff.request('/servicios','POST',{'nombre':'No','precio':1,'duracionMinutos':0,'activo':True})[0],403)
+        self.assertEqual(staff.request('/locales','POST',{'nombre':'No'})[0],403)
+        self.assertEqual(staff.request(f"/locales/usuarios/{me['id']}",'PUT',{'locales':[a['id']]})[0],403)
+        owner.ok('/locales/seleccionar','POST',{'localId':b['id']})
+        self.assertEqual(owner.ok('/servicios'),[])
+        self.assertEqual(owner.request('/productos',extra_headers={'X-Local-Id':str(a['id'])})[0],409)
+        self.assertEqual(owner.request('/productos','POST',{'nombre':'Pestaña anterior','precio':10,'activo':True},extra_headers={'X-Local-Id':str(a['id'])})[0],409)
+        self.assertEqual(owner.ok('/productos'),[])
+        self.assertEqual(owner.request(f"/servicios/{service['id']}",'PUT',{'nombre':'Intrusión','precio':1,'duracionMinutos':0,'activo':True})[0],404)
+        self.assertEqual(owner.ok('/plan'),plan)
+        owner.ok('/locales/seleccionar','POST',{'localId':main['id']})
+        self.assertEqual(self.stock(p,owner),7)
+        self.assertEqual(owner.ok('/ventas')[0]['id'],sale['id'])
+        self.assertEqual(owner.ok('/auth/me')['empresaId'],company['id'])
 
     def test_roles_and_escalation(self):
         self.assertEqual(self.a.request('/empresas')[0], 403)

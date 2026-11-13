@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UsuarioService {
 
+  private final com.alshagroup.alshafacturas.gestion.AuditoriaService audit;
   private final UsuarioRepository usuarioRepository;
   private final EmpresaRepository empresaRepository;
   private final PasswordEncoder passwordEncoder;
@@ -27,6 +28,7 @@ public class UsuarioService {
 
   public UsuarioService(
       UsuarioRepository usuarioRepository,
+      com.alshagroup.alshafacturas.gestion.AuditoriaService audit,
       EmpresaRepository empresaRepository,
       PasswordEncoder passwordEncoder,
       jakarta.validation.Validator validator,
@@ -34,6 +36,7 @@ public class UsuarioService {
       com.alshagroup.alshafacturas.gestion.PlanesService planes,
       org.springframework.jdbc.core.JdbcTemplate db) {
     this.usuarioRepository = usuarioRepository;
+    this.audit = audit;
     this.empresaRepository = empresaRepository;
     this.passwordEncoder = passwordEncoder;
     this.validator = validator;
@@ -106,7 +109,13 @@ public class UsuarioService {
     usuario.setPasswordHash(passwordEncoder.encode(request.password()));
 
     // 5. Guardar en PostgreSQL
-    Usuario guardado = usuarioRepository.save(usuario);
+    Usuario guardado = usuarioRepository.saveAndFlush(usuario);
+    if ("ADMIN".equals(rolTexto))
+      db.update(
+          "UPDATE empresas SET administrador_principal_id=? WHERE id=? AND"
+              + " administrador_principal_id IS NULL",
+          guardado.getId(),
+          empresa.getId());
 
     // 6. Devolver una respuesta sin contraseña
     return new UsuarioResponse(
@@ -148,9 +157,24 @@ public class UsuarioService {
     if (!activo && java.util.Objects.equals(id, planes.propietario(empresaId)))
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "El administrador principal debe conservar acceso");
-    if (activo && !Boolean.TRUE.equals(u.getActivo())) planes.validarCupo(empresaId);
+    if (activo && !Boolean.TRUE.equals(u.getActivo())) planes.validarReactivar(empresaId, id);
+    if (!activo && Boolean.TRUE.equals(u.getActivo())) u.setDesactivadoEn(java.time.Instant.now());
+    if (activo) u.setDesactivadoEn(null);
     u.setActivo(activo);
-    usuarioRepository.save(u);
+    usuarioRepository.saveAndFlush(u);
+    var authEvento =
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+            .getAuthentication();
+    if (authEvento != null
+        && authEvento.getPrincipal()
+            instanceof com.alshagroup.alshafacturas.security.UsuarioPrincipal p)
+      audit.registrar(
+          p,
+          empresaId,
+          null,
+          activo ? "USUARIO_REACTIVADO" : "USUARIO_DESACTIVADO",
+          id,
+          "Cambio de estado por administrador");
     return new UsuarioResponse(
         u.getId(), empresaId, u.getNombre(), u.getCorreo(), u.getRol(), u.getActivo());
   }
@@ -170,7 +194,14 @@ public class UsuarioService {
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
     u.setRol(rol);
-    usuarioRepository.save(u);
+    usuarioRepository.saveAndFlush(u);
+    var authEvento =
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+            .getAuthentication();
+    if (authEvento != null
+        && authEvento.getPrincipal()
+            instanceof com.alshagroup.alshafacturas.security.UsuarioPrincipal p)
+      audit.registrar(p, empresa, null, "USUARIO_ROL", id, rol);
     return new UsuarioResponse(
         u.getId(), empresa, u.getNombre(), u.getCorreo(), u.getRol(), u.getActivo());
   }

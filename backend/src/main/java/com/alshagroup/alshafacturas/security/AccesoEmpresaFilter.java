@@ -14,14 +14,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class AccesoEmpresaFilter extends OncePerRequestFilter {
   private final UsuarioRepository users;
+  private final com.alshagroup.alshafacturas.gestion.LocalesService locales;
   private final com.alshagroup.alshafacturas.gestion.RolesService roles;
   private final com.alshagroup.alshafacturas.gestion.PlanesService planes;
 
   public AccesoEmpresaFilter(
       UsuarioRepository users,
+      com.alshagroup.alshafacturas.gestion.LocalesService locales,
       com.alshagroup.alshafacturas.gestion.RolesService roles,
       com.alshagroup.alshafacturas.gestion.PlanesService planes) {
     this.users = users;
+    this.locales = locales;
     this.roles = roles;
     this.planes = planes;
   }
@@ -41,9 +44,31 @@ public class AccesoEmpresaFilter extends OncePerRequestFilter {
     var auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth != null && auth.getPrincipal() instanceof UsuarioPrincipal principal) {
       var user = users.findById(principal.getId()).orElse(null);
+      if (user != null
+          && Boolean.TRUE.equals(user.getActivo())
+          && user.getCredencialesVersion() == principal.getCredencialesVersion()
+          && !"SUPERADMIN".equals(user.getRol())
+          && user.getEmpresa().getEstado() == EstadoEmpresa.ACTIVA) {
+        var bloqueo = planes.bloqueo(user.getEmpresa().getId());
+        if (bloqueo != null) {
+          SecurityContextHolder.clearContext();
+          var session = req.getSession(false);
+          if (session != null) session.invalidate();
+          res.setStatus(402);
+          res.setHeader("Cache-Control", "no-store");
+          res.setContentType("application/json;charset=UTF-8");
+          res.getWriter()
+              .write(
+                  tools.jackson.databind.json.JsonMapper.builder()
+                      .build()
+                      .writeValueAsString(bloqueo));
+          return;
+        }
+      }
       boolean allowed =
           user != null
               && Boolean.TRUE.equals(user.getActivo())
+              && user.getCredencialesVersion() == principal.getCredencialesVersion()
               && user.getEmpresa().getId().equals(principal.getEmpresaId())
               && ("SUPERADMIN".equals(user.getRol())
                   || (user.getEmpresa().getEstado() == EstadoEmpresa.ACTIVA
@@ -62,10 +87,30 @@ public class AccesoEmpresaFilter extends OncePerRequestFilter {
       }
       var refreshed =
           new UsuarioPrincipal(user, roles.permisos(user.getEmpresa().getId(), user.getRol()));
-      SecurityContextHolder.getContext()
-          .setAuthentication(
-              new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                  refreshed, null, refreshed.getAuthorities()));
+      Long selected = (Long) req.getSession().getAttribute("localId");
+      try {
+        locales.seleccionar(refreshed, selected);
+      } catch (org.springframework.web.server.ResponseStatusException ex) {
+        // Revoked local access falls back only to a currently authorized local.
+        locales.seleccionar(refreshed, null);
+        req.getSession().setAttribute("localId", refreshed.getLocalId());
+      }
+      String expected = req.getHeader("X-Local-Id");
+      if (expected != null
+          && !req.getRequestURI().startsWith("/api/auth/")
+          && !req.getRequestURI().equals("/api/locales/seleccionar")
+          && !expected.equals(String.valueOf(refreshed.getLocalId()))) {
+        res.setStatus(409);
+        res.setContentType("application/json;charset=UTF-8");
+        res.getWriter()
+            .write("{\"mensaje\":\"El local cambió en otra pestaña. Recarga antes de continuar\"}");
+        return;
+      }
+      var requestContext = SecurityContextHolder.createEmptyContext();
+      requestContext.setAuthentication(
+          new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+              refreshed, null, refreshed.getAuthorities()));
+      SecurityContextHolder.setContext(requestContext);
     }
     chain.doFilter(req, res);
   }

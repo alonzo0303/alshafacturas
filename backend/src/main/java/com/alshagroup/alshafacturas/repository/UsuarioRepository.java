@@ -19,7 +19,10 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
   Optional<Usuario> findByIdAndEmpresaId(Long id, Long empresaId);
 
   @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "empresa")
-  List<Usuario> findByEmpresaId(Long empresaId);
+  @org.springframework.data.jpa.repository.Query(
+      "SELECT u FROM Usuario u WHERE u.empresa.id=:empresaId ORDER BY u.id")
+  List<Usuario> findByEmpresaId(
+      @org.springframework.data.repository.query.Param("empresaId") Long empresaId);
 
   @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "empresa")
   Optional<Usuario> findByEmpresaIdAndCorreo(Long empresaId, String correo);

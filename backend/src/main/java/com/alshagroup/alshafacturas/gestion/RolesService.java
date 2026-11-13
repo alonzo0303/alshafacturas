@@ -18,6 +18,13 @@ public class RolesService {
 
   public static final Set<String> PERMISOS =
       Set.of(
+          "ACTIVIDADES_GESTIONAR",
+          "MESAS_GESTIONAR",
+          "PREPARACION_GESTIONAR",
+          "CAJA_GESTIONAR",
+          "RENDIMIENTO_VER",
+          "SERVICIOS_VER",
+          "SERVICIOS_EDITAR",
           "RESUMEN_VER",
           "PRODUCTOS_VER",
           "PRODUCTOS_EDITAR",
@@ -35,7 +42,16 @@ public class RolesService {
     return switch (rol) {
       case "ADMIN" -> PERMISOS.stream().sorted().toList();
       case "VENDEDOR" ->
-          List.of("PRODUCTOS_VER", "INVENTARIO_VER", "VENTAS_GESTIONAR", "CLIENTES_GESTIONAR");
+          List.of(
+              "PRODUCTOS_VER",
+              "INVENTARIO_VER",
+              "VENTAS_GESTIONAR",
+              "CLIENTES_GESTIONAR",
+              "CAJA_GESTIONAR",
+              "RENDIMIENTO_VER",
+              "ACTIVIDADES_GESTIONAR",
+              "MESAS_GESTIONAR",
+              "PREPARACION_GESTIONAR");
       case "ALMACENERO" ->
           List.of("PRODUCTOS_VER", "PRODUCTOS_EDITAR", "INVENTARIO_VER", "INVENTARIO_EDITAR");
       case "COMPRAS" ->
@@ -105,6 +121,7 @@ public class RolesService {
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST, "Código reservado o permisos no válidos");
     var permisos = new HashSet<>(r.permisos());
+    if (permisos.contains("SERVICIOS_EDITAR")) permisos.add("SERVICIOS_VER");
     if (permisos.contains("INVENTARIO_EDITAR")) permisos.add("INVENTARIO_VER");
     if (permisos.contains("RESUMEN_VER")
         || permisos.contains("PRODUCTOS_EDITAR")

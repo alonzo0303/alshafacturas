@@ -28,11 +28,15 @@ Las notas NV01 son internas. Las solicitudes de factura/boleta se preparan y env
 
 Se usa moneda PEN y cantidades enteras. Cada producto puede estar gravado al 18%, exonerado o inafecto; sin RUC se usa gestión interna sin desglose fiscal. Los precios finales se conservan separados del costo de compra. Descuentos, detracciones, notas de crédito, guías y múltiples almacenes requieren reglas adicionales. El medio de pago registra información; no cobra mediante un banco o pasarela.
 
-Incluye registro manual de pagos de planes y control de cupos; no cobra con una pasarela. No incluye recuperación/cambio de contraseña, MFA ni un servicio de soporte. Las listas de ventas, compras y movimientos muestran las últimas 500 operaciones; el resumen considera todo el historial. Consulta [pendientes de producción](docs/PRODUCCION.md).
+Incluye registro manual de pagos de planes y control de cupos; no cobra con una pasarela. SUPERADMIN puede cambiar correo y restablecer contraseñas, revocando sesiones anteriores. No incluye recuperación por correo, MFA ni un servicio de soporte. Las listas de ventas, compras y movimientos muestran las últimas 500 operaciones; el resumen considera todo el historial. Consulta [pendientes de producción](docs/PRODUCCION.md).
 
 ## Requisitos
 
 Java **JDK** 21, Maven 3.9+, Node.js 24, npm y Docker con Compose. En Windows usa PowerShell y `npm.cmd` si tu política de ejecución bloquea `npm.ps1`.
+
+## Pruebas y producción separadas
+
+Para las instalaciones nuevas usa [Entornos y carga simultánea](docs/ENTORNOS_Y_CARGA.md). `python herramientas/entornos.py preparar` genera configuraciones privadas independientes; Pruebas abre en 8091 y Producción se reserva para HTTPS. La base actual se conserva. Incluye un simulador de usuarios concurrentes y un reinicio limitado al nuevo entorno de Pruebas.
 
 ## Arranque con Docker
 
@@ -78,3 +82,15 @@ Consulta la [guía de operación](docs/PLANES_Y_CATALOGO.md) para registrar pago
 ## Fotos, móvil e impresión térmica
 
 La interfaz usa el morado #7C3AED de Alsha Group. Incluye fotos de productos/plantillas, navegación móvil desplegable y tablas con desplazamiento propio y controles. SUPERADMIN asigna el acceso al catálogo común por rubro de negocio. Las notas internas pueden imprimirse en A4, 58 u 80 mm. Consulta la [guía de fotos, rubros e impresión](docs/IMAGENES_MOVIL_IMPRESION.md), incluidos los límites de la impresión fiscal y del hardware.
+
+## Visualización por usuario
+
+SUPERADMIN asigna **Comercio** o **Atención y servicios** a cada usuario, con tipo Restaurante, Barbería u Otros servicios. Los usuarios existentes conservan Comercio. Atención tiene un inicio independiente y acceso administrativo a personal, roles y plan; sus operaciones específicas se desarrollarán por separado. Consulta la [guía de visualizaciones](docs/MODALIDADES_USUARIO.md).
+
+## Servicios, sucursales y accesos
+
+Incluye tipos de atención ampliables, catálogo y cobro interno de servicios sin stock, selector de negocio para correo compartido, edición de correo/contraseña por SUPERADMIN, incorporación de RUC y locales con datos operativos separados bajo una empresa. Consulta la [guía de uso y límites](docs/SERVICIOS_LOCALES_ACCESOS.md).
+
+Consulta [operación, personal y documentos](docs/OPERACION_CONTROL.md) y la [revisión de seguridad](docs/SEGURIDAD_OPERATIVA.md).
+
+La asignación automática de catálogo por rubro y los recordatorios/bloqueos de membresía se explican en [Rubros y suscripciones](docs/RUBROS_SUSCRIPCIONES.md).

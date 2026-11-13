@@ -21,11 +21,33 @@ public class RubrosService {
 
   public boolean permitido(Long empresa, Long catalogo) {
     return db.queryForObject(
-        "SELECT EXISTS(SELECT 1 FROM catalogo_comun c JOIN empresa_rubros_catalogo r ON"
-            + " r.rubro=c.rubro WHERE r.empresa_id=? AND c.id=? AND c.activo)",
+        "SELECT EXISTS(SELECT 1 FROM catalogo_comun c JOIN empresas e ON e.id=? JOIN locales l ON"
+            + " l.empresa_id=e.id AND l.id=? JOIN empresa_rubros_catalogo r ON r.empresa_id=e.id"
+            + " AND r.rubro=c.rubro WHERE c.id=? AND c.activo AND"
+            + " (COALESCE(l.rubro_negocio,e.rubro_negocio) IS NULL OR"
+            + " c.rubro=COALESCE(l.rubro_negocio,e.rubro_negocio)))",
         Boolean.class,
         empresa,
+        LocalesService.actual(),
         catalogo);
+  }
+
+  public String validar(String rubro) {
+    if (rubro == null || rubro.isBlank()) return null;
+    String value = rubro.trim();
+    if (!db.queryForList("SELECT nombre FROM rubros_catalogo WHERE nombre=?", String.class, value)
+        .contains(value))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecciona un rubro existente");
+    return value;
+  }
+
+  public void asociar(Long empresa, String rubro) {
+    if (rubro != null)
+      db.update(
+          "INSERT INTO empresa_rubros_catalogo(empresa_id,rubro) VALUES (?,?) ON CONFLICT DO"
+              + " NOTHING",
+          empresa,
+          rubro);
   }
 
   public Map<String, Object> estado(Long empresa) {

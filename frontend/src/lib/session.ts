@@ -10,6 +10,13 @@ export function can(session: Session, permission: string) {
   return session.rol === "ADMIN" || session.permisos?.includes(permission);
 }
 export const permissionLabels: Record<string, string> = {
+  ACTIVIDADES_GESTIONAR: "Registrar mis actividades y etapas",
+  MESAS_GESTIONAR: "Gestionar mesas y pedidos",
+  PREPARACION_GESTIONAR: "Preparar pedidos antes del cobro",
+  CAJA_GESTIONAR: "Abrir y cerrar mi caja",
+  RENDIMIENTO_VER: "Consultar rendimiento",
+  SERVICIOS_VER: "Consultar servicios",
+  SERVICIOS_EDITAR: "Crear y editar servicios",
   RESUMEN_VER: "Ver resumen del negocio",
   PRODUCTOS_VER: "Consultar productos y catálogo",
   PRODUCTOS_EDITAR: "Crear y editar productos",

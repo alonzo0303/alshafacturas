@@ -47,7 +47,24 @@ jobs:
             exit 1
           fi
       - run: python tests/test_api.py
+      - run: python tests/test_control.py
+      - run: python tests/test_subscriptions.py
+      - run: python tests/test_experiencia.py
+      - run: python tests/test_carga_guard.py
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npx playwright test
         working-directory: frontend
+
+  environments:
+    name: Aislamiento de entornos y simulador
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: mvn -B -ntp -f backend/pom.xml -DskipTests package
+      - run: python tests/test_entornos_ci.py

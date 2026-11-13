@@ -6,13 +6,17 @@ Se implementó la conexión directa al SEE del Contribuyente. No se requiere con
 
 Consulta [SUNAT.md](SUNAT.md) para el alcance, la configuración y los pendientes fiscales. Antes de producir comprobantes válidos se requieren pruebas reales de estructura y aceptación, reglas del emisor, representación fiscal y resolución de excepciones (CDR perdido, rechazo, notas de crédito/bajas). Las pruebas simuladas no sustituyen una aceptación oficial. No se ha enviado ningún documento real en este trabajo.
 
+## Separación de datos
+
+Usa el perfil `produccion` y su base `alshafacturas_produccion`, independientes de Pruebas. La [guía de entornos](ENTORNOS_Y_CARGA.md) explica credenciales, volúmenes, limpieza de pruebas y carga simultánea. No copiar automáticamente los datos de ensayo. Antes de invitar clientes reales se requieren copias de seguridad y una restauración verificada en otro entorno. La herramienta de carga rechaza Producción.
+
 ## Infraestructura y operación
 
 - Dominio y HTTPS. Compose escucha solo en 127.0.0.1:8088 para quedar detrás de un proxy HTTPS. Configura `COOKIE_SECURE=true` al servir con HTTPS. La configuración incluida no provee certificado ni DNS.
 - Secretos propios, copias de seguridad cifradas y prueba de restauración de PostgreSQL. Conservar el volumen al recrear contenedores. Revisar rotación, retención, monitorización y alertas.
-- Servicio de correo y flujo de restablecimiento/cambio de contraseña antes de invitar usuarios externos. MFA y límites de intentos de acceso deben definirse antes de abrir el servicio públicamente.
+- Servicio de correo y recuperación autónoma antes de invitar usuarios externos. SUPERADMIN ya puede restablecer contraseñas y existe un límite de acceso por cuenta/IP en cada instancia. Para varias instancias o un proxy compartido, añadir límite distribuido en la entrada y configurar el origen confiable; definir MFA.
 - Aceptación de negocio: régimen tributario, catálogo, saldos iniciales, inventario por unidades y reglas de IGV 18%. Revisar roles y permisos con cada empresa.
-- Si el SaaS necesita cobrar planes: definir planes, moneda, pasarela, webhooks verificados, períodos y vencimientos. No está implementado.
+- Los planes S/35, S/50 y S/70 y sus períodos/cupos se registran manualmente. La pasarela de cobro y los webhooks verificados están pendientes.
 - Confirmar políticas de privacidad, condiciones de servicio, soporte, auditoría y responsable de operación.
 
 ## Diseño técnico actual

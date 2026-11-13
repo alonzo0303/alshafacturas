@@ -1,3 +1,4 @@
+import ImportarServicio from "../components/ImportarServicio";
 import SearchChoice from "../components/SearchChoice";
 import { searchText } from "../lib/search";
 import { ProductImage, ImageEditor } from "../components/ProductImage";
@@ -18,9 +19,12 @@ import {
 import ProductEditor, { type Plantilla } from "../components/ProductEditor";
 export function CatalogoPicker({
   onChoose,
+  clase = "PRODUCTO",
 }: {
+  clase?: "PRODUCTO" | "SERVICIO" | "TODOS";
   onChoose: (item: Plantilla) => void;
 }) {
+  const session = useSession();
   const { data, error, loading, refresh } = useData(
       () => api<Plantilla[]>("/catalogo-comun"),
       [],
@@ -29,6 +33,7 @@ export function CatalogoPicker({
     [rubro, setRubro] = useState("");
   const list = data.filter(
     (p) =>
+      (clase === "TODOS" || (p.clase || "PRODUCTO") === clase) &&
       (!rubro || p.rubro === rubro) &&
       searchText(`${p.nombre} ${p.marca || "Genérico"} ${p.rubro}`).includes(
         searchText(search),
@@ -42,7 +47,7 @@ export function CatalogoPicker({
           aria-label="Buscar en catálogo común"
           value={search}
           type="search"
-          placeholder="Buscar un producto común"
+          placeholder="Buscar un producto o servicio"
           onChange={(e) => setSearch(e.target.value)}
         />
         <Field label="Rubro">
@@ -74,17 +79,29 @@ export function CatalogoPicker({
                 Marca: <strong>{p.marca || "Genérico"}</strong>
               </p>
               {p.descripcion && <p>{p.descripcion}</p>}
-              <button type="button" onClick={() => onChoose(p)}>
-                Usar producto<span className="sr-only"> {p.nombre}</span>
+              <button
+                type="button"
+                disabled={
+                  !can(
+                    session,
+                    p.clase === "SERVICIO"
+                      ? "SERVICIOS_EDITAR"
+                      : "PRODUCTOS_EDITAR",
+                  )
+                }
+                onClick={() => onChoose(p)}
+              >
+                {p.clase === "SERVICIO" ? "Usar servicio" : "Usar producto"}
+                <span className="sr-only"> {p.nombre}</span>
               </button>
             </article>
           ))}
         </div>
       ) : (
         <Empty>
-          No hay plantillas habilitadas para este filtro. Solicita a la
-          plataforma acceso al rubro de tu negocio. Puedes crear mercadería
-          propia desde Productos o Compras.
+          {data.length
+            ? "No hay coincidencias con la búsqueda o el tipo de plantilla seleccionado."
+            : "No hay plantillas disponibles para este local. SuperAdmin puede asignar su rubro desde Empresas o Sucursales; las plantillas publicadas de ese rubro se habilitarán automáticamente."}
         </Empty>
       )}
     </>
@@ -98,16 +115,17 @@ export function CatalogoNegocio() {
     <>
       <PageTitle
         title="Catálogo común"
-        description="Productos habituales por rubro. Cada negocio decide su marca, presentación y precio."
+        description="Productos y servicios de tu rubro. Cada negocio define su presentación y precio."
       />
       <p className="notice">
-        Las plantillas no incluyen precios de venta ni existencias. Al
-        incorporarlas se crean productos propios de tu negocio.
+        Las plantillas no incluyen precios ni existencias. Al incorporarlas se
+        crean productos o servicios propios de tu negocio.
       </p>
       <p role="status">{message}</p>
-      {can(session, "PRODUCTOS_EDITAR") ? (
+      {can(session, "PRODUCTOS_EDITAR") || can(session, "SERVICIOS_EDITAR") ? (
         <section className="surface">
           <CatalogoPicker
+            clase="TODOS"
             onChoose={(p) => {
               setMessage("");
               setSelected(p);
@@ -125,15 +143,25 @@ export function CatalogoNegocio() {
           title={`Incorporar ${selected.nombre}`}
           onClose={() => setSelected(null)}
         >
-          <ProductEditor
-            template={selected}
-            onSaved={(p: Producto) => {
-              setSelected(null);
-              setMessage(
-                `${p.nombre} incorporado. Añade existencias desde Compras o Inventario.`,
-              );
-            }}
-          />
+          {selected.clase === "SERVICIO" ? (
+            <ImportarServicio
+              template={selected}
+              onDone={() => {
+                setSelected(null);
+                setMessage("Servicio incorporado a tu catálogo del local.");
+              }}
+            />
+          ) : (
+            <ProductEditor
+              template={selected}
+              onSaved={(p: Producto) => {
+                setSelected(null);
+                setMessage(
+                  `${p.nombre} incorporado. Añade existencias desde Compras o Inventario.`,
+                );
+              }}
+            />
+          )}
         </Modal>
       )}
     </>
@@ -171,6 +199,8 @@ export function CatalogoAdmin() {
               {
                 nombre: d.get("nombre"),
                 marca: d.get("marca"),
+                clase: d.get("clase"),
+                duracionMinutos: Number(d.get("duracionMinutos")),
                 rubro: d.get("rubro"),
                 descripcion: d.get("descripcion"),
                 activo: d.get("activo") === "on",
@@ -201,6 +231,22 @@ export function CatalogoAdmin() {
             onBusyChange={setPreparingPhoto}
           />
           <div className="form-grid">
+            <Field label="Tipo de plantilla">
+              <select name="clase" defaultValue={editing?.clase || "PRODUCTO"}>
+                <option value="PRODUCTO">Producto</option>
+                <option value="SERVICIO">Servicio</option>
+              </select>
+            </Field>
+            <Field label="Duración base en minutos">
+              <input
+                name="duracionMinutos"
+                type="number"
+                min="0"
+                max="1440"
+                step="1"
+                defaultValue={editing?.duracion_minutos || 0}
+              />
+            </Field>
             <Field label="Nombre del producto común">
               <input
                 name="nombre"

@@ -2,13 +2,16 @@ import { useData } from "../lib/useData";
 import { useState } from "react";
 import { api, money, date, localDay, exportCsv, type Venta } from "../lib/api";
 import { ErrorNotice, Empty, PageTitle, Table, Badge } from "../components/ui";
+import DetalleCompra from "../components/DetalleCompra";
 import Recibo from "./Recibo";
 export function Ventas({
   admin,
   fiscal = false,
+  atencion = false,
 }: {
   admin: boolean;
   fiscal?: boolean;
+  atencion?: boolean;
 }) {
   const { data, loading, error, refresh } = useData(
     () => api<Venta[]>("/ventas"),
@@ -42,7 +45,9 @@ export function Ventas({
   }
   async function anular(v: Venta) {
     const motivo = window.prompt(
-      `Motivo de anulación de ${v.numero}. Se devolverán las unidades al inventario.`,
+      atencion
+        ? `Motivo de anulación de ${v.numero}. Los servicios no generan movimientos de almacén.`
+        : `Motivo de anulación de ${v.numero}. Se devolverán las unidades al inventario.`,
     );
     if (!motivo?.trim()) return;
     setBusy(true);
@@ -132,6 +137,7 @@ export function Ventas({
               "Cliente",
               "Documento",
               "Estado",
+              "Stock actual",
               "Total",
               "Acciones",
             ]}
@@ -153,6 +159,21 @@ export function Ventas({
                 </td>
                 <td>
                   <Badge neutral={v.estado === "CONFIRMADA"}>{v.estado}</Badge>
+                </td>
+                <td>
+                  {v.tiene_productos ? (
+                    <span
+                      className={
+                        v.stock_alerta
+                          ? "stock-level stock-low"
+                          : "stock-level stock-optimal"
+                      }
+                    >
+                      {v.stock_alerta ? "🔴 Stock bajo" : "🔵 Óptimo"}
+                    </span>
+                  ) : (
+                    "No aplica"
+                  )}
                 </td>
                 <td className="number">{money(v.total)}</td>
                 <td>
@@ -205,8 +226,12 @@ export function Compras() {
     () => api<Compra[]>("/compras"),
     [],
   );
+  const [detalle, setDetalle] = useState<number | null>(null);
   return (
     <>
+      {detalle && (
+        <DetalleCompra id={detalle} onClose={() => setDetalle(null)} />
+      )}
       <PageTitle
         title="Historial de compras"
         description="Últimas 500 entradas de mercadería registradas."
@@ -256,6 +281,7 @@ export function Compras() {
               "IGV",
               "Total",
               "Crédito fiscal potencial",
+              "Acciones",
             ]}
           >
             {data.map((c) => (
@@ -274,6 +300,12 @@ export function Compras() {
                 <td className="number">{money(c.total)}</td>
                 <td>
                   {c.credito_fiscal ? "Por validar con contador" : "No marcado"}
+                </td>
+                <td>
+                  <button onClick={() => setDetalle(c.id)}>
+                    Ver / descargar compra
+                    <span className="sr-only"> {c.referencia}</span>
+                  </button>
                 </td>
               </tr>
             ))}
