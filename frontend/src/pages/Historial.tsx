@@ -1,15 +1,32 @@
+import { useSession } from "../lib/session";
 import { useData } from "../lib/useData";
 import { useState } from "react";
 import { api, money, date, localDay, exportCsv, type Venta } from "../lib/api";
 import { ErrorNotice, Empty, PageTitle, Table, Badge } from "../components/ui";
+import DetalleCompra from "../components/DetalleCompra";
 import Recibo from "./Recibo";
+const saleDate = (value: string) =>
+  new Intl.DateTimeFormat("es-PE", {
+    dateStyle: "short",
+    timeZone: "America/Lima",
+  }).format(new Date(value));
+const saleTime = (value: string) =>
+  new Intl.DateTimeFormat("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "America/Lima",
+  }).format(new Date(value));
 export function Ventas({
   admin,
   fiscal = false,
+  atencion = false,
 }: {
   admin: boolean;
   fiscal?: boolean;
+  atencion?: boolean;
 }) {
+  const own = useSession().rol !== "ADMIN";
   const { data, loading, error, refresh } = useData(
     () => api<Venta[]>("/ventas"),
     [],
@@ -23,7 +40,7 @@ export function Ventas({
   const filtered = data.filter(
     (v) =>
       (!fiscal || v.tipo !== "TICKET") &&
-      `${v.numero} ${v.cliente || ""}`
+      `${v.numero} ${v.cliente || ""} ${v.usuario_nombre || ""}`
         .toLowerCase()
         .includes(search.toLowerCase()) &&
       (!from || localDay(v.fecha) >= from) &&
@@ -42,7 +59,9 @@ export function Ventas({
   }
   async function anular(v: Venta) {
     const motivo = window.prompt(
-      `Motivo de anulación de ${v.numero}. Se devolverán las unidades al inventario.`,
+      atencion
+        ? `Motivo de anulación de ${v.numero}. Los servicios no generan movimientos de almacén.`
+        : `Motivo de anulación de ${v.numero}. Se devolverán las unidades al inventario.`,
     );
     if (!motivo?.trim()) return;
     setBusy(true);
@@ -59,21 +78,40 @@ export function Ventas({
   return (
     <>
       <PageTitle
-        title={fiscal ? "Facturación electrónica" : "Ventas y reportes"}
+        title={
+          fiscal
+            ? "Facturación electrónica"
+            : own
+              ? "Mis ventas y reportes"
+              : "Ventas y reportes"
+        }
         description={
           fiscal
             ? "Solicitudes de comprobantes pendientes de emisión fiscal."
-            : "Últimas 500 ventas de tu empresa. Filtra y exporta el resultado."
+            : own
+              ? "Últimas 500 ventas realizadas por ti. Filtra y exporta tus resultados."
+              : "Últimas 500 ventas de tu empresa. Filtra y exporta el resultado."
         }
       >
         <button
           onClick={() =>
             exportCsv(
               "ventas.csv",
-              ["Número", "Fecha", "Cliente", "Tipo", "Estado", "Total PEN"],
+              [
+                "Número",
+                "Fecha (Perú)",
+                "Hora (Perú)",
+                "Vendido / cobrado por",
+                "Cliente",
+                "Tipo",
+                "Estado",
+                "Total PEN",
+              ],
               filtered.map((v) => [
                 v.numero,
-                v.fecha,
+                saleDate(v.fecha),
+                saleTime(v.fecha),
+                v.usuario_nombre || "Sin autor registrado",
                 v.cliente,
                 v.tipo,
                 v.estado,
@@ -98,7 +136,7 @@ export function Ventas({
         <div className="section-toolbar">
           <input
             aria-label="Buscar ventas"
-            placeholder="Número o cliente"
+            placeholder="Número, cliente o personal"
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -128,10 +166,12 @@ export function Ventas({
         ) : filtered.length ? (
           <Table
             headers={[
-              "Número / Fecha",
+              "Número / Fecha y hora (Perú)",
+              "Vendido / cobrado por",
               "Cliente",
               "Documento",
               "Estado",
+              "Stock actual",
               "Total",
               "Acciones",
             ]}
@@ -140,8 +180,13 @@ export function Ventas({
               <tr key={v.id}>
                 <td>
                   <strong className="mono">{v.numero}</strong>
-                  <small>{date(v.fecha)}</small>
+                  <small>
+                    <time dateTime={v.fecha}>
+                      {saleDate(v.fecha)} · {saleTime(v.fecha)}
+                    </time>
+                  </small>
                 </td>
+                <td>{v.usuario_nombre || "Sin autor registrado"}</td>
                 <td>{v.cliente || "Venta al público"}</td>
                 <td>
                   {v.tipo}
@@ -153,6 +198,21 @@ export function Ventas({
                 </td>
                 <td>
                   <Badge neutral={v.estado === "CONFIRMADA"}>{v.estado}</Badge>
+                </td>
+                <td>
+                  {v.tiene_productos ? (
+                    <span
+                      className={
+                        v.stock_alerta
+                          ? "stock-level stock-low"
+                          : "stock-level stock-optimal"
+                      }
+                    >
+                      {v.stock_alerta ? "🔴 Stock bajo" : "🔵 Óptimo"}
+                    </span>
+                  ) : (
+                    "No aplica"
+                  )}
                 </td>
                 <td className="number">{money(v.total)}</td>
                 <td>
@@ -205,8 +265,12 @@ export function Compras() {
     () => api<Compra[]>("/compras"),
     [],
   );
+  const [detalle, setDetalle] = useState<number | null>(null);
   return (
     <>
+      {detalle && (
+        <DetalleCompra id={detalle} onClose={() => setDetalle(null)} />
+      )}
       <PageTitle
         title="Historial de compras"
         description="Últimas 500 entradas de mercadería registradas."
@@ -256,6 +320,7 @@ export function Compras() {
               "IGV",
               "Total",
               "Crédito fiscal potencial",
+              "Acciones",
             ]}
           >
             {data.map((c) => (
@@ -274,6 +339,12 @@ export function Compras() {
                 <td className="number">{money(c.total)}</td>
                 <td>
                   {c.credito_fiscal ? "Por validar con contador" : "No marcado"}
+                </td>
+                <td>
+                  <button onClick={() => setDetalle(c.id)}>
+                    Ver / descargar compra
+                    <span className="sr-only"> {c.referencia}</span>
+                  </button>
                 </td>
               </tr>
             ))}

@@ -3,6 +3,7 @@ package com.alshagroup.alshafacturas.entity;
 import jakarta.persistence.*;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "usuarios")
 public class Usuario {
 
@@ -28,6 +29,46 @@ public class Usuario {
 
   @Column(nullable = false)
   private Boolean activo = true;
+
+  @Column(nullable = false, length = 20)
+  private String modalidad = "COMERCIO";
+
+  @Column(name = "tipo_atencion", length = 20)
+  private String tipoAtencion;
+
+  public String getModalidad() {
+    return modalidad;
+  }
+
+  public void setModalidad(String modalidad) {
+    this.modalidad = modalidad;
+  }
+
+  public String getTipoAtencion() {
+    return tipoAtencion;
+  }
+
+  public void setTipoAtencion(String tipoAtencion) {
+    this.tipoAtencion = tipoAtencion;
+  }
+
+  @Column(name = "credenciales_version", nullable = false)
+  private long credencialesVersion;
+
+  public long getCredencialesVersion() {
+    return credencialesVersion;
+  }
+
+  @Column(name = "desactivado_en")
+  private java.time.Instant desactivadoEn;
+
+  public java.time.Instant getDesactivadoEn() {
+    return desactivadoEn;
+  }
+
+  public void setDesactivadoEn(java.time.Instant v) {
+    desactivadoEn = v;
+  }
 
   public Usuario() {}
 

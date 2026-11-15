@@ -81,6 +81,14 @@ export default function Recibo({
           <br />
           {v.direccion}
         </p>
+        {v.local_nombre && (
+          <p>
+            Local: {v.local_nombre}
+            {v.local_direccion && v.local_direccion !== v.direccion
+              ? ` · ${v.local_direccion}`
+              : ""}
+          </p>
+        )}
         <div className="receipt-meta">
           <p>
             <strong>{v.numero}</strong>

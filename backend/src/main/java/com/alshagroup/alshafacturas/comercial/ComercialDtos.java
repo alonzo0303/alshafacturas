@@ -46,7 +46,7 @@ public final class ComercialDtos {
       Long clienteId,
       @NotNull @Pattern(regexp = "TICKET|BOLETA|FACTURA") String tipo,
       @NotNull @Pattern(regexp = "EFECTIVO|TARJETA|TRANSFERENCIA") String metodoPago,
-      @NotEmpty @Size(max = 100) List<@Valid LineaVenta> lineas) {}
+      @NotEmpty @Size(max = 100) List<@NotNull @Valid LineaVenta> lineas) {}
 
   public record LineaCompra(
       @NotNull Long productoId,
@@ -58,7 +58,7 @@ public final class ComercialDtos {
       @NotNull UUID idempotencia,
       @NotBlank @Size(max = 200) String proveedor,
       @NotBlank @Size(max = 100) String referencia,
-      @NotEmpty @Size(max = 100) List<@Valid LineaCompra> lineas,
+      @NotEmpty @Size(max = 100) List<@NotNull @Valid LineaCompra> lineas,
       @Pattern(regexp = "(?:[0-9]{11})?") String proveedorRuc,
       @Pattern(regexp = "INTERNO|FACTURA|BOLETA") String tipoDocumento,
       Boolean gravada,

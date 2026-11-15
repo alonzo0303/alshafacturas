@@ -10,7 +10,6 @@ import {
   Empty,
   PageTitle,
   Table,
-  Badge,
   Modal,
 } from "../components/ui";
 import ProductEditor from "../components/ProductEditor";
@@ -91,13 +90,16 @@ export function Productos() {
                   <small>{taxLabels[p.afectacion_igv]}</small>
                 </td>
                 <td>
-                  <Badge
-                    neutral={p.stock > p.minimo}
-                    danger={p.stock <= p.minimo}
+                  <span
+                    className={
+                      p.stock <= p.minimo
+                        ? "stock-level stock-low"
+                        : "stock-level stock-optimal"
+                    }
                   >
                     {p.stock}
-                    {p.stock <= p.minimo ? " · Stock bajo" : ""}
-                  </Badge>
+                    {p.stock <= p.minimo ? " · Stock bajo" : " · Óptimo"}
+                  </span>
                 </td>
                 <td>{p.minimo}</td>
                 <td>{p.activo ? "Activo" : "Inactivo"}</td>

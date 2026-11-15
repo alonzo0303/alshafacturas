@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { occupationHelp, roleTemplates } from "../lib/roleHelp";
 import { api } from "../lib/api";
 import { useData } from "../lib/useData";
 import { permissionLabels } from "../lib/session";
@@ -16,6 +17,9 @@ export default function Roles() {
       { roles: [], permisosDisponibles: [] },
     ),
     [editing, setEditing] = useState<Role | null>(null);
+  const [template, setTemplate] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const nameRef = useRef<HTMLInputElement>(null);
   return (
     <>
       <PageTitle
@@ -46,15 +50,43 @@ export default function Roles() {
           label="Guardar rol"
           onDone={() => {
             setEditing(null);
+            setSelected([]);
+            setTemplate("");
             void refresh();
           }}
         >
+          {!editing && (
+            <Field label="Usar plantilla de puesto (opcional)">
+              <select
+                value={template}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTemplate(value);
+                  const t = roleTemplates.find((t) => t.nombre === value);
+                  if (nameRef.current) nameRef.current.value = t?.nombre ?? "";
+                  setSelected(t?.permisos ?? []);
+                }}
+              >
+                <option value="">Personalizado: elegir permisos</option>
+                {roleTemplates.map((t) => (
+                  <option key={t.nombre}>{t.nombre}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+          <p className="hint">
+            La plantilla es una sugerencia. Revisa los permisos antes de
+            guardar. El personal ve operaciones propias o asignadas; el
+            administrador ve el consolidado. El catálogo y las existencias del
+            local se comparten para trabajar.
+          </p>
           <Field label="Nombre del rol">
             <input
               name="nombre"
               maxLength={100}
               required
-              defaultValue={editing?.nombre}
+              ref={nameRef}
+              defaultValue={editing?.nombre ?? ""}
               placeholder="Por ejemplo: supervisor de tienda"
             />
           </Field>
@@ -62,12 +94,26 @@ export default function Roles() {
             {data.permisosDisponibles.map((p) => (
               <label key={p}>
                 <input
+                  aria-label={permissionLabels[p] || p}
+                  aria-describedby={occupationHelp[p] ? `help-${p}` : undefined}
                   name="permisos"
                   type="checkbox"
                   value={p}
-                  defaultChecked={editing?.permisos.includes(p)}
+                  checked={selected.includes(p)}
+                  onChange={(e) =>
+                    setSelected((old) =>
+                      e.target.checked
+                        ? [...old, p]
+                        : old.filter((v) => v !== p),
+                    )
+                  }
                 />
-                {permissionLabels[p] || p}
+                {permissionLabels[p] || p}{" "}
+                {occupationHelp[p] && (
+                  <span id={`help-${p}`} className="hint">
+                    ({occupationHelp[p]})
+                  </span>
+                )}
               </label>
             ))}
           </div>
@@ -76,7 +122,14 @@ export default function Roles() {
             gestión de usuarios y planes queda reservada al administrador.
           </p>
           {editing && (
-            <button type="button" onClick={() => setEditing(null)}>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setSelected([]);
+                setTemplate("");
+              }}
+            >
               Cancelar edición
             </button>
           )}
@@ -104,6 +157,7 @@ export default function Roles() {
                     <button
                       onClick={() => {
                         setEditing(role);
+                        setSelected(role.permisos);
                         window.scrollTo({ top: 0 });
                       }}
                     >
