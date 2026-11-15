@@ -62,5 +62,13 @@ public class LocalesService {
                     new ResponseStatusException(
                         HttpStatus.FORBIDDEN, "No tienes acceso a este local"));
     p.seleccionarLocal(((Number) local.get("id")).longValue(), local.get("nombre").toString());
+    var acceso =
+        db.queryForList(
+            "SELECT habilitada FROM accesos_caja WHERE empresa_id=? AND local_id=? AND"
+                + " usuario_id=?",
+            p.getEmpresaId(),
+            p.getLocalId(),
+            p.getId());
+    p.configurarCaja(acceso.isEmpty() ? null : (Boolean) acceso.getFirst().get("habilitada"));
   }
 }

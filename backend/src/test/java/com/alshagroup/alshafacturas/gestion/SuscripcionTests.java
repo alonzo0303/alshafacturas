@@ -46,6 +46,30 @@ class SuscripcionTests {
   @Autowired JdbcTemplate db;
   @Autowired PlanesService planes;
 
+  @Test
+  void midnightExpiryBlocksOwnerAndStaffUntilRenewal() {
+    var n = negocio();
+    Long staff =
+        db.queryForObject(
+            "INSERT INTO usuarios(empresa_id,nombre,correo,password_hash,rol) VALUES"
+                + " (?,'Personal','midnight@subscription.test','test','VENDEDOR') RETURNING id",
+            Long.class,
+            n[0]);
+    pago(n, "2026-11-11", "2026-11-12");
+    clock.current = Instant.parse("2026-11-13T04:59:59Z");
+    assertTrue((Boolean) planes.recordatorio(n[0]).get("venceHoy"));
+    assertTrue(planes.permiteAcceso(n[0], n[1]));
+    assertTrue(planes.permiteAcceso(n[0], staff));
+    clock.current = Instant.parse("2026-11-13T05:00:00Z");
+    assertNotNull(planes.bloqueo(n[0]));
+    assertFalse(planes.permiteAcceso(n[0], n[1]));
+    assertFalse(planes.permiteAcceso(n[0], staff));
+    pago(n, "2026-11-13", "2026-12-13");
+    assertNull(planes.bloqueo(n[0]));
+    assertTrue(planes.permiteAcceso(n[0], n[1]));
+    assertTrue(planes.permiteAcceso(n[0], staff));
+  }
+
   @BeforeEach
   void reset() {
     clock.current = Instant.parse("2026-11-12T17:00:00Z");

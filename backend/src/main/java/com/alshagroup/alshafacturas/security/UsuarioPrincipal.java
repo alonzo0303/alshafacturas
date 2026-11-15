@@ -40,7 +40,8 @@ public class UsuarioPrincipal implements UserDetails {
   private final String passwordHash;
   private final String rol;
   private final boolean activo;
-  private final List<String> permisos;
+  private List<String> permisos;
+  private final List<String> permisosBase;
   private final String modalidad;
   private final String tipoAtencion;
 
@@ -92,6 +93,7 @@ public class UsuarioPrincipal implements UserDetails {
                         .getModulosVisuales()
                         .contains(com.alshagroup.alshafacturas.visual.Modulos.dePermiso(permiso)))
             .toList();
+    this.permisosBase = this.permisos;
     this.colorPrimario = empresa.getColorVisual();
     this.diseno = empresa.getDisenoVisual();
     this.aparienciaVersion = empresa.getVersionVisual();
@@ -107,6 +109,17 @@ public class UsuarioPrincipal implements UserDetails {
     this.passwordHash = usuario.getPasswordHash();
     this.rol = usuario.getRol();
     this.activo = Boolean.TRUE.equals(usuario.getActivo());
+  }
+
+  public void configurarCaja(Boolean habilitada) {
+    if (habilitada == null) {
+      permisos = permisosBase;
+      return;
+    }
+    var next = new java.util.ArrayList<>(permisosBase);
+    next.remove("CAJA_GESTIONAR");
+    if (habilitada && modulosVisibles.contains("CAJA")) next.add("CAJA_GESTIONAR");
+    permisos = List.copyOf(next);
   }
 
   public List<String> getPermisos() {

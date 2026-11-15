@@ -25,15 +25,21 @@ function page(path: string) {
 export default function ModalCoordinator({
   session,
   postLogin,
+  paused = false,
 }: {
   session: Session;
   postLogin: boolean;
+  paused?: boolean;
 }) {
   const location = useLocation(),
     navigate = useNavigate(),
     draft = useDirty();
   const [active, setActive] = useState<Notice | null>(null),
     [busy, setBusy] = useState(false);
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
   const queue = useRef<Pending[]>([]),
     seen = useRef(new Set<string>()),
     started = useRef(false),
@@ -85,6 +91,7 @@ export default function ModalCoordinator({
       }).catch(() => {});
     const tick = () => {
       if (
+        pausedRef.current ||
         inflight.current ||
         status.current.active ||
         status.current.dirty ||

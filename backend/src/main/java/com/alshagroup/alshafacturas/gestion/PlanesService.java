@@ -115,6 +115,25 @@ public class PlanesService {
         fecha.plusDays(5));
   }
 
+  public Map<String, Object> recordatorio(Long empresa) {
+    var pago = vigente(empresa);
+    var result = new LinkedHashMap<String, Object>();
+    LocalDate vence = pago == null ? null : (LocalDate) pago.get("hasta");
+    boolean renovado =
+        db.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM pagos_suscripcion WHERE empresa_id=? AND desde<=? AND"
+                + " hasta>=?)",
+            Boolean.class,
+            empresa,
+            hoy().plusDays(1),
+            hoy().plusDays(1));
+    result.put("venceHoy", hoy().equals(vence) && !renovado);
+    result.put("vence", vence);
+    result.put("fechaActual", hoy());
+    result.put("instruccionesPago", instrucciones());
+    return result;
+  }
+
   public Long propietario(Long empresa) {
     return db.queryForObject(
         "SELECT administrador_principal_id FROM empresas WHERE id=?", Long.class, empresa);

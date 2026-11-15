@@ -1,3 +1,4 @@
+import CajaPersonal from "../components/CajaPersonal";
 import { useState } from "react";
 import { api, date, money, type Session } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -14,6 +15,7 @@ type Caja = {
   id: number;
   usuario_original_id: number;
   usuario_nombre: string;
+  abierto_nombre?: string | null;
   abierta: string;
   cerrada: string | null;
   estado: string;
@@ -37,6 +39,13 @@ export default function Cajas({
     () => api<Caja[]>("/cajas" + query),
     [],
   );
+  const acceso = useData(
+    () =>
+      session.rol === "SUPERADMIN"
+        ? Promise.resolve({ fondoAsignado: null as number | null })
+        : api<{ fondoAsignado: number | null }>("/cajas/mi-acceso"),
+    { fondoAsignado: null as number | null },
+  );
   const [selected, setSelected] = useState<Caja | null>(null),
     [failure, setFailure] = useState("");
   async function ver(id: number) {
@@ -53,7 +62,15 @@ export default function Cajas({
         title="Caja y cierres"
         description="El corte conserva responsable, ventas y diferencia de efectivo. El efectivo esperado incluye el fondo inicial y las ventas en efectivo confirmadas."
       />
-      <ErrorNotice message={error || failure} />
+      <ErrorNotice message={error || failure || acceso.error} />
+      {session.rol === "ADMIN" && (
+        <CajaPersonal
+          onChanged={() => {
+            void refresh();
+            void acceso.refresh();
+          }}
+        />
+      )}
       {session.rol !== "SUPERADMIN" &&
         !data.some(
           (c) => c.estado === "ABIERTA" && c.usuario_original_id === session.id,
@@ -62,10 +79,14 @@ export default function Cajas({
             <h2>Abrir mi caja</h2>
             <Form
               label="Abrir caja"
+              disabled={loading || acceso.loading}
               onSave={(d) =>
                 api("/cajas", "POST", { fondo: Number(d.get("fondo")) })
               }
-              onDone={() => void refresh()}
+              onDone={() => {
+                void refresh();
+                window.dispatchEvent(new Event("caja-updated"));
+              }}
             >
               <Field label="Fondo inicial en efectivo (S/)">
                 <input
@@ -74,10 +95,18 @@ export default function Cajas({
                   min="0"
                   max="999999999.99"
                   step="0.01"
-                  defaultValue="0"
+                  key={String(acceso.data.fondoAsignado)}
+                  defaultValue={acceso.data.fondoAsignado ?? 0}
+                  readOnly={acceso.data.fondoAsignado !== null}
                   required
                 />
               </Field>
+              {acceso.data.fondoAsignado !== null && (
+                <p className="hint">
+                  Este fondo fue fijado por el administrador y no puede
+                  modificarse al abrir.
+                </p>
+              )}
             </Form>
           </section>
         )}
@@ -130,6 +159,7 @@ export default function Cajas({
             Responsable: <strong>{selected.usuario_nombre}</strong> · Fondo:{" "}
             {money(selected.fondo)}
           </p>
+          <p>Abrió: {selected.abierto_nombre || selected.usuario_nombre}</p>
           <Table headers={["Medio de pago", "Ventas", "Total"]}>
             {selected.medios?.map((m) => (
               <tr key={m.metodo_pago}>
@@ -150,6 +180,7 @@ export default function Cajas({
               onDone={() => {
                 setSelected(null);
                 void refresh();
+                window.dispatchEvent(new Event("caja-updated"));
               }}
             >
               <p>

@@ -70,20 +70,64 @@ public class CajaService {
     db.queryForObject(
         "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
     long local = LocalesService.actual();
+    var policy =
+        db.queryForList(
+            "SELECT habilitada,fondo_asignado FROM accesos_caja WHERE empresa_id=? AND local_id=?"
+                + " AND usuario_id=?",
+            p.getEmpresaId(),
+            local,
+            p.getId());
+    if (!policy.isEmpty()) {
+      var config = policy.getFirst();
+      if (!Boolean.TRUE.equals(config.get("habilitada")))
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN, "El administrador no ha habilitado tu caja");
+      if (config.get("fondo_asignado") instanceof BigDecimal asignado
+          && asignado.compareTo(fondo) != 0)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT, "Usa el fondo inicial asignado por el administrador");
+    }
+    return abrirPara(p, p.getId(), p.getNombre(), fondo);
+  }
+
+  @Transactional
+  public Map<String, Object> abrirPara(
+      UsuarioPrincipal actor, Long responsable, String nombre, BigDecimal fondo) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, actor.getEmpresaId());
+    long local = LocalesService.actual();
+    if (db.queryForObject(
+            "SELECT count(*) FROM cajas WHERE empresa_id=? AND local_id=? AND usuario_original_id=?"
+                + " AND estado='ABIERTA'",
+            Long.class,
+            actor.getEmpresaId(),
+            local,
+            responsable)
+        > 0)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Esta persona ya tiene una caja abierta en el local");
     Long id =
         db.queryForObject(
             "INSERT INTO"
-                + " cajas(empresa_id,local_id,usuario_id,usuario_original_id,usuario_nombre,fondo)"
-                + " VALUES (?,?,?,?,?,?) RETURNING id",
+                + " cajas(empresa_id,local_id,usuario_id,usuario_original_id,usuario_nombre,fondo,abierto_por_original_id,abierto_nombre)"
+                + " VALUES (?,?,?,?,?,?,?,?) RETURNING id",
             Long.class,
-            p.getEmpresaId(),
+            actor.getEmpresaId(),
             local,
-            p.getId(),
-            p.getId(),
-            p.getNombre(),
-            fondo);
-    audit.registrar(p, p.getEmpresaId(), local, "CAJA_ABIERTA", id, "Fondo=" + fondo);
-    return detalle(p.getEmpresaId(), local, id);
+            responsable,
+            responsable,
+            nombre,
+            fondo,
+            actor.getId(),
+            actor.getNombre());
+    audit.registrar(
+        actor,
+        actor.getEmpresaId(),
+        local,
+        "CAJA_ABIERTA",
+        id,
+        "Responsable=" + responsable + ", fondo=" + fondo);
+    return detalle(actor.getEmpresaId(), local, id);
   }
 
   @Transactional

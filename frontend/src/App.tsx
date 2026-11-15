@@ -1,3 +1,4 @@
+import AvisosEntradaSalida from "./components/AvisosEntradaSalida";
 import VisualSync from "./components/VisualSync";
 import VisualNegocio from "./components/VisualNegocio";
 import { moduleForPath } from "./lib/visual";
@@ -18,7 +19,6 @@ import BloqueoMembresia, { type Bloqueo } from "./components/BloqueoMembresia";
 import Notificaciones from "./pages/Notificaciones";
 import DirtyProvider from "./components/experiencia/DirtyProvider";
 import ModalCoordinator from "./components/experiencia/ModalCoordinator";
-import { useDirty } from "./lib/dirty";
 const ExperienciaAdmin = lazy(() => import("./pages/ExperienciaAdmin"));
 import Actividades from "./pages/Actividades";
 import Login from "./auth/Login";
@@ -94,7 +94,7 @@ function Shell({
   session: Session;
   onLogout: () => void;
 }) {
-  const drafts = useDirty();
+  const [systemBusy, setSystemBusy] = useState(session.rol !== "SUPERADMIN");
   const admin = session.rol === "ADMIN",
     superadmin = session.rol === "SUPERADMIN";
   const atencion = !superadmin && session.modalidad === "ATENCION";
@@ -207,7 +207,11 @@ function Shell({
       data-nicho={atencion ? session.nichoTema || "OTRO" : "COMERCIO"}
     >
       {!superadmin && (
-        <ModalCoordinator session={session} postLogin={postLogin} />
+        <ModalCoordinator
+          session={session}
+          postLogin={postLogin}
+          paused={systemBusy}
+        />
       )}
       <a href="#contenido" className="skip-link">
         Saltar al contenido
@@ -268,12 +272,12 @@ function Shell({
               <strong>{session.nombre}</strong>
               <small>{session.rolNombre || session.rol}</small>
             </span>
-            <button
+            <AvisosEntradaSalida
+              session={session}
               disabled={busy}
-              onClick={() => drafts?.confirm(() => void logout())}
-            >
-              {busy ? "Cerrando…" : "Cerrar sesión"}
-            </button>
+              onLogout={() => void logout()}
+              onBusyChange={setSystemBusy}
+            />
           </div>
         </header>
         <main id="contenido" className="content" tabIndex={-1}>

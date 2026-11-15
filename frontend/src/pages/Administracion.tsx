@@ -1,3 +1,4 @@
+import CajaPersonal from "../components/CajaPersonal";
 import ConfirmarAccion from "../components/ConfirmarAccion";
 import RubroNegocio from "../components/RubroNegocio";
 import RubrosAcceso from "./RubrosAcceso";
@@ -300,6 +301,7 @@ export function Usuarios({ session }: { session: Session }) {
       <ErrorNotice
         message={error || plan.error || roles.error || actionError}
       />
+      {session.rol === "ADMIN" && <CajaPersonal />}
       {plan.data && (
         <section className="surface">
           <PlanInfo plan={plan.data} />
