@@ -1,3 +1,6 @@
+import CajaPersonal from "../components/CajaPersonal";
+import ConfirmarAccion from "../components/ConfirmarAccion";
+import RubroNegocio from "../components/RubroNegocio";
 import RubrosAcceso from "./RubrosAcceso";
 import { PlanInfo, type PlanState } from "./Planes";
 import { useData } from "../lib/useData";
@@ -64,6 +67,7 @@ export function Empresas() {
           onDone={() => void refresh()}
         >
           <div className="form-grid">
+            <RubroNegocio />
             <Field label="RUC (opcional)">
               <input
                 name="ruc"
@@ -110,11 +114,21 @@ export function Empresas() {
         {loading ? (
           <p role="status">Cargando empresas…</p>
         ) : data.length ? (
-          <Table headers={["Código", "Empresa", "RUC", "Estado", "Acciones"]}>
+          <Table
+            headers={[
+              "Código",
+              "Empresa",
+              "Rubro",
+              "RUC",
+              "Estado",
+              "Acciones",
+            ]}
+          >
             {data.map((e) => (
               <tr key={e.id}>
                 <td className="mono">{e.id}</td>
                 <td>{e.razonSocial}</td>
+                <td>{e.rubroNegocio || "Sin rubro principal"}</td>
                 <td className="mono">{e.ruc || "Sin RUC · Gestión interna"}</td>
                 <td>
                   <Badge neutral={e.estado === "ACTIVA"}>{e.estado}</Badge>
@@ -168,6 +182,8 @@ export function Empresas() {
               api(`/empresas/${editing.id}`, "PUT", {
                 razonSocial: d.get("razonSocial"),
                 direccion: d.get("direccion"),
+                ruc: d.get("ruc") || null,
+                rubroNegocio: d.get("rubroNegocio"),
               })
             }
             onDone={() => {
@@ -178,6 +194,7 @@ export function Empresas() {
               void refresh();
             }}
           >
+            <RubroNegocio initial={editing.rubroNegocio} />
             <Field label="Nombre del negocio o razón social">
               <input
                 name="razonSocial"
@@ -193,15 +210,22 @@ export function Empresas() {
                 defaultValue={editing.direccion || ""}
               />
             </Field>
-            <Field label="RUC actual">
+            <Field
+              label={editing.ruc ? "RUC actual" : "Agregar RUC (opcional)"}
+            >
               <input
-                readOnly
-                value={editing.ruc || "Sin RUC · Gestión interna"}
+                name="ruc"
+                readOnly={!!editing.ruc}
+                defaultValue={editing.ruc || ""}
+                inputMode="numeric"
+                pattern="[0-9]{11}"
+                maxLength={11}
               />
             </Field>
             <p className="hint">
-              Esta edición cambia nombre y dirección. El RUC, las cuentas de
-              acceso y el plan se conservan.
+              Puedes agregar el RUC si el negocio no tiene uno. Los documentos
+              anteriores conservan sus importes y tratamiento tributario.
+              Registrar RUC no activa SUNAT automáticamente.
             </p>
           </Form>
         </Modal>
@@ -214,6 +238,7 @@ export function Usuarios({ session }: { session: Session }) {
     () => api<Usuario[]>("/usuarios"),
     [],
   );
+  const [pending, setPending] = useState<Usuario | null>(null);
   const plan = useData(() => api<PlanState>("/plan"), null);
   const roles = useData(
     () => api<{ roles: { codigo: string; nombre: string }[] }>("/roles"),
@@ -222,7 +247,8 @@ export function Usuarios({ session }: { session: Session }) {
   const cupo =
     !!plan.data?.vigente &&
     (plan.data.limiteEmpleados < 0 ||
-      plan.data.empleadosActivos < plan.data.limiteEmpleados);
+      (plan.data.cuposOcupados ?? plan.data.empleadosActivos) <
+        plan.data.limiteEmpleados);
   async function reload() {
     await Promise.all([refresh(), plan.refresh()]);
   }
@@ -254,6 +280,20 @@ export function Usuarios({ session }: { session: Session }) {
   }
   return (
     <>
+      {pending && (
+        <ConfirmarAccion
+          titulo="¿Está seguro de realizar esta acción?"
+          descripcion={
+            pending.activo
+              ? `Se desactivará ${pending.nombre}; su cupo se reserva durante 15 días.`
+              : `Se reactivará ${pending.nombre} si el plan lo permite.`
+          }
+          onClose={() => setPending(null)}
+          onConfirm={async () => {
+            await estado(pending);
+          }}
+        />
+      )}
       <PageTitle
         title="Usuarios"
         description="Gestiona las cuentas, sus funciones y los cupos de tu plan."
@@ -261,6 +301,7 @@ export function Usuarios({ session }: { session: Session }) {
       <ErrorNotice
         message={error || plan.error || roles.error || actionError}
       />
+      {session.rol === "ADMIN" && <CajaPersonal />}
       {plan.data && (
         <section className="surface">
           <PlanInfo plan={plan.data} />
@@ -270,8 +311,8 @@ export function Usuarios({ session }: { session: Session }) {
         <h2>Nuevo usuario</h2>
         {!cupo && (
           <p className="notice">
-            No hay cupos disponibles. Revisa Mi plan o desactiva una cuenta
-            antes de agregar personal.
+            No hay cupos disponibles. Revisa Mi plan y los cupos reservados por
+            desactivaciones.
           </p>
         )}
         <Form
@@ -352,10 +393,7 @@ export function Usuarios({ session }: { session: Session }) {
                   {u.id === session.id || u.id === plan.data?.propietarioId ? (
                     "Tu cuenta"
                   ) : (
-                    <button
-                      disabled={busy || (!u.activo && !cupo)}
-                      onClick={() => void estado(u)}
-                    >
+                    <button disabled={busy} onClick={() => setPending(u)}>
                       {u.activo ? "Desactivar" : "Reactivar"}
                     </button>
                   )}

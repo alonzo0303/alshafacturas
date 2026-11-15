@@ -9,6 +9,11 @@ public interface EmpresaRepository extends JpaRepository<Empresa, Long> {
 
   boolean existsByRuc(String ruc);
 
+  @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+  @org.springframework.data.jpa.repository.Query("SELECT e FROM Empresa e WHERE e.id=:id")
+  java.util.Optional<Empresa> paraEditar(
+      @org.springframework.data.repository.query.Param("id") Long id);
+
   @org.springframework.data.jpa.repository.Modifying(
       clearAutomatically = true,
       flushAutomatically = true)

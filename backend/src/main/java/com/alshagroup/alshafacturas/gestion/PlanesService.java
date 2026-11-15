@@ -13,18 +13,24 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class PlanesService {
   private final JdbcTemplate db;
+  private final Clock clock;
+  public static final ZoneId ZONA = ZoneId.of("America/Lima");
+  public static final String VENCIDA =
+      "Tu membresía ha vencido. Por favor realiza el pago para restablecer el servicio.";
 
-  public PlanesService(JdbcTemplate db) {
+  public PlanesService(JdbcTemplate db, Clock clock) {
     this.db = db;
+    this.clock = clock;
   }
 
   public record Plan(String codigo, String nombre, int empleados, BigDecimal precio) {}
 
   public static final List<Plan> PLANES =
       List.of(
-          new Plan("INICIO", "Administrador + 2 empleados", 2, new BigDecimal("35")),
-          new Plan("EQUIPO", "Administrador + 3 empleados", 3, new BigDecimal("50")),
-          new Plan("ILIMITADO", "Administrador + empleados ilimitados", -1, new BigDecimal("70")));
+          new Plan("INICIO", "Jefe del negocio + 1 usuario", 1, new BigDecimal("30")),
+          new Plan("EQUIPO", "Jefe del negocio + 2 usuarios", 2, new BigDecimal("45")),
+          new Plan(
+              "ILIMITADO", "Jefe del negocio + usuarios ilimitados", -1, new BigDecimal("60")));
 
   public record PagoRequest(
       @NotBlank String plan,
@@ -34,30 +40,129 @@ public class PlanesService {
       @NotBlank @Size(max = 120) String referencia,
       @AssertTrue(message = "Confirma la recepción real del pago") boolean confirmado) {}
 
+  private List<Map<String, Object>> pagos(String sql, Object... args) {
+    var rows = db.queryForList(sql, args);
+    for (var row : rows)
+      for (String field : List.of("desde", "hasta"))
+        if (row.get(field) instanceof java.sql.Date date) row.put(field, date.toLocalDate());
+    return rows;
+  }
+
+  public LocalDate hoy() {
+    return LocalDate.now(clock.withZone(ZONA));
+  }
+
+  public String instrucciones() {
+    return db.queryForObject(
+        "SELECT instrucciones FROM configuracion_cobranza WHERE id=1", String.class);
+  }
+
+  public Map<String, Object> bloqueo(Long empresa) {
+    if (vigente(empresa) != null) return null;
+    var pagos =
+        pagos(
+            "SELECT hasta,desde FROM pagos_suscripcion WHERE empresa_id=? ORDER BY hasta DESC LIMIT"
+                + " 1",
+            empresa);
+    if (pagos.isEmpty()) return null; // Alta inicial del principal, aún sin contrato de pago.
+    boolean vencida =
+        db.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM pagos_suscripcion WHERE empresa_id=? AND hasta<?)",
+            Boolean.class,
+            empresa,
+            hoy());
+    return Map.of(
+        "codigo",
+        vencida ? "MEMBRESIA_VENCIDA" : "MEMBRESIA_PROGRAMADA",
+        "mensaje",
+        vencida
+            ? VENCIDA
+            : "Tu membresía aún no inicia. Revisa la fecha de inicio del plan con la"
+                + " administración.",
+        "instruccionesPago",
+        instrucciones());
+  }
+
+  @Transactional
+  public void revisarEmpresa(Long empresa, LocalDate fecha) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    boolean bloqueada =
+        db.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM pagos_suscripcion WHERE empresa_id=?) AND NOT"
+                + " EXISTS(SELECT 1 FROM pagos_suscripcion WHERE empresa_id=? AND desde<=? AND"
+                + " hasta>=?)",
+            Boolean.class,
+            empresa,
+            empresa,
+            fecha,
+            fecha);
+    db.update("UPDATE empresas SET suscripcion_bloqueada=? WHERE id=?", bloqueada, empresa);
+    db.update(
+        "UPDATE avisos_suscripcion a SET resuelto=true WHERE a.empresa_id=? AND EXISTS(SELECT 1"
+            + " FROM pagos_suscripcion p WHERE p.empresa_id=a.empresa_id AND p.desde<=a.vence+1 AND"
+            + " p.hasta>=a.vence+1)",
+        empresa);
+    db.update(
+        "INSERT INTO avisos_suscripcion(empresa_id,pago_id,fecha,vence,dias_restantes) SELECT"
+            + " p.empresa_id,p.id,?,p.hasta,p.hasta-? FROM pagos_suscripcion p WHERE p.empresa_id=?"
+            + " AND p.hasta BETWEEN ? AND ? AND NOT EXISTS(SELECT 1 FROM"
+            + " pagos_suscripcion r WHERE r.empresa_id=p.empresa_id AND r.desde<=p.hasta+1 AND"
+            + " r.hasta>=p.hasta+1) ON CONFLICT DO NOTHING",
+        fecha,
+        fecha,
+        empresa,
+        fecha,
+        fecha.plusDays(5));
+  }
+
+  public Map<String, Object> recordatorio(Long empresa) {
+    var pago = vigente(empresa);
+    var result = new LinkedHashMap<String, Object>();
+    LocalDate vence = pago == null ? null : (LocalDate) pago.get("hasta");
+    boolean renovado =
+        db.queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM pagos_suscripcion WHERE empresa_id=? AND desde<=? AND"
+                + " hasta>=?)",
+            Boolean.class,
+            empresa,
+            hoy().plusDays(1),
+            hoy().plusDays(1));
+    result.put("venceHoy", hoy().equals(vence) && !renovado);
+    result.put("vence", vence);
+    result.put("fechaActual", hoy());
+    result.put("instruccionesPago", instrucciones());
+    return result;
+  }
+
   public Long propietario(Long empresa) {
     return db.queryForObject(
-        "SELECT min(id) FROM usuarios WHERE empresa_id=? AND rol='ADMIN'", Long.class, empresa);
+        "SELECT administrador_principal_id FROM empresas WHERE id=?", Long.class, empresa);
   }
 
   public long empleados(Long empresa) {
     var owner = propietario(empresa);
     return db.queryForObject(
-        "SELECT count(*) FROM usuarios WHERE empresa_id=? AND activo=true AND id<>COALESCE(?,0)",
+        "SELECT count(*) FROM usuarios WHERE empresa_id=? AND (activo=true OR"
+            + " desactivado_en>CURRENT_TIMESTAMP-INTERVAL '15 days') AND id<>COALESCE(?,0)",
         Long.class,
         empresa,
         owner);
   }
 
   private Map<String, Object> vigente(Long empresa) {
-    LocalDate today = LocalDate.now(ZoneId.of("America/Lima"));
+    LocalDate today = hoy();
     var rows =
-        db.queryForList(
+        pagos(
             "SELECT * FROM pagos_suscripcion WHERE empresa_id=? AND desde<=? AND hasta>=? ORDER BY"
                 + " id DESC LIMIT 1",
             empresa,
             today,
             today);
     return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  private int limite(Map<String, Object> pago) {
+    return ((Number) pago.get("limite_empleados")).intValue();
   }
 
   private Plan plan(String codigo) {
@@ -69,30 +174,65 @@ public class PlanesService {
 
   public Map<String, Object> estado(Long empresa) {
     var pago = vigente(empresa);
-    long active = empleados(empresa);
+    var proximos =
+        pagos(
+            "SELECT * FROM pagos_suscripcion WHERE empresa_id=? AND desde>? ORDER BY desde,id LIMIT"
+                + " 1",
+            empresa,
+            hoy());
+    var pasados =
+        pagos(
+            "SELECT * FROM pagos_suscripcion WHERE empresa_id=? AND hasta<? ORDER BY hasta DESC,id"
+                + " DESC LIMIT 1",
+            empresa,
+            hoy());
+    var proximo = proximos.isEmpty() ? null : proximos.getFirst();
+    var ultimo = pasados.isEmpty() ? null : pasados.getFirst();
+    var referencia = pago != null ? pago : proximo != null ? proximo : ultimo;
+    long occupied = empleados(empresa);
+    long active =
+        db.queryForObject(
+            "SELECT count(*) FROM usuarios WHERE empresa_id=? AND activo=true AND"
+                + " id<>COALESCE(?,0)",
+            Long.class,
+            empresa,
+            propietario(empresa));
     var result = new LinkedHashMap<String, Object>();
     result.put("propietarioId", propietario(empresa));
     result.put("empleadosActivos", active);
+    result.put("cuposOcupados", occupied);
+    result.put("cuposReservados", occupied - active);
     result.put("planes", PLANES);
     result.put("vigente", pago != null);
-    result.put("plan", pago == null ? "SIN_PLAN" : pago.get("plan"));
-    result.put("limiteEmpleados", pago == null ? 0 : plan(pago.get("plan").toString()).empleados());
+    result.put(
+        "estadoSuscripcion",
+        pago != null
+            ? "ACTIVO"
+            : ultimo != null ? "VENCIDO" : proximo != null ? "PROGRAMADO" : "SIN_PLAN");
+    result.put("fechaActual", hoy());
+    result.put("zonaHoraria", ZONA.toString());
+    result.put("pagoReferencia", referencia);
+    result.put("pagoProximo", proximo);
+    result.put("instruccionesPago", instrucciones());
+    result.put("bloqueado", pago == null && referencia != null);
+    result.put("plan", referencia == null ? "SIN_PLAN" : referencia.get("plan"));
+    result.put("limiteEmpleados", referencia == null ? 0 : limite(referencia));
     result.put("pagoActual", pago);
     result.put(
         "historial",
-        db.queryForList(
-            "SELECT id,plan,importe,desde,hasta,referencia,creado FROM pagos_suscripcion WHERE"
-                + " empresa_id=? ORDER BY id DESC LIMIT 100",
+        pagos(
+            "SELECT id,plan,importe,limite_empleados,desde,hasta,referencia,creado FROM"
+                + " pagos_suscripcion WHERE empresa_id=? ORDER BY id DESC LIMIT 100",
             empresa));
     return result;
   }
 
   public boolean permiteAcceso(Long empresa, Long user) {
-    if (Objects.equals(propietario(empresa), user)) return true;
+    if (Objects.equals(propietario(empresa), user)) return bloqueo(empresa) == null;
     var pago = vigente(empresa);
     if (pago == null) return false;
-    var plan = plan(pago.get("plan").toString());
-    return plan.empleados() < 0 || empleados(empresa) <= plan.empleados();
+    int limite = limite(pago);
+    return limite < 0 || empleados(empresa) <= limite;
   }
 
   public void validarCupo(Long empresa) {
@@ -101,13 +241,30 @@ public class PlanesService {
       throw error(
           "No hay un pago vigente registrado. El superadministrador debe confirmar el plan antes de"
               + " habilitar personal");
-    var plan = plan(pago.get("plan").toString());
-    if (plan.empleados() >= 0 && empleados(empresa) >= plan.empleados())
+    int limite = limite(pago);
+    if (limite >= 0 && empleados(empresa) >= limite)
       throw error(
           "El plan permite "
-              + plan.empleados()
-              + " empleados además del administrador principal. Desactiva una cuenta o cambia de"
-              + " plan");
+              + limite
+              + " empleados además del administrador principal. Espera el vencimiento de una"
+              + " reserva, elimina definitivamente una cuenta desactivada o cambia de plan");
+  }
+
+  public void validarReactivar(Long empresa, Long usuario) {
+    if (java.util.Objects.equals(propietario(empresa), usuario)) return;
+    var pago = vigente(empresa);
+    if (pago == null) throw error("El negocio no tiene un plan vigente");
+    int limite = limite(pago);
+    long otros =
+        db.queryForObject(
+            "SELECT count(*) FROM usuarios WHERE empresa_id=? AND id<>? AND id<>COALESCE(?,0) AND"
+                + " (activo OR desactivado_en>CURRENT_TIMESTAMP-INTERVAL '15 days')",
+            Long.class,
+            empresa,
+            usuario,
+            propietario(empresa));
+    if (limite >= 0 && otros >= limite)
+      throw error("No hay cupos disponibles para reactivar esta cuenta");
   }
 
   @Transactional
@@ -129,15 +286,17 @@ public class PlanesService {
         > 0) throw error("El período se superpone con otro pago registrado");
     db.update(
         "INSERT INTO"
-            + " pagos_suscripcion(empresa_id,plan,importe,desde,hasta,referencia,registrado_por)"
-            + " VALUES (?,?,?,?,?,?,?)",
+            + " pagos_suscripcion(empresa_id,plan,importe,desde,hasta,referencia,registrado_por,limite_empleados)"
+            + " VALUES (?,?,?,?,?,?,?,?)",
         empresa,
         r.plan(),
         r.importe(),
         r.desde(),
         r.hasta(),
         r.referencia().trim(),
-        actor);
+        actor,
+        p.empleados());
+    revisarEmpresa(empresa, hoy());
     return estado(empresa);
   }
 

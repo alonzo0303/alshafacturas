@@ -22,8 +22,7 @@ public class ComercialController {
   @PreAuthorize("hasAuthority('PRODUCTOS_VER')")
   public List<Map<String, Object>> productos(@AuthenticationPrincipal UsuarioPrincipal p) {
     var productos = service.productos(p.getEmpresaId());
-    if (!p.getPermisos().contains("COMPRAS_GESTIONAR"))
-      productos.forEach(producto -> producto.remove("ultimo_costo"));
+    if (!"ADMIN".equals(p.getRol())) productos.forEach(producto -> producto.remove("ultimo_costo"));
     return productos;
   }
 
@@ -31,7 +30,7 @@ public class ComercialController {
   @PreAuthorize("hasAuthority('PRODUCTOS_EDITAR')")
   public Map<String, Object> crearProducto(
       @AuthenticationPrincipal UsuarioPrincipal p, @Valid @RequestBody ProductoRequest r) {
-    return service.producto(p.getEmpresaId(), null, r);
+    return productoVisible(p, service.producto(p.getEmpresaId(), null, r));
   }
 
   @PutMapping("/productos/{id}")
@@ -40,7 +39,12 @@ public class ComercialController {
       @AuthenticationPrincipal UsuarioPrincipal p,
       @PathVariable Long id,
       @Valid @RequestBody ProductoRequest r) {
-    return service.producto(p.getEmpresaId(), id, r);
+    return productoVisible(p, service.producto(p.getEmpresaId(), id, r));
+  }
+
+  private Map<String, Object> productoVisible(UsuarioPrincipal p, Map<String, Object> producto) {
+    if (!"ADMIN".equals(p.getRol())) producto.remove("ultimo_costo");
+    return producto;
   }
 
   @GetMapping("/clientes")
@@ -68,7 +72,7 @@ public class ComercialController {
   @GetMapping("/inventario")
   @PreAuthorize("hasAuthority('INVENTARIO_VER')")
   public List<Map<String, Object>> inventario(@AuthenticationPrincipal UsuarioPrincipal p) {
-    return service.movimientos(p.getEmpresaId());
+    return service.movimientos(p);
   }
 
   @PostMapping("/inventario/ajustes")
@@ -79,16 +83,18 @@ public class ComercialController {
   }
 
   @GetMapping("/ventas")
-  @PreAuthorize("hasAnyAuthority('VENTAS_GESTIONAR','FACTURACION_VER')")
+  @PreAuthorize(
+      "authentication.principal.modulosVisibles.contains('VENTAS') and"
+          + " hasAnyAuthority('VENTAS_GESTIONAR','FACTURACION_VER')")
   public List<Map<String, Object>> ventas(@AuthenticationPrincipal UsuarioPrincipal p) {
-    return service.ventas(p.getEmpresaId());
+    return service.ventas(p);
   }
 
   @GetMapping("/ventas/{id}")
   @PreAuthorize("hasAuthority('VENTAS_GESTIONAR')")
   public Map<String, Object> venta(
       @AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
-    return service.venta(p.getEmpresaId(), id);
+    return service.ventaAutorizada(p, id);
   }
 
   @PostMapping("/ventas")
@@ -110,7 +116,7 @@ public class ComercialController {
   @GetMapping("/compras")
   @PreAuthorize("hasAuthority('COMPRAS_GESTIONAR')")
   public List<Map<String, Object>> compras(@AuthenticationPrincipal UsuarioPrincipal p) {
-    return service.compras(p.getEmpresaId());
+    return service.compras(p);
   }
 
   @PostMapping("/compras")
@@ -123,6 +129,6 @@ public class ComercialController {
   @GetMapping("/resumen")
   @PreAuthorize("hasAuthority('RESUMEN_VER')")
   public Map<String, Object> resumen(@AuthenticationPrincipal UsuarioPrincipal p) {
-    return service.resumen(p.getEmpresaId());
+    return service.resumen(p);
   }
 }

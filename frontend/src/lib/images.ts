@@ -1,3 +1,4 @@
+import { localHeaders } from "./api";
 export async function uploadImage(path: string, file: File) {
   const tokenResponse = await fetch("/api/auth/csrf", {
     credentials: "same-origin",
@@ -10,7 +11,11 @@ export async function uploadImage(path: string, file: File) {
     method: "PUT",
     credentials: "same-origin",
     signal: AbortSignal.timeout(20000),
-    headers: { [token.headerName]: token.token, "Content-Type": file.type },
+    headers: {
+      ...localHeaders(),
+      [token.headerName]: token.token,
+      "Content-Type": file.type,
+    },
     body: file,
   });
   if (!response.ok) {
