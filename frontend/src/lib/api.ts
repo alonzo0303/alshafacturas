@@ -34,6 +34,14 @@ async function transport(
 ): Promise<Response> {
   try {
     const response = await fetch(path, options);
+    if (response.status === 409) {
+      const data = await response
+        .clone()
+        .json()
+        .catch(() => null);
+      if (data?.codigo === "CAJA_ANTERIOR_PENDIENTE")
+        window.dispatchEvent(new Event("cash-pending"));
+    }
     if (response.status === 402) {
       const data = await response
         .clone()

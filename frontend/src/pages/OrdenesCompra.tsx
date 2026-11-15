@@ -1,7 +1,15 @@
+import { can, useSession } from "../lib/session";
 import { useState } from "react";
 import { api, date, money } from "../lib/api";
 import { useData } from "../lib/useData";
-import { PageTitle, ErrorNotice, Table, Modal } from "../components/ui";
+import {
+  PageTitle,
+  ErrorNotice,
+  Table,
+  Modal,
+  Form,
+  Field,
+} from "../components/ui";
 import DocumentosCompra from "../components/DocumentosCompra";
 import DetalleCompra from "../components/DetalleCompra";
 import ConfirmarAccion from "../components/ConfirmarAccion";
@@ -16,6 +24,9 @@ type Orden = {
   total: number;
   compra_id: number | null;
   usuario_nombre: string;
+  recibido_nombre?: string;
+  recibido_en?: string;
+  documento_recepcion?: string;
   articulos?: {
     productoId: number;
     nombre: string;
@@ -25,7 +36,12 @@ type Orden = {
   }[];
   datos?: { lineas: { productoId: number; cantidad: number; costo: number }[] };
 };
-export default function OrdenesCompra() {
+export default function OrdenesCompra({
+  pendientesOnly = false,
+}: {
+  pendientesOnly?: boolean;
+}) {
+  const session = useSession();
   const { data, error, loading, refresh } = useData(
     () => api<Orden[]>("/ordenes-compra"),
     [],
@@ -50,8 +66,18 @@ export default function OrdenesCompra() {
         {selected.proveedor} · {selected.referencia} · {date(selected.fecha)}
       </p>
       <p>
-        Registró: {selected.usuario_nombre} · {selected.estado}
+        Registró: {selected.usuario_nombre} · {date(selected.fecha)} ·{" "}
+        {selected.estado === "PENDIENTE"
+          ? "Pendiente de recepción"
+          : selected.estado}
       </p>
+      {selected.recibido_nombre && (
+        <p>
+          Recibió: {selected.recibido_nombre} ·{" "}
+          {selected.recibido_en && date(selected.recibido_en)} · Documento:{" "}
+          {selected.documento_recepcion}
+        </p>
+      )}
       <Table headers={["Artículo", "Cantidad", "Costo unitario"]}>
         {(selected.articulos || selected.datos?.lineas || []).map((l) => (
           <tr key={l.productoId}>
@@ -71,14 +97,18 @@ export default function OrdenesCompra() {
   );
   return (
     <>
-      <PageTitle
-        title="Órdenes de compra"
-        description="Crea órdenes desde Registrar compra. Recibir una orden registra la compra y actualiza el stock una sola vez."
-      />
+      {!pendientesOnly && (
+        <PageTitle
+          title="Órdenes de compra"
+          description="Registra el pedido y su referencia. Verifica físicamente la mercadería antes de confirmar la recepción."
+        />
+      )}
       <ErrorNotice message={error || failure} />
       <section className="surface">
         <div className="section-toolbar">
-          <h2>Órdenes registradas</h2>
+          <h2>
+            {pendientesOnly ? "Pendientes de recepción" : "Órdenes registradas"}
+          </h2>
           <button onClick={() => void refresh()}>Actualizar órdenes</button>
         </div>
         {loading ? (
@@ -87,27 +117,41 @@ export default function OrdenesCompra() {
           <Table
             headers={[
               "Orden",
-              "Fecha",
-              "Proveedor",
+              "Registró / Fecha y hora (Perú)",
+              "Proveedor / Referencia",
               "Estado",
               "Total",
               "Acciones",
             ]}
           >
-            {data.map((o) => (
-              <tr key={o.id}>
-                <td>{o.numero}</td>
-                <td>{date(o.fecha)}</td>
-                <td>{o.proveedor}</td>
-                <td>{o.estado}</td>
-                <td>{money(o.total)}</td>
-                <td>
-                  <button onClick={() => void abrir(o.id)}>
-                    Ver orden<span className="sr-only"> {o.numero}</span>
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {data
+              .filter((o) => !pendientesOnly || o.estado === "PENDIENTE")
+              .map((o) => (
+                <tr key={o.id}>
+                  <td>{o.numero}</td>
+                  <td>
+                    {o.usuario_nombre || "Sin autor histórico"}
+                    <small>{date(o.fecha)}</small>
+                  </td>
+                  <td>
+                    {o.proveedor}
+                    <small>{o.referencia}</small>
+                  </td>
+                  <td>
+                    {o.estado === "PENDIENTE"
+                      ? "Pendiente de recepción"
+                      : o.estado === "RECIBIDA"
+                        ? "Recibido / Completado"
+                        : o.estado}
+                  </td>
+                  <td>{money(o.total)}</td>
+                  <td>
+                    <button onClick={() => void abrir(o.id)}>
+                      Ver orden<span className="sr-only"> {o.numero}</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
           </Table>
         )}
       </section>
@@ -118,15 +162,19 @@ export default function OrdenesCompra() {
             <button onClick={() => setPrint(true)}>Imprimir orden</button>
             {selected.estado === "PENDIENTE" && (
               <>
-                <button
-                  className="primary"
-                  onClick={() => setAction("recibir")}
-                >
-                  Confirmar recepción
-                </button>
-                <button onClick={() => setAction("cancelar")}>
-                  Cancelar orden
-                </button>
+                {can(session, "COMPRAS_RECIBIR") && (
+                  <button
+                    className="primary"
+                    onClick={() => setAction("recibir")}
+                  >
+                    Confirmar recepción
+                  </button>
+                )}
+                {can(session, "COMPRAS_GESTIONAR") && (
+                  <button onClick={() => setAction("cancelar")}>
+                    Cancelar orden
+                  </button>
+                )}
               </>
             )}
             {selected.compra_id && (
@@ -142,26 +190,45 @@ export default function OrdenesCompra() {
           />
         </Modal>
       )}
-      {selected && action && (
+      {selected && action === "recibir" && (
+        <Modal
+          title="Verificar recepción de mercadería"
+          onClose={() => setAction(null)}
+        >
+          {content}
+          <Form
+            label="Aprobar ingreso al inventario"
+            onSave={(d) =>
+              api(`/ordenes-compra/${selected.id}/recibir`, "POST", {
+                documento: d.get("documento"),
+                conforme: d.get("conforme") === "on",
+              })
+            }
+            onDone={() => {
+              setAction(null);
+              void abrir(selected.id);
+              void refresh();
+              window.dispatchEvent(new Event("compras-updated"));
+            }}
+          >
+            <Field label="Guía de remisión o factura del proveedor">
+              <input name="documento" required maxLength={120} />
+            </Field>
+            <label className="check">
+              <input name="conforme" type="checkbox" required />
+              Confirmo que verifiqué los productos y cantidades físicas contra
+              esta OC y todo está conforme
+            </label>
+          </Form>
+        </Modal>
+      )}
+      {selected && action === "cancelar" && (
         <ConfirmarAccion
-          titulo={
-            action === "recibir"
-              ? "Recibir orden de compra"
-              : "Cancelar orden de compra"
-          }
-          descripcion={
-            action === "recibir"
-              ? "Se registrará la compra con las cantidades y costos de esta orden y se ingresará el stock."
-              : "Se cancelará la orden sin ingresar stock."
-          }
+          titulo="Cancelar orden de compra"
+          descripcion="Se cancelará sin ingresar stock."
           onClose={() => setAction(null)}
           onConfirm={async () => {
-            const r = await api<{ id: number }>(
-              `/ordenes-compra/${selected.id}/${action}`,
-              "POST",
-              {},
-            );
-            if (action === "recibir") setPurchase(r.id);
+            await api(`/ordenes-compra/${selected.id}/cancelar`, "POST", {});
             await abrir(selected.id);
             await refresh();
           }}

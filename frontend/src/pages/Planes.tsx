@@ -1,3 +1,4 @@
+import UpgradePlan from "../components/UpgradePlan";
 import CobranzaAdmin from "../components/CobranzaAdmin";
 import { AvisosSuscripcion } from "./Notificaciones";
 import { useRef, useState } from "react";
@@ -20,6 +21,7 @@ export type Pago = {
   hasta: string;
   referencia: string;
   limite_empleados?: number;
+  tarifa_actual?: number;
 };
 export type PlanState = {
   estadoSuscripcion?: "ACTIVO" | "PROGRAMADO" | "VENCIDO" | "SIN_PLAN";
@@ -38,6 +40,16 @@ export type PlanState = {
   limiteEmpleados: number;
   pagoActual: Pago | null;
   historial: Pago[];
+  upgrades?: {
+    id: number;
+    plan_anterior: string;
+    plan: string;
+    importe: number;
+    desde: string;
+    hasta: string;
+    referencia: string;
+    creado: string;
+  }[];
   planes: {
     codigo: string;
     nombre: string;
@@ -54,7 +66,7 @@ export function PlanInfo({ plan }: { plan: PlanState }) {
   const anterior =
     !!pago &&
     !!tarifa &&
-    (Number(pago.importe) !== Number(tarifa.precio) ||
+    (Number(pago.tarifa_actual ?? pago.importe) !== Number(tarifa.precio) ||
       plan.limiteEmpleados !== tarifa.empleados);
   const estado =
     plan.estadoSuscripcion || (plan.vigente ? "ACTIVO" : "SIN_PLAN");
@@ -85,7 +97,11 @@ export function PlanInfo({ plan }: { plan: PlanState }) {
         {pago && (
           <>
             <div>
-              <small>Importe registrado</small>
+              <small>Tarifa del plan vigente</small>
+              <strong>{money(pago.tarifa_actual ?? pago.importe)}</strong>
+            </div>
+            <div>
+              <small>Pago original del período</small>
               <strong>{money(pago.importe)}</strong>
             </div>
             <div>
@@ -340,6 +356,38 @@ export function PagosAdmin() {
                 <Badge neutral>Importe y cupos se validan en el servidor</Badge>
               </Form>
             </section>
+            <UpgradePlan
+              key={empresa}
+              empresa={empresa}
+              state={state}
+              onChanged={setState}
+            />
+            {!!state.upgrades?.length && (
+              <section className="surface">
+                <h2>Upgrades aplicados</h2>
+                <Table
+                  headers={[
+                    "Cambio",
+                    "Pago adicional",
+                    "Desde / Hasta",
+                    "Referencia",
+                  ]}
+                >
+                  {state.upgrades.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        {u.plan_anterior} → {u.plan}
+                      </td>
+                      <td>{money(u.importe)}</td>
+                      <td>
+                        {dateOnly(u.desde)} / {dateOnly(u.hasta)}
+                      </td>
+                      <td>{u.referencia}</td>
+                    </tr>
+                  ))}
+                </Table>
+              </section>
+            )}
             <AvisosSuscripcion key={empresa} empresaId={Number(empresa)} />
             <section className="surface">
               <h2>Historial del negocio</h2>

@@ -45,7 +45,7 @@ export default function Cajas({
     <>
       <PageTitle
         title="Caja y cierres"
-        description="El corte conserva responsable, ventas y diferencia de efectivo. El efectivo esperado incluye el fondo inicial y las ventas en efectivo confirmadas."
+        description="El corte conserva responsable, ventas y diferencia de efectivo. El efectivo esperado incluye fondo, ventas e ingresos de efectivo, menos egresos registrados."
       />
       <ErrorNotice message={error || failure || acceso.error} />
       {session.rol === "ADMIN" && (

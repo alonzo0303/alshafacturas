@@ -49,7 +49,7 @@ export default function DocumentosCompra({
             <select name="clase">
               <option value="FACTURA">Factura del proveedor</option>
               <option value="ORDEN_COMPRA">Orden de compra</option>
-              <option value="OTRO">Otro documento</option>
+              <option value="OTRO">Guía de remisión / Otro documento</option>
             </select>
           </Field>
           <Field label="Archivo de compra">

@@ -309,12 +309,42 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
     .getByLabel("Proveedor", { exact: true })
     .fill("Mayorista de prueba");
   await page
-    .getByLabel("Referencia del documento de compra")
+    .getByLabel("Referencia (cotización o pedido del proveedor)")
     .fill(randomUUID());
   await page
-    .getByRole("button", { name: "Confirmar compra", exact: true })
+    .getByRole("button", { name: "Crear orden de compra", exact: true })
     .click();
-  await expect(page.getByText(/Compra registrada/)).toBeVisible();
+  await expect(page.getByText(/Orden .* creada/)).toBeVisible();
+  const beforeReceipt = await (await page.request.get("/api/productos")).json();
+  expect(
+    beforeReceipt.find(
+      (p: { nombre: string }) => p.nombre === "Labial compra navegador",
+    ).stock,
+  ).toBe(0);
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "Órdenes de compra", exact: true })
+    .click();
+  await page.getByRole("button", { name: /Ver orden OC-/ }).click();
+  await page
+    .getByRole("button", { name: "Confirmar recepción", exact: true })
+    .click();
+  const receipt = page.getByRole("dialog", {
+    name: "Verificar recepción de mercadería",
+    exact: true,
+  });
+  await receipt
+    .getByLabel("Guía de remisión o factura del proveedor")
+    .fill("GR-NAVEGADOR");
+  await receipt.getByRole("checkbox").check();
+  await receipt
+    .getByRole("button", { name: "Aprobar ingreso al inventario" })
+    .click();
+  await expect(receipt).toHaveCount(0);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cerrar", exact: true })
+    .click();
   await page.getByRole("link", { name: "Resumen", exact: true }).click();
   await expect(page.locator(".stock-alert").first()).toBeVisible();
   expect(
@@ -433,7 +463,9 @@ test("Pago confirmado, cupos, roles y consulta de inventario por vendedor", asyn
     .getByRole("button", { name: "Iniciar sesión", exact: true })
     .click();
   await page.getByRole("link", { name: "Usuarios", exact: true }).click();
-  await expect(page.getByText("S/ 30.00", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("S/ 30.00", { exact: true }).first(),
+  ).toBeVisible();
   const email = randomUUID() + "@test.local";
   await page.getByLabel("Nombre completo").fill("Vendedor de prueba");
   await page.getByLabel("Correo", { exact: true }).fill(email);

@@ -125,6 +125,34 @@ public class ControlController {
     return cajas.comentar(p, e, local(p, e, localId), id, r.comentario());
   }
 
+  @GetMapping("/cajas-pendientes")
+  public List<Map<String, Object>> pendientes(@AuthenticationPrincipal UsuarioPrincipal p) {
+    return cajas.pendientes(p);
+  }
+
+  public record Movimiento(
+      @NotBlank @Pattern(regexp = "INGRESO|EGRESO") String tipo,
+      @NotNull
+          @DecimalMin("0.01")
+          @DecimalMax("999999999999.99")
+          @Digits(integer = 12, fraction = 2)
+          BigDecimal importe,
+      @NotBlank @Size(max = 1000) String motivo,
+      @NotNull UUID idempotencia) {}
+
+  @PostMapping("/cajas/{id}/movimientos")
+  @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('CAJA_GESTIONAR')")
+  public Map<String, Object> movimiento(
+      @AuthenticationPrincipal UsuarioPrincipal p,
+      @PathVariable Long id,
+      @RequestParam(required = false) Long empresaId,
+      @RequestParam(required = false) Long localId,
+      @Valid @RequestBody Movimiento r) {
+    Long e = empresa(p, empresaId);
+    return cajas.movimiento(
+        p, e, local(p, e, localId), id, r.tipo(), r.importe(), r.motivo(), r.idempotencia());
+  }
+
   @GetMapping("/rendimiento")
   @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('RENDIMIENTO_VER')")
   public Map<String, Object> rendimiento(

@@ -57,4 +57,19 @@ public class GestionController {
       @Valid @RequestBody PlanesService.PagoRequest r) {
     return planes.registrar(id, p.getId(), r);
   }
+
+  @GetMapping("/empresas/{id}/upgrade")
+  @PreAuthorize("hasRole('SUPERADMIN')")
+  public Map<String, Object> cotizar(@PathVariable Long id, @RequestParam String plan) {
+    return planes.cotizarUpgrade(id, plan);
+  }
+
+  @PostMapping("/empresas/{id}/upgrade")
+  @PreAuthorize("hasRole('SUPERADMIN')")
+  public Map<String, Object> upgrade(
+      @AuthenticationPrincipal UsuarioPrincipal p,
+      @PathVariable Long id,
+      @Valid @RequestBody PlanesService.UpgradeRequest r) {
+    return planes.upgrade(id, p.getId(), r);
+  }
 }

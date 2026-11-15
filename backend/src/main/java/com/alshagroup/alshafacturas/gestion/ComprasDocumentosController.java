@@ -21,208 +21,67 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api")
-@PreAuthorize("hasAuthority('COMPRAS_GESTIONAR')")
+@PreAuthorize("hasAnyAuthority('COMPRAS_GESTIONAR','COMPRAS_RECIBIR')")
 public class ComprasDocumentosController {
   private final JdbcTemplate db;
-  private final ComercialService comercial;
+  private final OrdenesCompraService ordenes;
   private final AuditoriaService audit;
   private final tools.jackson.databind.json.JsonMapper json =
       tools.jackson.databind.json.JsonMapper.builder().build();
 
   public ComprasDocumentosController(
-      JdbcTemplate db, ComercialService comercial, AuditoriaService audit) {
+      JdbcTemplate db, OrdenesCompraService ordenes, AuditoriaService audit) {
     this.db = db;
-    this.comercial = comercial;
+    this.ordenes = ordenes;
     this.audit = audit;
   }
 
   private Map<String, Object> target(UsuarioPrincipal p, String tipo, Long id) {
-    String tabla = "compras".equals(tipo) ? "compras" : "ordenes_compra";
-    var rows =
-        db.queryForList(
-            "SELECT * FROM " + tabla + " WHERE empresa_id=? AND local_id=? AND id=?",
-            p.getEmpresaId(),
-            LocalesService.actual(),
-            id);
-    if (rows.isEmpty())
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Compra u orden no encontrada");
-    AlcanceDatos.verificar(p, rows.getFirst(), "usuario_original_id");
-    return rows.getFirst();
+    return ordenes.target(p, tipo, id);
   }
 
   @GetMapping("/compras/{id}")
   public Map<String, Object> compra(
       @AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
-    var r = target(p, "compras", id);
-    r.put(
-        "lineas",
-        db.queryForList(
-            "SELECT d.*,p.nombre,p.sku FROM compra_detalles d JOIN productos p ON"
-                + " p.id=d.producto_id WHERE d.compra_id=? ORDER BY d.id",
-            id));
-    r.put(
-        "empresa",
-        db.queryForMap(
-            "SELECT razon_social,ruc,direccion FROM empresas WHERE id=?", p.getEmpresaId()));
-    r.put(
-        "local",
-        db.queryForMap("SELECT nombre,direccion FROM locales WHERE id=?", LocalesService.actual()));
-    return r;
+    return ordenes.compra(p, id);
   }
 
   @GetMapping("/ordenes-compra")
   public List<Map<String, Object>> ordenes(@AuthenticationPrincipal UsuarioPrincipal p) {
-    return db.queryForList(
-        "SELECT id,numero,proveedor,referencia,fecha,estado,total,compra_id,usuario_nombre FROM"
-            + " ordenes_compra WHERE empresa_id=? AND local_id=? AND (? OR usuario_original_id=?)"
-            + " ORDER BY id DESC LIMIT 200",
-        AlcanceDatos.args(p, p.getEmpresaId(), LocalesService.actual()));
+    return ordenes.ordenes(p);
   }
 
   @GetMapping("/ordenes-compra/{id}")
   public Map<String, Object> orden(
       @AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
-    var r = target(p, "ordenes-compra", id);
-    var datos = json.readValue(r.get("datos").toString(), Map.class);
-    r.remove("recepcion_idempotencia");
-    r.put("datos", datos.containsKey("compra") ? datos.get("compra") : datos);
-    r.put("articulos", datos.getOrDefault("articulos", List.of()));
-    return r;
+    return ordenes.orden(p, id);
   }
 
   @PostMapping("/ordenes-compra")
-  @Transactional
+  @PreAuthorize("hasAuthority('COMPRAS_GESTIONAR')")
   public Map<String, Object> crear(
       @AuthenticationPrincipal UsuarioPrincipal p,
       @Valid @RequestBody ComercialDtos.CompraRequest r) {
-    db.queryForObject(
-        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
-    var previous =
-        db.queryForList(
-            "SELECT id FROM ordenes_compra WHERE empresa_id=? AND idempotencia=?",
-            Long.class,
-            p.getEmpresaId(),
-            r.idempotencia());
-    String payload = json.writeValueAsString(r);
-    if (!previous.isEmpty()) {
-      var old = target(p, "ordenes-compra", previous.getFirst());
-      if (!(json.readTree(old.get("datos").toString()).has("compra")
-              ? json.readTree(old.get("datos").toString()).get("compra")
-              : json.readTree(old.get("datos").toString()))
-          .equals(json.readTree(payload)))
-        throw new ResponseStatusException(
-            HttpStatus.CONFLICT, "La clave corresponde a otra orden de compra");
-      return orden(p, previous.getFirst());
-    }
-    String documento = Objects.requireNonNullElse(r.tipoDocumento(), "INTERNO");
-    boolean tieneRuc = r.proveedorRuc() != null && !r.proveedorRuc().isBlank();
-    if ("FACTURA".equals(documento) && !tieneRuc)
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "La factura de compra requiere RUC del proveedor");
-    if (Boolean.TRUE.equals(r.creditoFiscal())
-        && (!Boolean.TRUE.equals(r.gravada())
-            || !"FACTURA".equals(documento)
-            || !tieneRuc
-            || db.queryForObject(
-                    "SELECT ruc FROM empresas WHERE id=?", String.class, p.getEmpresaId())
-                == null))
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "Revisa los requisitos del crédito fiscal potencial");
-    var articulos = new ArrayList<Map<String, Object>>();
-    BigDecimal total = BigDecimal.ZERO;
-    var ids = new HashSet<Long>();
-    for (var l : r.lineas()) {
-      if (!ids.add(l.productoId()))
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Artículo repetido");
-      if (db.queryForObject(
-              "SELECT count(*) FROM productos WHERE empresa_id=? AND local_id=? AND id=? AND"
-                  + " clase='PRODUCTO'",
-              Long.class,
-              p.getEmpresaId(),
-              LocalesService.actual(),
-              l.productoId())
-          != 1)
-        throw new ResponseStatusException(
-            HttpStatus.NOT_FOUND, "Artículo no disponible en este local");
-      var articulo = db.queryForMap("SELECT nombre,sku FROM productos WHERE id=?", l.productoId());
-      articulo.put("cantidad", l.cantidad());
-      articulo.put("costo", l.costo());
-      articulo.put("productoId", l.productoId());
-      articulos.add(articulo);
-      BigDecimal amount =
-          l.costo().multiply(BigDecimal.valueOf(l.cantidad())).setScale(2, RoundingMode.HALF_UP);
-      if (Boolean.TRUE.equals(r.gravada()) && Boolean.FALSE.equals(r.costoIncluyeIgv()))
-        amount =
-            amount.add(amount.multiply(new BigDecimal("0.18")).setScale(2, RoundingMode.HALF_UP));
-      total = total.add(amount);
-    }
-    if (total.compareTo(new BigDecimal("999999999999.99")) > 0)
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Importe fuera de límite");
-    long seq =
-        db.queryForObject(
-            "INSERT INTO correlativos(empresa_id,tipo,ultimo) VALUES (?,'ORDEN_COMPRA',1) ON"
-                + " CONFLICT(empresa_id,tipo) DO UPDATE SET ultimo=correlativos.ultimo+1 RETURNING"
-                + " ultimo",
-            Long.class,
-            p.getEmpresaId());
-    String numero = "OC-" + String.format(Locale.ROOT, "%08d", seq);
-    Long id =
-        db.queryForObject(
-            "INSERT INTO"
-                + " ordenes_compra(empresa_id,local_id,numero,proveedor,referencia,usuario_id,usuario_original_id,usuario_nombre,datos,total,idempotencia)"
-                + " VALUES (?,?,?,?,?,?,?,?,?::jsonb,?,?) RETURNING id",
-            Long.class,
-            p.getEmpresaId(),
-            LocalesService.actual(),
-            numero,
-            r.proveedor().trim(),
-            r.referencia().trim(),
-            p.getId(),
-            p.getId(),
-            p.getNombre(),
-            json.writeValueAsString(Map.of("compra", r, "articulos", articulos)),
-            total,
-            r.idempotencia());
-    audit.registrar(
-        p, p.getEmpresaId(), LocalesService.actual(), "ORDEN_COMPRA_CREADA", id, numero);
-    return orden(p, id);
+    return ordenes.crear(p, r);
   }
 
   @PostMapping("/ordenes-compra/{id}/recibir")
-  @Transactional
+  @PreAuthorize("hasAuthority('COMPRAS_RECIBIR')")
   public Map<String, Object> recibir(
-      @AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
-    db.queryForObject(
-        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
-    var r = target(p, "ordenes-compra", id);
-    if (r.get("compra_id") != null) return compra(p, ((Number) r.get("compra_id")).longValue());
-    if (!"PENDIENTE".equals(r.get("estado")))
-      throw new ResponseStatusException(HttpStatus.CONFLICT, "La orden está cancelada");
-    var node = json.readTree(r.get("datos").toString());
-    var input =
-        json.readValue(
-            node.has("compra") ? node.get("compra").toString() : node.toString(), Map.class);
-    input.put("idempotencia", r.get("recepcion_idempotencia").toString());
-    var request = json.readValue(json.writeValueAsString(input), ComercialDtos.CompraRequest.class);
-    var result = comercial.comprar(p, request);
-    db.update(
-        "UPDATE ordenes_compra SET estado='RECIBIDA',compra_id=? WHERE id=?", result.get("id"), id);
-    audit.registrar(
-        p,
-        p.getEmpresaId(),
-        LocalesService.actual(),
-        "ORDEN_COMPRA_RECIBIDA",
-        id,
-        "Compra=" + result.get("id"));
-    return result;
+      @AuthenticationPrincipal UsuarioPrincipal p,
+      @PathVariable Long id,
+      @Valid @RequestBody OrdenesCompraService.Recepcion r) {
+    return ordenes.recibir(p, id, r);
   }
 
+  @PreAuthorize("hasAuthority('COMPRAS_GESTIONAR')")
   @PostMapping("/ordenes-compra/{id}/cancelar")
   @Transactional
   public void cancelar(@AuthenticationPrincipal UsuarioPrincipal p, @PathVariable Long id) {
     db.queryForObject(
         "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
     var r = target(p, "ordenes-compra", id);
+    AlcanceDatos.verificar(p, r, "usuario_original_id");
     if (!"PENDIENTE".equals(r.get("estado")))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "La orden ya no está pendiente");
     db.update("UPDATE ordenes_compra SET estado='CANCELADA' WHERE id=?", id);

@@ -2,7 +2,9 @@ package com.alshagroup.alshafacturas.gestion;
 
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -158,7 +160,24 @@ public class PlanesService {
             empresa,
             today,
             today);
-    return rows.isEmpty() ? null : rows.getFirst();
+    if (rows.isEmpty()) return null;
+    var pago = rows.getFirst();
+    var upgrades =
+        pagos(
+            "SELECT * FROM upgrades_suscripcion WHERE empresa_id=? AND pago_id=? AND desde<=? AND"
+                + " hasta>=? ORDER BY id DESC LIMIT 1",
+            empresa,
+            pago.get("id"),
+            today,
+            today);
+    pago.put("tarifa_actual", pago.get("importe"));
+    if (!upgrades.isEmpty()) {
+      var u = upgrades.getFirst();
+      pago.put("plan", u.get("plan"));
+      pago.put("limite_empleados", u.get("limite_empleados"));
+      pago.put("tarifa_actual", u.get("tarifa"));
+    }
+    return pago;
   }
 
   private int limite(Map<String, Object> pago) {
@@ -218,6 +237,12 @@ public class PlanesService {
     result.put("plan", referencia == null ? "SIN_PLAN" : referencia.get("plan"));
     result.put("limiteEmpleados", referencia == null ? 0 : limite(referencia));
     result.put("pagoActual", pago);
+    result.put(
+        "upgrades",
+        pagos(
+            "SELECT id,pago_id,plan_anterior,plan,importe,tarifa,desde,hasta,referencia,creado FROM"
+                + " upgrades_suscripcion WHERE empresa_id=? ORDER BY id DESC",
+            empresa));
     result.put(
         "historial",
         pagos(
@@ -296,6 +321,103 @@ public class PlanesService {
         r.referencia().trim(),
         actor,
         p.empleados());
+    revisarEmpresa(empresa, hoy());
+    return estado(empresa);
+  }
+
+  public record UpgradeRequest(
+      @NotBlank String plan,
+      @NotNull Long pagoId,
+      @NotBlank String planAnterior,
+      @NotNull LocalDate fecha,
+      @NotNull BigDecimal importe,
+      @NotBlank @Size(max = 120) String referencia,
+      @AssertTrue boolean confirmado,
+      @NotNull UUID idempotencia) {}
+
+  public Map<String, Object> cotizarUpgrade(Long empresa, String codigo) {
+    var actual = vigente(empresa);
+    if (actual == null) throw error("Se necesita un plan vigente para aplicar un upgrade");
+    var nuevo = plan(codigo);
+    BigDecimal anterior = (BigDecimal) actual.get("tarifa_actual");
+    if (nuevo.precio().compareTo(anterior) <= 0)
+      throw error("Selecciona un plan superior al actual");
+    LocalDate inicio = (LocalDate) actual.get("desde"), fin = (LocalDate) actual.get("hasta");
+    long dias = ChronoUnit.DAYS.between(inicio, fin) + 1,
+        restantes = ChronoUnit.DAYS.between(hoy(), fin) + 1;
+    BigDecimal importe =
+        nuevo
+            .precio()
+            .subtract(anterior)
+            .multiply(BigDecimal.valueOf(restantes))
+            .divide(BigDecimal.valueOf(dias), 2, RoundingMode.HALF_UP);
+    return Map.of(
+        "pagoId",
+        actual.get("id"),
+        "planAnterior",
+        actual.get("plan"),
+        "plan",
+        codigo,
+        "fecha",
+        hoy(),
+        "hasta",
+        fin,
+        "diasCiclo",
+        dias,
+        "diasRestantes",
+        restantes,
+        "importe",
+        importe);
+  }
+
+  @Transactional
+  public Map<String, Object> upgrade(Long empresa, Long actor, UpgradeRequest r) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    var old =
+        db.queryForList(
+            "SELECT * FROM upgrades_suscripcion WHERE empresa_id=? AND idempotencia=?",
+            empresa,
+            r.idempotencia());
+    if (!old.isEmpty()) {
+      var u = old.getFirst();
+      if (!Objects.equals(u.get("pago_id"), r.pagoId())
+          || !Objects.equals(u.get("plan"), r.plan())
+          || !Objects.equals(u.get("referencia"), r.referencia().trim())
+          || ((BigDecimal) u.get("importe")).compareTo(r.importe()) != 0)
+        throw error("La clave corresponde a otro upgrade");
+      return estado(empresa);
+    }
+    var q = cotizarUpgrade(empresa, r.plan());
+    if (!hoy().equals(r.fecha())
+        || !Objects.equals(q.get("pagoId"), r.pagoId())
+        || !Objects.equals(q.get("planAnterior"), r.planAnterior())
+        || ((BigDecimal) q.get("importe")).compareTo(r.importe()) != 0)
+      throw error("La cotización cambió. Vuelve a calcular antes de confirmar");
+    if (db.queryForObject(
+        "SELECT EXISTS(SELECT 1 FROM pagos_suscripcion WHERE empresa_id=? AND referencia=?) OR"
+            + " EXISTS(SELECT 1 FROM upgrades_suscripcion WHERE empresa_id=? AND referencia=?)",
+        Boolean.class,
+        empresa,
+        r.referencia().trim(),
+        empresa,
+        r.referencia().trim())) throw error("La referencia ya está registrada");
+    var nuevo = plan(r.plan());
+    db.update(
+        "INSERT INTO"
+            + " upgrades_suscripcion(empresa_id,pago_id,plan_anterior,plan,limite_empleados,tarifa,importe,desde,hasta,referencia,registrado_por,idempotencia)"
+            + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        empresa,
+        r.pagoId(),
+        r.planAnterior(),
+        r.plan(),
+        nuevo.empleados(),
+        nuevo.precio(),
+        r.importe(),
+        hoy(),
+        q.get("hasta"),
+        r.referencia().trim(),
+        actor,
+        r.idempotencia());
     revisarEmpresa(empresa, hoy());
     return estado(empresa);
   }

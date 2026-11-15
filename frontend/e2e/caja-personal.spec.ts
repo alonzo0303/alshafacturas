@@ -191,9 +191,12 @@ test("Caja por persona, entrega de fondo y avisos obligatorios en cada entrada y
     "required",
     "",
   );
-  await staff
-    .getByRole("button", { name: "Confirmar cierre de caja", exact: true })
-    .click();
+  await expect(
+    staff.getByRole("button", {
+      name: "Confirmar cierre de caja",
+      exact: true,
+    }),
+  ).toBeDisabled();
   await expect(staff.getByLabel("Comentario del cierre")).toBeVisible();
   expect((await (await owner.get(`/api/cajas/${box.id}`)).json()).estado).toBe(
     "ABIERTA",

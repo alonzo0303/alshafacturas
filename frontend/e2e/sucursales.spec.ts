@@ -225,6 +225,7 @@ test("Tipo personalizado, sucursales y cobro de servicio sin stock", async ({
   await page.getByRole("link", { name: "Ventas", exact: true }).click();
   await expect(page.getByRole("cell", { name: /NV01-/ })).toHaveCount(0);
   await page.getByLabel("Local de trabajo").selectOption({ label: "Tienda A" });
+  await expect(page).toHaveURL(/\/atencion$/);
   await page.getByRole("link", { name: "Servicios", exact: true }).click();
   await expect(
     page.getByRole("cell", { name: "Corte de cabello", exact: true }),

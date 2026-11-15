@@ -50,6 +50,10 @@ class Client:
         assert status in (200, 201, 204), (path, status, data)
         return data
 
+    def purchase(self, body):
+        order=self.ok('/compras','POST',body)
+        return self.ok(f"/ordenes-compra/{order['id']}/recibir",'POST',{'documento':'GR-TEST','conforme':True})
+
     def login(self, ruc, email):
         return self.ok('/auth/login', 'POST', {'ruc': ruc, 'correo': email, 'password': PASSWORD})
 
@@ -103,7 +107,7 @@ class ApiRegression(unittest.TestCase):
         company,email,owner=self.company('Nombre original de prueba')
         p=self.product(stock=5,client=owner)
         owner.ok('/ventas','POST',self.sale(p))
-        owner.ok('/compras','POST',{'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor','referencia':uuid.uuid4().hex,'lineas':[{'productoId':p['id'],'cantidad':2,'costo':4}]})
+        owner.purchase({'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor','referencia':uuid.uuid4().hex,'lineas':[{'productoId':p['id'],'cantidad':2,'costo':4}]})
         owner.ok('/usuarios','POST',{'nombre':'Personal prueba','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
         png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
         self.assertEqual(owner.raw(f"/productos/{p['id']}/imagen",'PUT',png)[0],200)
@@ -174,7 +178,7 @@ class ApiRegression(unittest.TestCase):
     def test_exempt_sales_and_cost_excluding_igv(self):
         company, _, owner = self.company('Tributación independiente')
         p=owner.ok('/productos','POST',{'nombre':'Producto exonerado','precio':118,'minimo':0,'activo':True,'afectacionIgv':'EXONERADO'})
-        purchase=owner.ok('/compras','POST',{'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor','referencia':uuid.uuid4().hex,'tipoDocumento':'FACTURA','proveedorRuc':'20123456789','gravada':True,'costoIncluyeIgv':False,'creditoFiscal':True,'lineas':[{'productoId':p['id'],'cantidad':1,'costo':50}]})
+        purchase=owner.purchase({'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor','referencia':uuid.uuid4().hex,'tipoDocumento':'FACTURA','proveedorRuc':'20123456789','gravada':True,'costoIncluyeIgv':False,'creditoFiscal':True,'lineas':[{'productoId':p['id'],'cantidad':1,'costo':50}]})
         self.assertEqual((purchase['subtotal'],purchase['igv'],purchase['total']),(50,9,59))
         sale=owner.ok('/ventas','POST',self.sale(p))
         self.assertEqual((sale['subtotal'],sale['igv'],sale['total']),(118,0,118))
@@ -277,7 +281,7 @@ class ApiRegression(unittest.TestCase):
     def test_purchase_net_cost_and_potential_tax_credit(self):
         product = self.product(price=118)
         body = {'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor prueba','referencia':uuid.uuid4().hex,'proveedorRuc':'20123456789','tipoDocumento':'FACTURA','gravada':True,'costoIncluyeIgv':True,'creditoFiscal':True,'lineas':[{'productoId':product['id'],'cantidad':2,'costo':59}]}
-        purchase = self.a.ok('/compras','POST',body)
+        purchase = self.a.purchase(body)
         self.assertEqual(purchase['subtotal'],100)
         self.assertEqual(purchase['igv'],18)
         self.assertEqual(purchase['total'],118)
@@ -523,9 +527,9 @@ class ApiRegression(unittest.TestCase):
     def test_purchase_updates_stock_once(self):
         p = self.product()
         payload = {'idempotencia': str(uuid.uuid4()), 'proveedor': 'Proveedor de prueba', 'referencia': uuid.uuid4().hex, 'lineas': [{'productoId': p['id'], 'cantidad': 5, 'costo': 4.20}]}
-        purchase = self.a.ok('/compras', 'POST', payload)
+        purchase = self.a.purchase(payload)
         self.assertEqual(purchase['total'], 21)
-        self.assertEqual(self.a.ok('/compras', 'POST', payload)['id'], purchase['id'])
+        self.assertEqual(self.a.purchase(payload)['id'], purchase['id'])
         self.assertEqual(self.stock(p), 5)
         changed = {**payload, 'referencia': 'different'}
         self.assertEqual(self.a.request('/compras', 'POST', changed)[0], 409)

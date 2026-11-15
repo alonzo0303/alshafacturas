@@ -36,5 +36,6 @@ class ComentarioCajaRegression(unittest.TestCase):
   self.assertEqual(s.ok(path,'PATCH',{'comentario':updated['comentario_cierre']}),updated)
   self.assertEqual(a.request(path,'PATCH',{'comentario':'Cambiar motivo'})[0],409)
   nextbox=s.ok('/cajas','POST',{'fondo':30});self.assertEqual(s.request(f"/cajas/{nextbox['id']}/comentario",'PATCH',{'comentario':'Aún abierta'})[0],409)
-  surplus=s.ok(f"/cajas/{nextbox['id']}/cerrar",'POST',{'efectivoContado':31});self.assertIsNone(surplus['comentario_cierre']);self.assertEqual(surplus['diferencia'],1)
+  self.assertEqual(s.request(f"/cajas/{nextbox['id']}/cerrar",'POST',{'efectivoContado':31})[0],400)
+  surplus=s.ok(f"/cajas/{nextbox['id']}/cerrar",'POST',{'efectivoContado':31,'comentario':'Sobra una moneda de S/1'});self.assertEqual(surplus['diferencia'],1)
 if __name__=='__main__':unittest.main(verbosity=2)

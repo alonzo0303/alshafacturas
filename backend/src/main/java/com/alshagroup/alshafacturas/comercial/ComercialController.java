@@ -14,7 +14,11 @@ import org.springframework.web.bind.annotation.*;
 public class ComercialController {
   private final ComercialService service;
 
-  public ComercialController(ComercialService service) {
+  private final com.alshagroup.alshafacturas.gestion.OrdenesCompraService ordenes;
+
+  public ComercialController(
+      ComercialService service, com.alshagroup.alshafacturas.gestion.OrdenesCompraService ordenes) {
+    this.ordenes = ordenes;
     this.service = service;
   }
 
@@ -123,7 +127,7 @@ public class ComercialController {
   @PreAuthorize("hasAuthority('COMPRAS_GESTIONAR')")
   public Map<String, Object> comprar(
       @AuthenticationPrincipal UsuarioPrincipal p, @Valid @RequestBody CompraRequest r) {
-    return service.comprar(p, r);
+    return ordenes.crear(p, r);
   }
 
   @GetMapping("/resumen")

@@ -37,7 +37,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
     { productos: [], clientes: [], empresa: null },
   );
   const [mostrarCompra, setMostrarCompra] = useState(false),
-    [modoCompra, setModoCompra] = useState("INGRESO");
+    [modoCompra, setModoCompra] = useState("ORDEN");
   const [tienePreparacion, setTienePreparacion] = useState(false);
   const configuracion = useData(
     () => api<{ preparacion_habilitada: boolean }>("/operacion/configuracion"),
@@ -167,7 +167,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         tax.gravada &&
         /^\d{11}$/.test(tax.ruc),
       );
-      const esOrden = compra && values.get("registroCompra") === "ORDEN";
+      const esOrden = compra;
       const fingerprint = JSON.stringify(
         cart.map((l) => ({ productoId: l.producto.id, cantidad: l.cantidad })),
       );
@@ -217,12 +217,12 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
       setCart([]);
       setTax(emptyPurchaseTax);
       form.reset();
-      setModoCompra("INGRESO");
+      setModoCompra("ORDEN");
       setSuccess(
         compra
           ? esOrden
             ? `Orden ${result.numero} creada. El stock no cambió; registra la recepción desde Órdenes de compra.`
-            : "Compra registrada. El inventario se ha actualizado."
+            : "Compra pendiente de recepción. El stock todavía no cambia."
           : `Venta ${result.numero} registrada.`,
       );
       if (!compra) setReceipt(result);
@@ -290,7 +290,14 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         />
       )}
       {compra && (
-        <Link className="button" to="/panel/ordenes-compra">
+        <Link
+          className="button"
+          to={
+            session.modalidad === "ATENCION"
+              ? "/atencion/compras"
+              : "/panel/ordenes-compra"
+          }
+        >
           Ver órdenes de compra
         </Link>
       )}
@@ -396,7 +403,6 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
                   onChange={(e) => setModoCompra(e.target.value)}
                   disabled={busy}
                 >
-                  <option value="INGRESO">Ingresar mercadería ahora</option>
                   <option value="ORDEN">
                     Crear orden de compra sin ingresar stock
                   </option>

@@ -13,6 +13,10 @@ type Datos = {
   igv: number;
   subtotal: number;
   usuario_nombre?: string;
+  recibido_nombre?: string;
+  recibido_en?: string;
+  documento_recepcion?: string;
+  orden_numero?: string;
   lineas: { nombre: string; sku: string; cantidad: number; costo: number }[];
   empresa: { razon_social: string; ruc: string | null };
   local: { nombre: string };
@@ -44,6 +48,12 @@ export default function DetalleCompra({
           </p>
           <p>
             Registró: {data.usuario_nombre || "Sin registro de autor anterior"}
+          </p>
+          <p>
+            OC: {data.orden_numero || "Registro histórico"} · Recibió:{" "}
+            {data.recibido_nombre || "Sin autor histórico"}{" "}
+            {data.recibido_en && date(data.recibido_en)} · Documento:{" "}
+            {data.documento_recepcion || "Sin documento de recepción histórico"}
           </p>
           <table>
             <thead>

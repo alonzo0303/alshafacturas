@@ -30,6 +30,7 @@ public class RolesService {
           "PRODUCTOS_EDITAR",
           "INVENTARIO_VER",
           "INVENTARIO_EDITAR",
+          "COMPRAS_RECIBIR",
           "COMPRAS_GESTIONAR",
           "VENTAS_GESTIONAR",
           "VENTAS_ANULAR",
@@ -53,7 +54,12 @@ public class RolesService {
               "MESAS_GESTIONAR",
               "PREPARACION_GESTIONAR");
       case "ALMACENERO" ->
-          List.of("PRODUCTOS_VER", "PRODUCTOS_EDITAR", "INVENTARIO_VER", "INVENTARIO_EDITAR");
+          List.of(
+              "PRODUCTOS_VER",
+              "PRODUCTOS_EDITAR",
+              "INVENTARIO_VER",
+              "INVENTARIO_EDITAR",
+              "COMPRAS_RECIBIR");
       case "COMPRAS" ->
           List.of("PRODUCTOS_VER", "PRODUCTOS_EDITAR", "INVENTARIO_VER", "COMPRAS_GESTIONAR");
       default -> List.of();

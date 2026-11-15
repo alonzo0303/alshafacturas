@@ -22,6 +22,8 @@ export const permissionLabels: Record<string, string> = {
   PRODUCTOS_EDITAR: "Crear y editar productos",
   INVENTARIO_VER: "Consultar inventario",
   INVENTARIO_EDITAR: "Registrar ajustes de inventario",
+  COMPRAS_RECIBIR:
+    "Verificar y recibir órdenes de compra (almacén / recepción)",
   COMPRAS_GESTIONAR: "Registrar y consultar compras",
   VENTAS_GESTIONAR: "Registrar y consultar ventas",
   VENTAS_ANULAR: "Anular ventas internas",

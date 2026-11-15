@@ -1,3 +1,4 @@
+import CajaPendiente from "./components/CajaPendiente";
 import AvisosEntradaSalida from "./components/AvisosEntradaSalida";
 import VisualSync from "./components/VisualSync";
 import VisualNegocio from "./components/VisualNegocio";
@@ -141,6 +142,19 @@ function Shell({
           ...(can(session, "SERVICIOS_VER") || can(session, "PRODUCTOS_VER")
             ? [["Catálogo común", "/atencion/catalogo"]]
             : []),
+          ...(can(session, "PRODUCTOS_VER")
+            ? [["Productos", "/atencion/productos"]]
+            : []),
+          ...(can(session, "INVENTARIO_VER")
+            ? [["Inventario", "/atencion/inventario"]]
+            : []),
+          ...(can(session, "COMPRAS_GESTIONAR") ||
+          can(session, "COMPRAS_RECIBIR")
+            ? [["Compras y recepción", "/atencion/compras"]]
+            : []),
+          ...(can(session, "COMPRAS_GESTIONAR")
+            ? [["Registrar compra", "/atencion/compra"]]
+            : []),
           ...(can(session, "CAJA_GESTIONAR")
             ? [["Caja y cierres", "/atencion/cajas"]]
             : []),
@@ -176,7 +190,11 @@ function Shell({
             (l[1] !== "/panel/preparaciones" ||
               config.data.preparacion_habilitada) &&
             (l[2] === "TODOS" ||
-              (l[2] === "ADMIN" ? admin : can(session, l[2]))),
+              (l[2] === "ADMIN"
+                ? admin
+                : can(session, l[2]) ||
+                  (l[1] === "/panel/ordenes-compra" &&
+                    can(session, "COMPRAS_RECIBIR")))),
         );
   const orderedLinks = superadmin
     ? links
@@ -206,6 +224,9 @@ function Shell({
       }
       data-nicho={atencion ? session.nichoTema || "OTRO" : "COMERCIO"}
     >
+      {!superadmin && !systemBusy && (
+        <CajaPendiente session={session} onLogout={() => void logout()} />
+      )}
       {!superadmin && (
         <ModalCoordinator
           session={session}
@@ -350,6 +371,31 @@ function Shell({
                     element={<CatalogoNegocio />}
                   />
                 )}
+                {can(session, "PRODUCTOS_VER") && (
+                  <Route path="/atencion/productos" element={<Productos />} />
+                )}
+                {can(session, "INVENTARIO_VER") && (
+                  <Route path="/atencion/inventario" element={<Inventario />} />
+                )}
+                {(can(session, "COMPRAS_GESTIONAR") ||
+                  can(session, "COMPRAS_RECIBIR")) && (
+                  <Route
+                    path="/atencion/compras"
+                    element={
+                      can(session, "COMPRAS_GESTIONAR") ? (
+                        <Compras />
+                      ) : (
+                        <OrdenesCompra />
+                      )
+                    }
+                  />
+                )}
+                {can(session, "COMPRAS_GESTIONAR") && (
+                  <Route
+                    path="/atencion/compra"
+                    element={<Operacion compra />}
+                  />
+                )}
                 {can(session, "CAJA_GESTIONAR") && (
                   <Route
                     path="/atencion/cajas"
@@ -430,7 +476,8 @@ function Shell({
                 {can(session, "RENDIMIENTO_VER") && (
                   <Route path="/panel/rendimiento" element={<Rendimiento />} />
                 )}
-                {can(session, "COMPRAS_GESTIONAR") && (
+                {(can(session, "COMPRAS_GESTIONAR") ||
+                  can(session, "COMPRAS_RECIBIR")) && (
                   <Route
                     path="/panel/ordenes-compra"
                     element={<OrdenesCompra />}

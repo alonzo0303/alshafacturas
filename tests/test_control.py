@@ -172,9 +172,9 @@ class ControlRegression(unittest.TestCase):
         self.assertEqual(status,200);self.assertEqual(content,pdf)
         self.assertIn('attachment',headers['Content-Disposition']);self.assertEqual(headers['X-Content-Type-Options'],'nosniff')
         self.assertEqual(self.b.raw(f"/documentos-compra/{doc['id']}")[0],404)
-        received=owner.ok(f"/ordenes-compra/{order['id']}/recibir",'POST',{})
+        received=owner.ok(f"/ordenes-compra/{order['id']}/recibir",'POST',{'documento':'GR-TEST','conforme':True})
         self.assertEqual(self.stock(p,owner),5)
-        self.assertEqual(owner.ok(f"/ordenes-compra/{order['id']}/recibir",'POST',{})['id'],received['id'])
+        self.assertEqual(owner.ok(f"/ordenes-compra/{order['id']}/recibir",'POST',{'documento':'GR-TEST','conforme':True})['id'],received['id'])
         self.assertEqual(self.stock(p,owner),5)
         self.assertEqual(owner.ok(f"/compras/{received['id']}/documentos")[0]['id'],doc['id'])
         self.assertEqual(owner.ok(f"/compras/{received['id']}")['lineas'][0]['nombre'],p['nombre'])
@@ -183,7 +183,7 @@ class ControlRegression(unittest.TestCase):
         owner.ok('/locales/seleccionar','POST',{'localId':local['id']})
         self.assertEqual(owner.request(f"/ordenes-compra/{order['id']}")[0],404)
         self.assertEqual(owner.raw(f"/documentos-compra/{doc['id']}")[0],404)
-        self.assertEqual(owner.request(f"/ordenes-compra/{order['id']}/recibir",'POST',{})[0],404)
+        self.assertEqual(owner.request(f"/ordenes-compra/{order['id']}/recibir",'POST',{'documento':'GR-TEST','conforme':True})[0],404)
 
     def test_common_services_themes_stock_alerts_and_csv(self):
         company,email,owner=self.company('Catálogo y tema')
@@ -224,10 +224,10 @@ class ControlRegression(unittest.TestCase):
         second=owner.ok(f"/pedidos/{order['id']}/cobrar",'POST',{'version':saved['version'],'tipo':'TICKET','metodoPago':'EFECTIVO'})
         self.assertNotEqual(first['id'],second['id']);self.assertEqual(self.stock(p,owner),6)
         purchase={'idempotencia':str(uuid.uuid4()),'proveedor':'Proveedor único','referencia':uuid.uuid4().hex,'lineas':[{'productoId':p['id'],'cantidad':2,'costo':5}]}
-        bought=owner.ok('/compras','POST',purchase)
+        bought=owner.purchase(purchase)
         oc=owner.ok('/ordenes-compra','POST',purchase)
-        self.assertEqual(owner.request(f"/ordenes-compra/{oc['id']}/recibir",'POST',{})[0],409)
-        self.assertEqual(owner.ok(f"/ordenes-compra/{oc['id']}")['estado'],'PENDIENTE')
+        self.assertEqual(owner.ok(f"/ordenes-compra/{oc['id']}/recibir",'POST',{'documento':'GR-TEST','conforme':True})['id'],bought['id'])
+        self.assertEqual(owner.ok(f"/ordenes-compra/{oc['id']}")['estado'],'RECIBIDA')
         self.assertEqual(self.stock(p,owner),8)
 
     def test_open_cash_blocks_deletion_and_closed_cut_preserves_actor(self):

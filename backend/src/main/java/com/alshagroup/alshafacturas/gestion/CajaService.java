@@ -20,6 +20,11 @@ public class CajaService {
   }
 
   public Long paraVenta(UsuarioPrincipal p) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
+    if (!pendientes(p).isEmpty())
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Cierra la caja de la jornada anterior antes de continuar");
     var rows =
         db.queryForList(
             "SELECT id FROM cajas WHERE empresa_id=? AND local_id=? AND usuario_original_id=? AND"
@@ -62,7 +67,114 @@ public class CajaService {
             empresa,
             local,
             id));
+    result.put(
+        "movimientos",
+        db.queryForList(
+            "SELECT * FROM caja_movimientos WHERE empresa_id=? AND local_id=? AND caja_id=? ORDER"
+                + " BY id",
+            empresa,
+            local,
+            id));
+    result.put("saldo_esperado", saldo(empresa, local, id, (BigDecimal) result.get("fondo")));
     return result;
+  }
+
+  public List<Map<String, Object>> pendientes(UsuarioPrincipal p) {
+    return db.queryForList(
+        "SELECT * FROM cajas WHERE empresa_id=? AND usuario_original_id=? AND estado='ABIERTA' AND"
+            + " (abierta AT TIME ZONE 'America/Lima')::date < (CURRENT_TIMESTAMP AT TIME ZONE"
+            + " 'America/Lima')::date ORDER BY abierta",
+        p.getEmpresaId(),
+        p.getId());
+  }
+
+  private BigDecimal ajustes(Long empresa, Long local, Long id) {
+    return db.queryForObject(
+        "SELECT COALESCE(sum(CASE WHEN tipo='INGRESO' THEN importe ELSE -importe END),0) FROM"
+            + " caja_movimientos WHERE empresa_id=? AND local_id=? AND caja_id=?",
+        BigDecimal.class,
+        empresa,
+        local,
+        id);
+  }
+
+  private BigDecimal saldo(Long empresa, Long local, Long id, BigDecimal fondo) {
+    return fondo
+        .add(
+            db.queryForObject(
+                "SELECT COALESCE(sum(total),0) FROM ventas WHERE empresa_id=? AND local_id=? AND"
+                    + " caja_id=? AND estado='CONFIRMADA' AND metodo_pago='EFECTIVO'",
+                BigDecimal.class,
+                empresa,
+                local,
+                id))
+        .add(ajustes(empresa, local, id));
+  }
+
+  @Transactional
+  public Map<String, Object> movimiento(
+      UsuarioPrincipal p,
+      Long empresa,
+      Long local,
+      Long id,
+      String tipo,
+      BigDecimal importe,
+      String motivo,
+      UUID clave) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    var rows =
+        db.queryForList(
+            "SELECT * FROM cajas WHERE empresa_id=? AND local_id=? AND id=? FOR UPDATE",
+            empresa,
+            local,
+            id);
+    if (rows.isEmpty())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Caja no encontrada");
+    var caja = rows.getFirst();
+    if (!Set.of("ADMIN", "SUPERADMIN").contains(p.getRol())
+        && !Objects.equals(p.getId(), caja.get("usuario_original_id")))
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Solo puedes registrar movimientos en tu caja");
+    String razon = normalizarComentario(motivo);
+    if (razon == null)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el motivo del movimiento");
+    var old =
+        db.queryForList(
+            "SELECT * FROM caja_movimientos WHERE empresa_id=? AND idempotencia=?", empresa, clave);
+    if (!old.isEmpty()) {
+      var m = old.getFirst();
+      if (!Objects.equals(m.get("caja_id"), id)
+          || !Objects.equals(m.get("tipo"), tipo)
+          || !Objects.equals(m.get("motivo"), razon)
+          || ((BigDecimal) m.get("importe")).compareTo(importe) != 0)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT, "La clave corresponde a otro movimiento");
+      return detalle(empresa, local, id);
+    }
+    if (!"ABIERTA".equals(caja.get("estado")))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "La caja está cerrada");
+    if (!pendientes(p).isEmpty())
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Cierra la caja anterior antes de registrar movimientos");
+    if ("EGRESO".equals(tipo)
+        && importe.compareTo(saldo(empresa, local, id, (BigDecimal) caja.get("fondo"))) > 0)
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "No hay efectivo suficiente en caja");
+    db.update(
+        "INSERT INTO"
+            + " caja_movimientos(empresa_id,local_id,caja_id,tipo,importe,motivo,usuario_original_id,usuario_nombre,idempotencia)"
+            + " VALUES (?,?,?,?,?,?,?,?,?)",
+        empresa,
+        local,
+        id,
+        tipo,
+        importe,
+        razon,
+        p.getId(),
+        p.getNombre(),
+        clave);
+    audit.registrar(
+        p, empresa, local, "CAJA_" + tipo, id, "Importe=" + importe + ", motivo registrado");
+    return detalle(empresa, local, id);
   }
 
   @Transactional
@@ -96,6 +208,16 @@ public class CajaService {
     db.queryForObject(
         "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, actor.getEmpresaId());
     long local = LocalesService.actual();
+    if (db.queryForObject(
+            "SELECT count(*) FROM cajas WHERE empresa_id=? AND usuario_original_id=? AND"
+                + " estado='ABIERTA' AND (abierta AT TIME ZONE 'America/Lima')::date <"
+                + " (CURRENT_TIMESTAMP AT TIME ZONE 'America/Lima')::date",
+            Long.class,
+            actor.getEmpresaId(),
+            responsable)
+        > 0)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Resuelve primero la caja de la jornada anterior");
     if (db.queryForObject(
             "SELECT count(*) FROM cajas WHERE empresa_id=? AND local_id=? AND usuario_original_id=?"
                 + " AND estado='ABIERTA'",
@@ -160,12 +282,15 @@ public class CajaService {
             empresa,
             local,
             id);
-    BigDecimal esperado = ((BigDecimal) caja.get("fondo")).add((BigDecimal) totals.get("efectivo"));
+    BigDecimal esperado =
+        ((BigDecimal) caja.get("fondo"))
+            .add((BigDecimal) totals.get("efectivo"))
+            .add(ajustes(empresa, local, id));
     String motivo = normalizarComentario(comentario);
-    if (contado.compareTo(esperado) < 0 && motivo == null)
+    if (contado.compareTo(esperado) != 0 && motivo == null)
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST,
-          "El efectivo contado es menor al esperado. Es obligatorio explicar el faltante en el"
+          "El efectivo contado difiere del esperado. Es obligatorio explicar el descuadre en el"
               + " comentario del cierre");
     db.update(
         "UPDATE cajas SET"

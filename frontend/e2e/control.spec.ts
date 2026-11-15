@@ -402,7 +402,7 @@ test("Comercio: preparación vinculada, cierre, CSV y orden con factura adjunta"
     .fill("4");
   await page.getByLabel("Proveedor", { exact: true }).fill("Proveedor UI");
   await page
-    .getByLabel("Referencia del documento de compra")
+    .getByLabel("Referencia (cotización o pedido del proveedor)")
     .fill("OC-" + randomUUID());
   await page
     .getByRole("button", { name: "Crear orden de compra", exact: true })
@@ -444,8 +444,20 @@ test("Comercio: preparación vinculada, cierre, CSV y orden con factura adjunta"
   await page
     .getByRole("button", { name: "Confirmar recepción", exact: true })
     .click();
+  const receipt = page.getByRole("dialog", {
+    name: "Verificar recepción de mercadería",
+    exact: true,
+  });
+  await receipt
+    .getByLabel("Guía de remisión o factura del proveedor")
+    .fill("GR-CONTROL");
+  await receipt.getByRole("checkbox").check();
+  await receipt
+    .getByRole("button", { name: "Aprobar ingreso al inventario" })
+    .click();
+  await expect(receipt).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Confirmar acción", exact: true })
+    .getByRole("button", { name: "Ver compra recibida", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: /^Detalle de compra #/ }),

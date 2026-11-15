@@ -296,10 +296,12 @@ export function Modal({
   title,
   children,
   onClose,
+  dismissible = true,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null),
     titleId = useId();
@@ -315,14 +317,16 @@ export function Modal({
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        if (dismissible) onClose();
       }}
     >
       <div className="section-toolbar">
         <h2 id={titleId}>{title}</h2>
-        <button type="button" onClick={onClose}>
-          Cerrar
-        </button>
+        {dismissible && (
+          <button type="button" onClick={onClose}>
+            Cerrar
+          </button>
+        )}
       </div>
       {children}
     </dialog>

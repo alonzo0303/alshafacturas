@@ -1,6 +1,7 @@
+import OrdenesCompra from "./OrdenesCompra";
 import { useSession } from "../lib/session";
 import { useData } from "../lib/useData";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, money, date, localDay, exportCsv, type Venta } from "../lib/api";
 import { ErrorNotice, Empty, PageTitle, Table, Badge } from "../components/ui";
 import DetalleCompra from "../components/DetalleCompra";
@@ -259,6 +260,10 @@ type Compra = {
   tipo_documento: string;
   proveedor_ruc?: string;
   credito_fiscal: boolean;
+  usuario_nombre?: string;
+  recibido_nombre?: string;
+  recibido_en?: string;
+  orden_numero?: string;
 };
 export function Compras() {
   const { data, loading, error, refresh } = useData(
@@ -266,26 +271,36 @@ export function Compras() {
     [],
   );
   const [detalle, setDetalle] = useState<number | null>(null);
+  useEffect(() => {
+    const updated = () => void refresh();
+    window.addEventListener("compras-updated", updated);
+    return () => window.removeEventListener("compras-updated", updated);
+  }, [refresh]);
   return (
     <>
       {detalle && (
         <DetalleCompra id={detalle} onClose={() => setDetalle(null)} />
       )}
       <PageTitle
-        title="Historial de compras"
-        description="Últimas 500 entradas de mercadería registradas."
+        title="Compras y recepción"
+        description="Pedidos pendientes y entradas confirmadas. El inventario aumenta después de verificar la recepción."
       />
       <ErrorNotice message={error} />
+      <OrdenesCompra pendientesOnly />
       <section className="surface">
         <div className="section-toolbar">
-          <h2>Compras registradas</h2>
+          <h2>Compras recibidas / Completadas</h2>
           <button onClick={() => void refresh()}>Actualizar</button>
           <button
             onClick={() =>
               exportCsv(
                 "compras.csv",
                 [
-                  "Fecha",
+                  "Fecha y hora (Perú)",
+                  "Registró",
+                  "Recibió",
+                  "Fecha de recepción",
+                  "Orden de compra",
                   "Proveedor",
                   "Referencia",
                   "Base PEN",
@@ -294,7 +309,13 @@ export function Compras() {
                   "Crédito fiscal potencial",
                 ],
                 data.map((c) => [
-                  c.fecha,
+                  date(c.fecha),
+                  c.usuario_nombre,
+                  c.recibido_nombre,
+                  c.recibido_en
+                    ? date(c.recibido_en)
+                    : "Sin recepción histórica",
+                  c.orden_numero,
                   c.proveedor,
                   c.referencia,
                   c.subtotal,
@@ -313,7 +334,9 @@ export function Compras() {
         ) : data.length ? (
           <Table
             headers={[
-              "Fecha",
+              "Registró / Fecha y hora (Perú)",
+              "Recibió / Fecha y hora (Perú)",
+              "OC",
               "Proveedor",
               "Documento",
               "Base",
@@ -325,7 +348,15 @@ export function Compras() {
           >
             {data.map((c) => (
               <tr key={c.id}>
-                <td>{date(c.fecha)}</td>
+                <td>
+                  {c.usuario_nombre || "Sin autor histórico"}
+                  <small>{date(c.fecha)}</small>
+                </td>
+                <td>
+                  {c.recibido_nombre || "Sin recepción histórica"}
+                  <small>{c.recibido_en && date(c.recibido_en)}</small>
+                </td>
+                <td>{c.orden_numero || "Anterior al flujo OC"}</td>
                 <td>
                   {c.proveedor}
                   <small>{c.proveedor_ruc}</small>

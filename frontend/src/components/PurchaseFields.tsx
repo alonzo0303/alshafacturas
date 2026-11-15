@@ -23,7 +23,7 @@ export default function PurchaseFields({
         <Field label="Proveedor">
           <input name="proveedor" maxLength={200} required disabled={busy} />
         </Field>
-        <Field label="Referencia del documento de compra">
+        <Field label="Referencia (cotización o pedido del proveedor)">
           <input name="referencia" maxLength={100} required disabled={busy} />
         </Field>
         <Field label="Tipo de documento de compra">

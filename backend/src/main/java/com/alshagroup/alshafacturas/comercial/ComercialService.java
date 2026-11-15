@@ -496,8 +496,12 @@ public class ComercialService {
     return db.queryForList(
         "SELECT * FROM compras WHERE local_id="
             + local()
-            + " AND empresa_id=? AND (? OR usuario_original_id=?) ORDER BY id DESC LIMIT 500",
-        AlcanceDatos.args(p, empresa));
+            + " AND empresa_id=? AND (? OR usuario_original_id=? OR recibido_por_original_id=?)"
+            + " ORDER BY id DESC LIMIT 500",
+        empresa,
+        AlcanceDatos.equipo(p),
+        p.getId(),
+        p.getId());
   }
 
   @Transactional

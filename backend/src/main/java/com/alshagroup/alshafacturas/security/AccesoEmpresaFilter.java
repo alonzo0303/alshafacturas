@@ -18,11 +18,15 @@ public class AccesoEmpresaFilter extends OncePerRequestFilter {
   private final com.alshagroup.alshafacturas.gestion.RolesService roles;
   private final com.alshagroup.alshafacturas.gestion.PlanesService planes;
 
+  private final com.alshagroup.alshafacturas.gestion.CajaService cajas;
+
   public AccesoEmpresaFilter(
       UsuarioRepository users,
       com.alshagroup.alshafacturas.gestion.LocalesService locales,
       com.alshagroup.alshafacturas.gestion.RolesService roles,
-      com.alshagroup.alshafacturas.gestion.PlanesService planes) {
+      com.alshagroup.alshafacturas.gestion.PlanesService planes,
+      com.alshagroup.alshafacturas.gestion.CajaService cajas) {
+    this.cajas = cajas;
     this.users = users;
     this.locales = locales;
     this.roles = roles;
@@ -111,6 +115,21 @@ public class AccesoEmpresaFilter extends OncePerRequestFilter {
           new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
               refreshed, null, refreshed.getAuthorities()));
       SecurityContextHolder.setContext(requestContext);
+      String path = req.getRequestURI();
+      if (!"SUPERADMIN".equals(refreshed.getRol())
+          && !java.util.Set.of("GET", "HEAD", "OPTIONS").contains(req.getMethod())
+          && !path.startsWith("/api/auth/")
+          && !path.matches("/api/cajas/[0-9]+/(cerrar|comentario)")
+          && !path.equals("/api/locales/seleccionar")
+          && !cajas.pendientes(refreshed).isEmpty()) {
+        res.setStatus(409);
+        res.setContentType("application/json;charset=UTF-8");
+        res.getWriter()
+            .write(
+                "{\"codigo\":\"CAJA_ANTERIOR_PENDIENTE\",\"mensaje\":\"Cierra la caja de la jornada"
+                    + " anterior antes de continuar\"}");
+        return;
+      }
     }
     chain.doFilter(req, res);
   }

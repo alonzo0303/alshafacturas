@@ -42,9 +42,10 @@ class HerenciaRegression(unittest.TestCase):
         self.assertTrue(all(m['usuario_original_id']==u['id'] for m in s.ok('/inventario')))
         self.assertNotIn('ultimo_costo',s.ok('/productos')[0])
         purchase={'proveedor':'Proveedor','referencia':'Ref','idempotencia':str(uuid.uuid4()),'lineas':[{'productoId':p['id'],'cantidad':2,'costo':5}]}
-        bought=other.ok('/compras','POST',purchase);self.assertEqual(s.ok('/compras'),[]);self.assertEqual(s.request(f"/compras/{bought['id']}")[0],404);self.assertEqual(s.request('/compras','POST',purchase)[0],404)
-        order=other.ok('/ordenes-compra','POST',{**purchase,'idempotencia':str(uuid.uuid4())});self.assertEqual(s.ok('/ordenes-compra'),[])
-        self.assertEqual(s.request(f"/ordenes-compra/{order['id']}/recibir",'POST',{})[0],404)
+        bought=other.purchase(purchase);self.assertEqual(s.ok('/compras'),[]);self.assertEqual(s.request(f"/compras/{bought['id']}")[0],404);self.assertEqual(s.request('/compras','POST',purchase)[0],404)
+        order=other.ok('/ordenes-compra','POST',{**purchase,'referencia':'Ref-2','idempotencia':str(uuid.uuid4())});self.assertIn(order['id'],[o['id'] for o in s.ok('/ordenes-compra')])
+        self.assertEqual(s.request(f"/ordenes-compra/{order['id']}/cancelar",'POST',{})[0],404)
+        self.assertEqual(s.request(f"/ordenes-compra/{order['id']}/recibir",'POST',{'documento':'GR-TEST','conforme':True})[0],200)
         pdf=b'%PDF-1.4\n%%EOF';status,raw,_=other.raw(f"/compras/{bought['id']}/documentos?nombre=f.pdf&clase=FACTURA",'PUT',pdf,'application/pdf');self.assertEqual(status,200);doc=json.loads(raw)
         self.assertEqual(s.raw(f"/documentos-compra/{doc['id']}")[0],404);self.assertEqual(a.raw(f"/documentos-compra/{doc['id']}")[0],200)
         self.assertEqual(s.ok('/tributacion/resumen')['igv_compras_registrado'],0)

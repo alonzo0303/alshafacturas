@@ -374,11 +374,15 @@ test("Cambiar de local confirma antes de alterar la sesión y preserva el borrad
     minimo: 1,
     activo: true,
   });
-  await write(f.owner, "/compras", {
+  const pendingPurchase = await write(f.owner, "/compras", {
     idempotencia: randomUUID(),
     proveedor: "Prueba",
     referencia: randomUUID(),
     lineas: [{ productoId: product.id, cantidad: 5, costo: 5 }],
+  });
+  await write(f.owner, `/ordenes-compra/${pendingPurchase.id}/recibir`, {
+    documento: "GR-PRUEBA",
+    conforme: true,
   });
   await page.context().addCookies((await f.owner.storageState()).cookies);
   await page.goto("/panel/pos");
