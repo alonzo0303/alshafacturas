@@ -1,0 +1,30 @@
+export type Caja = {
+  id: number;
+  local_id?: number;
+  saldo_esperado?: number;
+  movimientos?: {
+    id: number;
+    tipo: string;
+    importe: number;
+    motivo: string;
+    usuario_nombre: string;
+    fecha: string;
+  }[];
+  usuario_original_id: number;
+  usuario_nombre: string;
+  abierto_nombre?: string | null;
+  abierta: string;
+  cerrada: string | null;
+  estado: string;
+  fondo: number;
+  cerrado_nombre: string | null;
+  efectivo_esperado: number | null;
+  efectivo_contado: number | null;
+  diferencia: number | null;
+  total_ventas: number | null;
+  cantidad_ventas: number | null;
+  comentario_cierre?: string | null;
+  comentado_nombre?: string | null;
+  comentado_en?: string | null;
+  medios?: { metodo_pago: string; ventas: number; total: number }[];
+};

@@ -1,6 +1,7 @@
 package com.alshagroup.alshafacturas.gestion;
 
 import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import com.alshagroup.alshafacturas.visual.AlcanceDatos;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.*;
@@ -23,7 +24,7 @@ public class TributacionController {
   }
 
   @GetMapping("/configuracion")
-  @PreAuthorize("hasAuthority('PRODUCTOS_VER')")
+  @PreAuthorize("hasAuthority('PRODUCTOS_VER') or hasAuthority('SERVICIOS_EDITAR')")
   public Map<String, Object> config(@AuthenticationPrincipal UsuarioPrincipal p) {
     return db.queryForMap(
         "SELECT ruc,CASE WHEN ruc IS NULL THEN 'SIN_IGV' ELSE afectacion_default END AS"
@@ -78,18 +79,19 @@ public class TributacionController {
         db.queryForMap(
             "SELECT COALESCE(SUM(igv),0) AS igv_ventas_registrado,COALESCE(SUM(igv) FILTER(WHERE"
                 + " estado_fiscal='PRODUCCION_ACEPTADO'),0) AS igv_ventas_con_cdr FROM ventas WHERE"
-                + " empresa_id=? AND estado='CONFIRMADA' AND fecha>=? AND fecha<?",
-            p.getEmpresaId(),
-            start,
-            end));
+                + " local_id="
+                + LocalesService.actual()
+                + " AND empresa_id=? AND estado='CONFIRMADA' AND fecha>=? AND fecha<? AND (? OR"
+                + " usuario_original_id=?)",
+            AlcanceDatos.args(p, p.getEmpresaId(), start, end)));
     result.putAll(
         db.queryForMap(
             "SELECT COALESCE(SUM(igv),0) AS igv_compras_registrado,COALESCE(SUM(igv) FILTER(WHERE"
-                + " credito_fiscal),0) AS credito_fiscal_potencial FROM compras WHERE empresa_id=?"
-                + " AND fecha>=? AND fecha<?",
-            p.getEmpresaId(),
-            start,
-            end));
+                + " credito_fiscal),0) AS credito_fiscal_potencial FROM compras WHERE local_id="
+                + LocalesService.actual()
+                + " AND empresa_id=?"
+                + " AND fecha>=? AND fecha<? AND (? OR usuario_original_id=?)",
+            AlcanceDatos.args(p, p.getEmpresaId(), start, end)));
     return result;
   }
 }

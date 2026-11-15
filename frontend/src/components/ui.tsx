@@ -1,3 +1,4 @@
+import { useDirty } from "../lib/dirty";
 import {
   cloneElement,
   Children,
@@ -176,8 +177,18 @@ export function Table({
               value={Math.round(position.offset)}
               aria-valuetext={`${Math.round(position.max ? (position.offset / position.max) * 100 : 0)}% de desplazamiento`}
               onChange={(e) => {
-                if (scroll.current)
-                  scroll.current.scrollLeft = Number(e.target.value);
+                const element = scroll.current;
+                if (element) {
+                  element.scrollLeft = Number(e.target.value);
+                  setPosition((previous) => ({
+                    ...previous,
+                    offset: element.scrollLeft,
+                    start: element.scrollLeft < 1,
+                    end:
+                      element.scrollLeft + element.clientWidth >=
+                      element.scrollWidth - 1,
+                  }));
+                }
               }}
             />
           </label>
@@ -201,6 +212,13 @@ export function Badge({
     </span>
   );
 }
+const formSignature = (form: HTMLFormElement) =>
+  JSON.stringify(
+    [...new FormData(form).entries()].map(([k, v]) => [
+      k,
+      typeof v === "string" ? v : `${v.name}:${v.size}:${v.lastModified}`,
+    ]),
+  );
 export function Form({
   onSave,
   children,
@@ -217,6 +235,22 @@ export function Form({
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [success, setSuccess] = useState("");
+  const draft = useDirty(),
+    draftId = useId(),
+    formRef = useRef<HTMLFormElement>(null),
+    baseline = useRef("");
+
+  const mark = draft?.mark;
+  useEffect(() => {
+    if (formRef.current) baseline.current = formSignature(formRef.current);
+    return () => mark?.(draftId, false);
+  }, [mark, draftId]);
+  const changed = () =>
+    queueMicrotask(() => {
+      if (formRef.current)
+        mark?.(draftId, formSignature(formRef.current) !== baseline.current);
+    });
+
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (disabled || busy) return;
@@ -227,6 +261,8 @@ export function Form({
     try {
       await onSave(new FormData(form));
       form.reset();
+      baseline.current = formSignature(form);
+      mark?.(draftId, false);
       setSuccess("Guardado correctamente.");
       onDone?.();
     } catch (e) {
@@ -236,7 +272,14 @@ export function Form({
     }
   }
   return (
-    <form onSubmit={submit} className="form">
+    <form
+      ref={formRef}
+      onSubmit={submit}
+      onInputCapture={changed}
+      onChangeCapture={changed}
+      data-saving={busy}
+      className="form"
+    >
       <ErrorNotice message={error} />
       {children}
       <div className="form-actions">
@@ -253,10 +296,12 @@ export function Modal({
   title,
   children,
   onClose,
+  dismissible = true,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null),
     titleId = useId();
@@ -270,13 +315,18 @@ export function Modal({
       ref={ref}
       className="editor-dialog"
       aria-labelledby={titleId}
-      onCancel={onClose}
+      onCancel={(e) => {
+        e.preventDefault();
+        if (dismissible) onClose();
+      }}
     >
       <div className="section-toolbar">
         <h2 id={titleId}>{title}</h2>
-        <button type="button" onClick={onClose}>
-          Cerrar
-        </button>
+        {dismissible && (
+          <button type="button" onClick={onClose}>
+            Cerrar
+          </button>
+        )}
       </div>
       {children}
     </dialog>

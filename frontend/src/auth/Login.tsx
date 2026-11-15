@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { api, type Session } from "../lib/api";
+import { api, ApiError, type Session } from "../lib/api";
 import { Field, ErrorNotice } from "../components/ui";
 export default function Login({
   onLogin,
@@ -9,6 +9,10 @@ export default function Login({
   onLogin: (session: Session) => void;
   admin?: boolean;
 }) {
+  const [negocios, setNegocios] = useState<{ id: number; nombre: string }[]>(
+    [],
+  );
+  const [elegido, setElegido] = useState("");
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -23,16 +27,30 @@ export default function Login({
           "POST",
           {
             ruc: data.get("ruc") || null,
-            empresaId: data.get("empresaId")
-              ? Number(data.get("empresaId"))
-              : null,
+            empresaId: elegido
+              ? Number(elegido)
+              : data.get("empresaId")
+                ? Number(data.get("empresaId"))
+                : null,
             correo: data.get("correo"),
             password: data.get("password"),
           },
         ),
       );
     } catch (e) {
-      setError((e as Error).message);
+      if (!admin && e instanceof ApiError && e.status === 409) {
+        try {
+          setNegocios(
+            await api("/auth/negocios", "POST", {
+              correo: data.get("correo"),
+              password: data.get("password"),
+            }),
+          );
+          setError("Elige la tienda a la que deseas ingresar.");
+        } catch (error) {
+          setError((error as Error).message);
+        }
+      } else setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -63,6 +81,10 @@ export default function Login({
               type="email"
               required
               autoComplete="username"
+              onChange={() => {
+                setNegocios([]);
+                setElegido("");
+              }}
             />
           </Field>
           <Field label="Contraseña">
@@ -71,8 +93,28 @@ export default function Login({
               type="password"
               required
               autoComplete="current-password"
+              onChange={() => {
+                setNegocios([]);
+                setElegido("");
+              }}
             />
           </Field>
+          {negocios.length > 0 && (
+            <Field label="Tienda a la que deseas ingresar">
+              <select
+                required
+                value={elegido}
+                onChange={(e) => setElegido(e.target.value)}
+              >
+                <option value="">Selecciona una tienda</option>
+                {negocios.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    #{n.id} · {n.nombre}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           {!admin && (
             <details>
               <summary>¿Tu correo pertenece a varios negocios?</summary>

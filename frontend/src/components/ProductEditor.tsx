@@ -9,6 +9,8 @@ import { Field, ErrorNotice } from "./ui";
 import BarcodeScanner from "./BarcodeScanner";
 export type Plantilla = {
   id: number;
+  clase?: "PRODUCTO" | "SERVICIO";
+  duracion_minutos?: number;
   nombre: string;
   rubro: string;
   marca?: string;

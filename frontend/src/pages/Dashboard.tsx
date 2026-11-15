@@ -1,3 +1,5 @@
+import VisualNegocio from "../components/VisualNegocio";
+import { useSession, can } from "../lib/session";
 import { ConfigTributaria } from "./Tributacion";
 import { useData } from "../lib/useData";
 import { Link } from "react-router-dom";
@@ -18,6 +20,8 @@ type Resumen = {
   pendientes_fiscales: number;
 };
 export default function Dashboard() {
+  const session = useSession(),
+    admin = session.rol === "ADMIN";
   const { data, loading, error, refresh } = useData<{
     resumen: Resumen | null;
     productos: Producto[];
@@ -25,20 +29,28 @@ export default function Dashboard() {
   }>(
     async () => ({
       resumen: await api<Resumen>("/resumen"),
-      productos: await api<Producto[]>("/productos"),
-      ventas: await api<Venta[]>("/ventas"),
+      productos: can(session, "PRODUCTOS_VER")
+        ? await api<Producto[]>("/productos")
+        : [],
+      ventas: [],
     }),
     { resumen: null, productos: [], ventas: [] },
   );
   return (
     <>
       <PageTitle
-        title="Resumen del negocio"
-        description="Ventas e inventario de tu empresa, con datos actualizados."
+        title={admin ? "Resumen del negocio" : "Resumen de mis operaciones"}
+        description={
+          admin
+            ? "Ventas e inventario de tu empresa, con datos actualizados."
+            : "Solo se muestran tus propias ventas. Las existencias son una referencia compartida del local."
+        }
       >
-        <Link className="button primary" to="/panel/pos">
-          Nueva venta
-        </Link>
+        {can(session, "VENTAS_GESTIONAR") && (
+          <Link className="button primary" to="/panel/pos">
+            Nueva venta
+          </Link>
+        )}
       </PageTitle>
       <ErrorNotice message={error} />
       {loading ? (
@@ -68,20 +80,22 @@ export default function Dashboard() {
                   value: money(data.resumen.valor_inventario),
                   detail: "A precio de venta",
                 },
-              ].map((m) => (
-                <article
-                  key={m.label}
-                  className={
-                    m.label === "Stock bajo" && data.resumen!.stock_bajo > 0
-                      ? "metric-alert"
-                      : undefined
-                  }
-                >
-                  <p>{m.label}</p>
-                  <strong>{m.value}</strong>
-                  <small>{m.detail}</small>
-                </article>
-              ))}
+              ]
+                .filter((m) => admin || m.label === "Ventas confirmadas")
+                .map((m) => (
+                  <article
+                    key={m.label}
+                    className={
+                      m.label === "Stock bajo" && data.resumen!.stock_bajo > 0
+                        ? "metric-alert"
+                        : undefined
+                    }
+                  >
+                    <p>{m.label}</p>
+                    <strong>{m.value}</strong>
+                    <small>{m.detail}</small>
+                  </article>
+                ))}
             </section>
             {data.resumen.pendientes_fiscales > 0 && (
               <div className="notice">
@@ -90,34 +104,38 @@ export default function Dashboard() {
                 <Link to="/panel/facturacion">Revisar facturación</Link>
               </div>
             )}
-            <section className="surface">
-              <div className="section-toolbar">
-                <h2>Productos por reponer</h2>
-                <Link to="/panel/compra">Registrar compra</Link>
-                <button onClick={() => void refresh()}>Actualizar</button>
-              </div>
-              {data.productos.some((p) => p.activo && p.stock <= p.minimo) ? (
-                <Table headers={["Código", "Producto", "Stock", "Mínimo"]}>
-                  {data.productos
-                    .filter((p) => p.activo && p.stock <= p.minimo)
-                    .slice(0, 20)
-                    .map((p) => (
-                      <tr key={p.id}>
-                        <td className="mono">{p.sku}</td>
-                        <td>{p.nombre}</td>
-                        <td className="number">
-                          <span className="stock-alert">
-                            {p.stock} · Stock bajo
-                          </span>
-                        </td>
-                        <td className="number">{p.minimo}</td>
-                      </tr>
-                    ))}
-                </Table>
-              ) : (
-                <Empty>No hay productos por debajo del stock mínimo.</Empty>
-              )}
-            </section>
+            {can(session, "PRODUCTOS_VER") && (
+              <section className="surface">
+                <div className="section-toolbar">
+                  <h2>Productos por reponer</h2>
+                  {can(session, "COMPRAS_GESTIONAR") && (
+                    <Link to="/panel/compra">Registrar compra</Link>
+                  )}
+                  <button onClick={() => void refresh()}>Actualizar</button>
+                </div>
+                {data.productos.some((p) => p.activo && p.stock <= p.minimo) ? (
+                  <Table headers={["Código", "Producto", "Stock", "Mínimo"]}>
+                    {data.productos
+                      .filter((p) => p.activo && p.stock <= p.minimo)
+                      .slice(0, 20)
+                      .map((p) => (
+                        <tr key={p.id}>
+                          <td className="mono">{p.sku}</td>
+                          <td>{p.nombre}</td>
+                          <td className="number">
+                            <span className="stock-alert">
+                              {p.stock} · Stock bajo
+                            </span>
+                          </td>
+                          <td className="number">{p.minimo}</td>
+                        </tr>
+                      ))}
+                  </Table>
+                ) : (
+                  <Empty>No hay productos por debajo del stock mínimo.</Empty>
+                )}
+              </section>
+            )}
           </>
         )
       )}
@@ -125,6 +143,7 @@ export default function Dashboard() {
   );
 }
 export function Configuracion() {
+  const session = useSession();
   const { data, error, loading, refresh } = useData(
     () => api<Empresa>("/empresas/mi-empresa"),
     null,
@@ -164,7 +183,10 @@ export function Configuracion() {
         )}
         <button onClick={() => void refresh()}>Actualizar</button>
       </section>
-      <ConfigTributaria />
+      <VisualNegocio />
+      {(can(session, "PRODUCTOS_VER") || can(session, "SERVICIOS_EDITAR")) && (
+        <ConfigTributaria />
+      )}
       <section className="surface">
         <h2>Operación comercial</h2>
         <p>

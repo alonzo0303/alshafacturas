@@ -1,0 +1,58 @@
+# Usar herramientas/entornos.py: fija proyecto, credenciales y almacenamiento por entorno.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: alsha_bootstrap
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?Falta contraseña del administrador de PostgreSQL}
+      ALSHA_DB_NAME: ${ALSHA_DATABASE:?Falta base de datos del entorno}
+      ALSHA_DB_USER: ${DB_USER:?Falta usuario de aplicación}
+      ALSHA_DB_PASSWORD: ${DB_PASSWORD:?Falta contraseña de aplicación}
+    ports:
+      - "127.0.0.1:${DB_PORT:?Falta puerto}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/01-aplicacion.sh:/docker-entrypoint-initdb.d/01-aplicacion.sh:ro
+    networks: [datos]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U alsha_bootstrap -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  backend:
+    build: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: ${ALSHA_ENV:?Falta entorno}
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://db:5432/${ALSHA_DATABASE}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      APP_BOOTSTRAP_SUPERADMIN_ENABLED: ${APP_BOOTSTRAP_SUPERADMIN_ENABLED:-false}
+      SUPERADMIN_CORREO: ${SUPERADMIN_CORREO:-}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
+      TEST_CARGA_HABILITADA: ${TEST_CARGA_HABILITADA:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      SUNAT_CONFIG_DIR: /run/secrets/sunat
+    volumes:
+      - "${SUNAT_SECRETS_DIR:?Falta carpeta de secretos}:/run/secrets/sunat:ro"
+    networks: [default, datos]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:?Falta puerto web}:8080"
+    networks: [default]
+    depends_on: [backend]
+    restart: unless-stopped
+networks:
+  datos:
+    driver: bridge
+volumes:
+  postgres_data:

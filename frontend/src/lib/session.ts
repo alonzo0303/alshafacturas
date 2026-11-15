@@ -7,14 +7,23 @@ export function useSession() {
   return session;
 }
 export function can(session: Session, permission: string) {
-  return session.rol === "ADMIN" || session.permisos?.includes(permission);
+  return session.permisos?.includes(permission) ?? false;
 }
 export const permissionLabels: Record<string, string> = {
+  ACTIVIDADES_GESTIONAR: "Registrar mis actividades y etapas",
+  MESAS_GESTIONAR: "Gestionar mesas y pedidos",
+  PREPARACION_GESTIONAR: "Preparar pedidos antes del cobro",
+  CAJA_GESTIONAR: "Abrir y cerrar mi caja",
+  RENDIMIENTO_VER: "Consultar rendimiento",
+  SERVICIOS_VER: "Consultar servicios",
+  SERVICIOS_EDITAR: "Crear y editar servicios",
   RESUMEN_VER: "Ver resumen del negocio",
   PRODUCTOS_VER: "Consultar productos y catálogo",
   PRODUCTOS_EDITAR: "Crear y editar productos",
   INVENTARIO_VER: "Consultar inventario",
   INVENTARIO_EDITAR: "Registrar ajustes de inventario",
+  COMPRAS_RECIBIR:
+    "Verificar y recibir órdenes de compra (almacén / recepción)",
   COMPRAS_GESTIONAR: "Registrar y consultar compras",
   VENTAS_GESTIONAR: "Registrar y consultar ventas",
   VENTAS_ANULAR: "Anular ventas internas",
