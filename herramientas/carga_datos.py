@@ -40,7 +40,8 @@ def preparar(url, env_file, output, negocios, usuarios):
             try:
                 owner.login({'empresaId': company['id'], 'correo': email, 'password': password})
                 product = owner.request('/productos', 'POST', {'sku': 'CARGA-'+run, 'nombre': 'Producto ficticio de carga', 'precio': 10, 'minimo': 5, 'activo': True})
-                owner.request('/compras', 'POST', {'idempotencia': str(uuid.uuid4()), 'proveedor': 'Proveedor ficticio', 'referencia': run, 'lineas': [{'productoId': product['id'], 'cantidad': 100000, 'costo': 5}]})
+                order = owner.request('/compras', 'POST', {'idempotencia': str(uuid.uuid4()), 'proveedor': 'Proveedor ficticio', 'referencia': run, 'lineas': [{'productoId': product['id'], 'cantidad': 100000, 'costo': 5}]})
+                owner.request(f"/ordenes-compra/{order['id']}/recibir", 'POST', {'documento': 'GR-SIMULADA-'+run, 'conforme': True})
                 count = usuarios // negocios + (index < usuarios % negocios)
                 for n in range(count):
                     correo = f'vendedor-{run}-{index}-{n}@carga.test'
