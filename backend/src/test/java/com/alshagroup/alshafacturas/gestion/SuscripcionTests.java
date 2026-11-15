@@ -73,7 +73,7 @@ class SuscripcionTests {
         n[1],
         new PlanesService.PagoRequest(
             "INICIO",
-            new BigDecimal("35"),
+            new BigDecimal("30"),
             LocalDate.parse(desde),
             LocalDate.parse(hasta),
             UUID.randomUUID().toString(),
@@ -138,7 +138,7 @@ class SuscripcionTests {
     var estado = planes.estado(n[0]);
     assertEquals("PROGRAMADO", estado.get("estadoSuscripcion"));
     assertEquals("INICIO", estado.get("plan"));
-    assertEquals(2, estado.get("limiteEmpleados"));
+    assertEquals(1, estado.get("limiteEmpleados"));
     assertEquals(false, estado.get("vigente"));
     assertNotNull(estado.get("pagoReferencia"));
     assertNull(estado.get("pagoActual"));

@@ -4,7 +4,7 @@
 
 En **SUPERADMIN → Personal y accesos**, selecciona la empresa. Puedes buscar personal, cambiar correo/contraseña, rol, desactivar con confirmación y reactivar. El cambio de acceso invalida sesiones anteriores; no reactiva una cuenta desactivada. No se muestran contraseñas almacenadas.
 
-Las nuevas desactivaciones reservan licencia durante **15 días exactos**. Reactivar dentro de ese plazo usa la misma reserva. Tras el vencimiento la cuenta sigue guardada, con la reserva liberada. Nunca se elimina automáticamente. Las cuentas desactivadas antes de V12 conservan su estado y no reciben reservas retroactivas. Los planes siguen en S/35 (principal + 2), S/50 (principal + 3), S/70 (sin límite de empleados).
+Las nuevas desactivaciones reservan licencia durante **15 días exactos**. Reactivar dentro de ese plazo usa la misma reserva. Tras el vencimiento la cuenta sigue guardada, con la reserva liberada. Nunca se elimina automáticamente. Las cuentas desactivadas antes de V12 conservan su estado y no reciben reservas retroactivas. Los planes siguen en S/30 (principal + 1), S/45 (principal + 2), S/60 (sin límite de empleados).
 
 Eliminar requiere cuenta inactiva, confirmación y marcar la advertencia de eliminación permanente. Libera inmediatamente la reserva y conserva la atribución histórica de ventas, compras y cierres. Una caja abierta bloquea la eliminación: primero debe cerrarse. No elimina productos ni operaciones de la empresa. El administrador principal debe transferirse a otro ADMIN activo antes de eliminarlo o cambiar su rol; las acciones quedan en Auditoría.
 

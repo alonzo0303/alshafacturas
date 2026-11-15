@@ -14,7 +14,7 @@ class SubscriptionRegression(unittest.TestCase):
         e=self.platform.ok('/empresas/alta','POST',{'razonSocial':'Rubro '+uuid.uuid4().hex,'rubroNegocio':rubro,'administradorNombre':'Principal de rubro','administradorCorreo':email,'administradorPassword':PASSWORD})
         c=Client();c.ok('/auth/login','POST',{'empresaId':e['id'],'correo':email,'password':PASSWORD});return e,email,c
     def pay(self,e,desde,hasta):
-        return self.platform.ok(f"/empresas/{e['id']}/pagos",'POST',{'plan':'INICIO','importe':35,'desde':str(desde),'hasta':str(hasta),'referencia':uuid.uuid4().hex,'confirmado':True})
+        return self.platform.ok(f"/empresas/{e['id']}/pagos",'POST',{'plan':'INICIO','importe':30,'desde':str(desde),'hasta':str(hasta),'referencia':uuid.uuid4().hex,'confirmado':True})
     def test_company_rubro_auto_enables_seed_services_and_keeps_own_copy(self):
         e,email,c=self.new_rubro('Barbería')
         templates=c.ok('/catalogo-comun');self.assertGreaterEqual(len(templates),2);self.assertEqual({r['rubro'] for r in templates},{'Barbería'})
@@ -45,7 +45,7 @@ class SubscriptionRegression(unittest.TestCase):
         e,email,c=self.company('Plan programado',paid=False)
         today=date.fromisoformat(self.platform.ok(f"/empresas/{e['id']}/plan")['fechaActual'])
         tomorrow=today+timedelta(days=1);state=self.pay(e,tomorrow,tomorrow)
-        self.assertEqual((state['plan'],state['estadoSuscripcion'],state['limiteEmpleados']),('INICIO','PROGRAMADO',2));self.assertFalse(state['vigente']);self.assertEqual(state['pagoReferencia']['importe'],35);self.assertEqual(state['pagoReferencia']['hasta'],str(tomorrow))
+        self.assertEqual((state['plan'],state['estadoSuscripcion'],state['limiteEmpleados']),('INICIO','PROGRAMADO',1));self.assertFalse(state['vigente']);self.assertEqual(state['pagoReferencia']['importe'],30);self.assertEqual(state['pagoReferencia']['hasta'],str(tomorrow))
         self.assertEqual(c.request('/productos')[0],402)
         fresh=Client();status,body=fresh.request('/auth/login','POST',{'empresaId':e['id'],'correo':email,'password':PASSWORD});self.assertEqual(status,402);self.assertEqual(body['codigo'],'MEMBRESIA_PROGRAMADA')
     def test_expired_owner_session_and_login_block_then_renew_restore_without_data_loss(self):
@@ -55,7 +55,7 @@ class SubscriptionRegression(unittest.TestCase):
         status,body=c.request('/productos');self.assertEqual(status,402);self.assertEqual(body['codigo'],'MEMBRESIA_VENCIDA');self.assertIn('Tu membresía ha vencido.',body['mensaje']);self.assertEqual(c.request('/productos')[0],401)
         wrong=Client();status,body=wrong.request('/auth/login','POST',{'empresaId':e['id'],'correo':email,'password':'incorrecta'});self.assertEqual(status,401);self.assertNotIn('instruccionesPago',body)
         good=Client();self.assertEqual(good.request('/auth/login','POST',{'empresaId':e['id'],'correo':email,'password':PASSWORD})[0],402)
-        state=self.pay(e,today,today+timedelta(days=30));self.assertEqual(state['estadoSuscripcion'],'ACTIVO');self.assertEqual(state['pagoActual']['importe'],35)
+        state=self.pay(e,today,today+timedelta(days=30));self.assertEqual(state['estadoSuscripcion'],'ACTIVO');self.assertEqual(state['pagoActual']['importe'],30)
         restored=Client();restored.ok('/auth/login','POST',{'empresaId':e['id'],'correo':email,'password':PASSWORD});self.assertIn(p['id'],[r['id'] for r in restored.ok('/productos')])
     def test_daily_review_idempotency_notices_and_tenant_scope(self):
         e,email,c=self.company('Avisos de cobro',paid=False);other,_,b=self.company('Otro aviso')

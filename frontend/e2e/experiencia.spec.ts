@@ -40,7 +40,7 @@ async function setup() {
   });
   await write(root, `/empresas/${company.id}/pagos`, {
     plan: "INICIO",
-    importe: 35,
+    importe: 30,
     desde: "2026-01-01",
     hasta: "2099-12-31",
     referencia: randomUUID(),

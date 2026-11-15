@@ -5,6 +5,18 @@ import { api, money, date, localDay, exportCsv, type Venta } from "../lib/api";
 import { ErrorNotice, Empty, PageTitle, Table, Badge } from "../components/ui";
 import DetalleCompra from "../components/DetalleCompra";
 import Recibo from "./Recibo";
+const saleDate = (value: string) =>
+  new Intl.DateTimeFormat("es-PE", {
+    dateStyle: "short",
+    timeZone: "America/Lima",
+  }).format(new Date(value));
+const saleTime = (value: string) =>
+  new Intl.DateTimeFormat("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "America/Lima",
+  }).format(new Date(value));
 export function Ventas({
   admin,
   fiscal = false,
@@ -28,7 +40,7 @@ export function Ventas({
   const filtered = data.filter(
     (v) =>
       (!fiscal || v.tipo !== "TICKET") &&
-      `${v.numero} ${v.cliente || ""}`
+      `${v.numero} ${v.cliente || ""} ${v.usuario_nombre || ""}`
         .toLowerCase()
         .includes(search.toLowerCase()) &&
       (!from || localDay(v.fecha) >= from) &&
@@ -85,10 +97,21 @@ export function Ventas({
           onClick={() =>
             exportCsv(
               "ventas.csv",
-              ["Número", "Fecha", "Cliente", "Tipo", "Estado", "Total PEN"],
+              [
+                "Número",
+                "Fecha (Perú)",
+                "Hora (Perú)",
+                "Vendido / cobrado por",
+                "Cliente",
+                "Tipo",
+                "Estado",
+                "Total PEN",
+              ],
               filtered.map((v) => [
                 v.numero,
-                v.fecha,
+                saleDate(v.fecha),
+                saleTime(v.fecha),
+                v.usuario_nombre || "Sin autor registrado",
                 v.cliente,
                 v.tipo,
                 v.estado,
@@ -113,7 +136,7 @@ export function Ventas({
         <div className="section-toolbar">
           <input
             aria-label="Buscar ventas"
-            placeholder="Número o cliente"
+            placeholder="Número, cliente o personal"
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -143,7 +166,8 @@ export function Ventas({
         ) : filtered.length ? (
           <Table
             headers={[
-              "Número / Fecha",
+              "Número / Fecha y hora (Perú)",
+              "Vendido / cobrado por",
               "Cliente",
               "Documento",
               "Estado",
@@ -156,8 +180,13 @@ export function Ventas({
               <tr key={v.id}>
                 <td>
                   <strong className="mono">{v.numero}</strong>
-                  <small>{date(v.fecha)}</small>
+                  <small>
+                    <time dateTime={v.fecha}>
+                      {saleDate(v.fecha)} · {saleTime(v.fecha)}
+                    </time>
+                  </small>
                 </td>
+                <td>{v.usuario_nombre || "Sin autor registrado"}</td>
                 <td>{v.cliente || "Venta al público"}</td>
                 <td>
                   {v.tipo}

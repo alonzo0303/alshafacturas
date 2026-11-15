@@ -6,9 +6,9 @@ SUPERADMIN dispone de **Pagos y planes**. Selecciona el negocio, el plan, las fe
 
 | Importe por período registrado | Cuentas incluidas |
 | --- | --- |
-| S/35 | Administrador principal + 2 empleados |
-| S/50 | Administrador principal + 3 empleados |
-| S/70 | Administrador principal + empleados ilimitados |
+| S/30 | Administrador principal + 1 usuario |
+| S/45 | Administrador principal + 2 usuarios |
+| S/60 | Administrador principal + empleados ilimitados |
 
 Todas las cuentas activas adicionales ocupan un cupo, incluso otros administradores. El administrador principal es el primer administrador registrado; el administrador del negocio no puede desactivar su cuenta ni cambiar su rol. SUPERADMIN puede desactivarla y transferir la titularidad a otro ADMIN activo antes de cambiar su rol o eliminarla. Crear o reactivar personal comprueba los cupos en el servidor, con bloqueo de empresa para evitar superar el límite mediante solicitudes simultáneas. Los períodos de pagos no pueden superponerse. Las nuevas desactivaciones reservan su cupo durante 15 días; la reactivación durante ese plazo recupera el mismo cupo. La eliminación permanente confirmada por SUPERADMIN libera el cupo antes. Después de 15 días vence la reserva, pero la cuenta permanece desactivada hasta su eliminación manual. Las cuentas inactivas anteriores a esta actualización no reciben una reserva retroactiva. Para bajar de plan, deben caber tanto cuentas activas como reservas vigentes.
 
@@ -39,3 +39,9 @@ Las compras distinguen costo con o sin IGV y documento interno, factura o boleta
 Se puede buscar por código de barras o SKU, usar un lector USB/Bluetooth que escriba y pulse Enter, escanear con cámara o elegir una foto. El procesamiento de imágenes ocurre en el dispositivo. La cámara en vivo requiere HTTPS o localhost y permiso del navegador. Al abrir desde otro teléfono por una IP HTTP, usa HTTPS o la alternativa de foto/lector. Un código desconocido permite crear la mercancía en Compras; no se consulta una base externa de productos por código.
 
 El diseño se comprueba en navegador con anchos de 320, 768, 1024 y 1440 px; las tablas anchas tienen desplazamiento interno. La cámara y el lector físicos necesitan una comprobación en los equipos que se usarán. El stock en o bajo el mínimo se señala en rojo y con texto, y los encabezados numéricos se alinean con sus valores.
+
+Desde V17 las tarifas para pagos nuevos son S/30 (jefe + 1 usuario), S/45 (jefe + 2 usuarios) y S/60 (jefe + usuarios adicionales ilimitados). Los cupos se aplican a toda la empresa, incluidos todos sus locales y las reservas de 15 días. Un administrador adicional también ocupa cupo; solo se excluye al administrador principal.
+
+Cada pago guarda su propio límite de usuarios adicionales. Los pagos anteriores conservan importe, fechas y cupos contratados hasta su vencimiento; renovar aplica la tarifa nueva y valida que los cupos ocupados caben en ella. No se eliminan cuentas ni se modifican importes históricos. El panel avisa cuando muestra condiciones anteriores.
+
+En Ventas y reportes se muestra «Vendido / cobrado por» con el nombre histórico de la cuenta que registró la operación, incluso si luego se cambia su nombre o se elimina. Fecha y hora se muestran en la zona America/Lima, con segundos. El CSV incluye autor, fecha y hora separadas, y la búsqueda permite personal además de número y cliente. Las operaciones antiguas sin autor guardado muestran «Sin autor registrado»; no se atribuyen a otra cuenta. El autor del cobro no identifica por sí solo al ejecutor de una actividad o servicio; estos mantienen sus registros específicos de rendimiento. Se conservan los filtros de datos propios del personal.

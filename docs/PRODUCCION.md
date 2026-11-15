@@ -16,7 +16,7 @@ Usa el perfil `produccion` y su base `alshafacturas_produccion`, independientes 
 - Secretos propios, copias de seguridad cifradas y prueba de restauración de PostgreSQL. Conservar el volumen al recrear contenedores. Revisar rotación, retención, monitorización y alertas.
 - Servicio de correo y recuperación autónoma antes de invitar usuarios externos. SUPERADMIN ya puede restablecer contraseñas y existe un límite de acceso por cuenta/IP en cada instancia. Para varias instancias o un proxy compartido, añadir límite distribuido en la entrada y configurar el origen confiable; definir MFA.
 - Aceptación de negocio: régimen tributario, catálogo, saldos iniciales, inventario por unidades y reglas de IGV 18%. Revisar roles y permisos con cada empresa.
-- Los planes S/35, S/50 y S/70 y sus períodos/cupos se registran manualmente. La pasarela de cobro y los webhooks verificados están pendientes.
+- Los planes S/30, S/45 y S/60 y sus períodos/cupos se registran manualmente. La pasarela de cobro y los webhooks verificados están pendientes.
 - Confirmar políticas de privacidad, condiciones de servicio, soporte, auditoría y responsable de operación.
 
 ## Diseño técnico actual

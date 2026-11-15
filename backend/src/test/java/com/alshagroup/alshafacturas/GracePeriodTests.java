@@ -32,8 +32,8 @@ class GracePeriodTests {
     db.update("UPDATE empresas SET administrador_principal_id=? WHERE id=?", owner, empresa);
     db.update(
         "INSERT INTO"
-            + " pagos_suscripcion(empresa_id,plan,importe,desde,hasta,referencia,registrado_por)"
-            + " VALUES (?,'INICIO',35,CURRENT_DATE-1,CURRENT_DATE+30,'prueba de gracia',?)",
+            + " pagos_suscripcion(empresa_id,plan,importe,desde,hasta,referencia,registrado_por,limite_empleados)"
+            + " VALUES (?,'INICIO',35,CURRENT_DATE-1,CURRENT_DATE+30,'prueba de gracia',?,2)",
         empresa,
         owner);
     Long inactive =

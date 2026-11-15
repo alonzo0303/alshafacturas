@@ -54,7 +54,7 @@ async function pay(
 ) {
   return write(f.root, `/empresas/${f.company.id}/pagos`, {
     plan: "INICIO",
-    importe: 35,
+    importe: 30,
     desde: from,
     hasta: to,
     referencia: randomUUID(),
@@ -176,9 +176,9 @@ test("Plan futuro muestra importe, fecha y estado programado en el panel", async
     .locator(".plan-summary")
     .filter({ hasText: "Plan asignado" });
   await expect(summary).toContainText("Programado");
-  await expect(summary).toContainText("S/ 35.00");
+  await expect(summary).toContainText("S/ 30.00");
   await expect(summary).toContainText(tomorrow.split("-").reverse().join("/"));
-  await expect(summary).toContainText("0 / 2");
+  await expect(summary).toContainText("0 / 1");
   await expect(
     page.getByText(
       "El pago está registrado, pero su vigencia aún no empieza.",

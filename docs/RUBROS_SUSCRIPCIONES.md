@@ -10,14 +10,14 @@ V14 incluye plantillas base de Corte de cabello/Afeitado, Masaje relajante/Limpi
 
 ## Entender planes y pagos
 
-En **Pagos y planes**, el resumen global distingue planes activos, programados y vencidos. Para cada negocio se muestran plan, importe, estado, período y vencimiento, además de cupos ocupados/límite. Los cupos no son un contador de planes. Los precios siguen en S/35, S/50 y S/70.
+En **Pagos y planes**, el resumen global distingue planes activos, programados y vencidos. Para cada negocio se muestran plan, importe, estado, período y vencimiento, además de cupos ocupados/límite. Los cupos no son un contador de planes. Los precios siguen en S/30, S/45 y S/60.
 
 - **Activo:** la fecha de Perú está dentro del período confirmado, incluyendo el primer y último día.
 - **Programado:** el primer contrato empieza en una fecha futura; no se cuenta como activo.
 - **Vencido:** terminó un período y hoy no hay otro vigente, incluso si existe una renovación que comienza más adelante.
 - **Sin plan registrado:** no hay pagos confirmados. El administrador principal conserva el alta/configuración inicial; el personal requiere pago vigente. V14 no inventa contratos ni vencimientos para negocios nunca contratados.
 
-Seleccionar S/35 en el formulario no registra el pago. Debes completar referencia, inicio, fin y confirmación de recepción. Un pago del 13/11/2026 al 13/11/2026 solo cubre ese día; el 12/11 está programado. No se amplía automáticamente a un mes ni se corrigen contratos históricos suponiendo fechas. Los períodos no pueden superponerse y las fechas de calendario se devuelven como AAAA-MM-DD, sin convertirlas a medianoche UTC.
+Seleccionar S/30 en el formulario no registra el pago. Debes completar referencia, inicio, fin y confirmación de recepción. Un pago del 13/11/2026 al 13/11/2026 solo cubre ese día; el 12/11 está programado. No se amplía automáticamente a un mes ni se corrigen contratos históricos suponiendo fechas. Los períodos no pueden superponerse y las fechas de calendario se devuelven como AAAA-MM-DD, sin convertirlas a medianoche UTC.
 
 ## Recordatorios y pago
 

@@ -27,9 +27,10 @@ public class PlanesService {
 
   public static final List<Plan> PLANES =
       List.of(
-          new Plan("INICIO", "Administrador + 2 empleados", 2, new BigDecimal("35")),
-          new Plan("EQUIPO", "Administrador + 3 empleados", 3, new BigDecimal("50")),
-          new Plan("ILIMITADO", "Administrador + empleados ilimitados", -1, new BigDecimal("70")));
+          new Plan("INICIO", "Jefe del negocio + 1 usuario", 1, new BigDecimal("30")),
+          new Plan("EQUIPO", "Jefe del negocio + 2 usuarios", 2, new BigDecimal("45")),
+          new Plan(
+              "ILIMITADO", "Jefe del negocio + usuarios ilimitados", -1, new BigDecimal("60")));
 
   public record PagoRequest(
       @NotBlank String plan,
@@ -141,6 +142,10 @@ public class PlanesService {
     return rows.isEmpty() ? null : rows.getFirst();
   }
 
+  private int limite(Map<String, Object> pago) {
+    return ((Number) pago.get("limite_empleados")).intValue();
+  }
+
   private Plan plan(String codigo) {
     return PLANES.stream()
         .filter(p -> p.codigo().equals(codigo))
@@ -192,15 +197,13 @@ public class PlanesService {
     result.put("instruccionesPago", instrucciones());
     result.put("bloqueado", pago == null && referencia != null);
     result.put("plan", referencia == null ? "SIN_PLAN" : referencia.get("plan"));
-    result.put(
-        "limiteEmpleados",
-        referencia == null ? 0 : plan(referencia.get("plan").toString()).empleados());
+    result.put("limiteEmpleados", referencia == null ? 0 : limite(referencia));
     result.put("pagoActual", pago);
     result.put(
         "historial",
         pagos(
-            "SELECT id,plan,importe,desde,hasta,referencia,creado FROM pagos_suscripcion WHERE"
-                + " empresa_id=? ORDER BY id DESC LIMIT 100",
+            "SELECT id,plan,importe,limite_empleados,desde,hasta,referencia,creado FROM"
+                + " pagos_suscripcion WHERE empresa_id=? ORDER BY id DESC LIMIT 100",
             empresa));
     return result;
   }
@@ -209,8 +212,8 @@ public class PlanesService {
     if (Objects.equals(propietario(empresa), user)) return bloqueo(empresa) == null;
     var pago = vigente(empresa);
     if (pago == null) return false;
-    var plan = plan(pago.get("plan").toString());
-    return plan.empleados() < 0 || empleados(empresa) <= plan.empleados();
+    int limite = limite(pago);
+    return limite < 0 || empleados(empresa) <= limite;
   }
 
   public void validarCupo(Long empresa) {
@@ -219,11 +222,11 @@ public class PlanesService {
       throw error(
           "No hay un pago vigente registrado. El superadministrador debe confirmar el plan antes de"
               + " habilitar personal");
-    var plan = plan(pago.get("plan").toString());
-    if (plan.empleados() >= 0 && empleados(empresa) >= plan.empleados())
+    int limite = limite(pago);
+    if (limite >= 0 && empleados(empresa) >= limite)
       throw error(
           "El plan permite "
-              + plan.empleados()
+              + limite
               + " empleados además del administrador principal. Espera el vencimiento de una"
               + " reserva, elimina definitivamente una cuenta desactivada o cambia de plan");
   }
@@ -232,7 +235,7 @@ public class PlanesService {
     if (java.util.Objects.equals(propietario(empresa), usuario)) return;
     var pago = vigente(empresa);
     if (pago == null) throw error("El negocio no tiene un plan vigente");
-    var plan = plan(pago.get("plan").toString());
+    int limite = limite(pago);
     long otros =
         db.queryForObject(
             "SELECT count(*) FROM usuarios WHERE empresa_id=? AND id<>? AND id<>COALESCE(?,0) AND"
@@ -241,7 +244,7 @@ public class PlanesService {
             empresa,
             usuario,
             propietario(empresa));
-    if (plan.empleados() >= 0 && otros >= plan.empleados())
+    if (limite >= 0 && otros >= limite)
       throw error("No hay cupos disponibles para reactivar esta cuenta");
   }
 
@@ -264,15 +267,16 @@ public class PlanesService {
         > 0) throw error("El período se superpone con otro pago registrado");
     db.update(
         "INSERT INTO"
-            + " pagos_suscripcion(empresa_id,plan,importe,desde,hasta,referencia,registrado_por)"
-            + " VALUES (?,?,?,?,?,?,?)",
+            + " pagos_suscripcion(empresa_id,plan,importe,desde,hasta,referencia,registrado_por,limite_empleados)"
+            + " VALUES (?,?,?,?,?,?,?,?)",
         empresa,
         r.plan(),
         r.importe(),
         r.desde(),
         r.hasta(),
         r.referencia().trim(),
-        actor);
+        actor,
+        p.empleados());
     revisarEmpresa(empresa, hoy());
     return estado(empresa);
   }

@@ -40,7 +40,7 @@ test("Apariencia heredada, plantillas de puestos y datos propios", async ({
   end.setDate(end.getDate() + 30);
   await mutate(root, `/empresas/${company.id}/pagos`, {
     plan: "INICIO",
-    importe: 35,
+    importe: 30,
     desde: start.toISOString().slice(0, 10),
     hasta: end.toISOString().slice(0, 10),
     referencia: randomUUID(),

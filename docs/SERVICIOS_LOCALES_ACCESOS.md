@@ -34,7 +34,7 @@ SUPERADMIN usa **Sucursales** y selecciona la empresa. El administrador del nego
 
 Cada local tiene **productos y stock, clientes, compras, ventas, movimientos, servicios, imágenes de productos y reportes operativos separados**. El catálogo común y sus permisos por rubro siguen siendo de empresa. El selector **Local de trabajo** cambia el contexto; el catálogo del local nuevo empieza vacío. Los números comerciales y fiscales se mantienen únicos por empresa y entorno, no se reinician al cambiar de sucursal.
 
-Los administradores acceden a todos los locales. El personal empieza en el Local principal y se le pueden asignar uno o varios desde **Acceso del personal por local**. Acceder a un local no cambia el rol ni amplía permisos de operación. Los precios y cupos de S/35, S/50 y S/70 se mantienen a nivel de empresa, sin multiplicar cupos por sucursal. Cambiar una cuenta que pertenece a esta empresa cambia su acceso a todos sus locales.
+Los administradores acceden a todos los locales. El personal empieza en el Local principal y se le pueden asignar uno o varios desde **Acceso del personal por local**. Acceder a un local no cambia el rol ni amplía permisos de operación. Los precios y cupos de S/30, S/45 y S/60 se mantienen a nivel de empresa, sin multiplicar cupos por sucursal. Cambiar una cuenta que pertenece a esta empresa cambia su acceso a todos sus locales.
 
 Una pestaña con un local anterior recibe un aviso para recargar si intenta operar después de cambiar el local en otra pestaña. Las consultas y escrituras validan el local en el servidor, incluidos acceso directo por ID, fotos y documentos fiscales. No se incluyen transferencias entre almacenes ni reportes consolidados entre locales.
 

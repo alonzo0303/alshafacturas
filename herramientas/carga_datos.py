@@ -33,7 +33,7 @@ def preparar(url, env_file, output, negocios, usuarios):
             email = f'propietario-{run}-{index}@carga.test'
             password = secrets.token_urlsafe(24)
             company = client.request('/empresas/alta', 'POST', {'razonSocial': f'PRUEBA CARGA {run} {index+1}', 'administradorNombre': 'Propietario ficticio', 'administradorCorreo': email, 'administradorPassword': password})
-            client.request(f"/empresas/{company['id']}/pagos", 'POST', {'plan': 'ILIMITADO', 'importe': 70, 'desde': str(today-timedelta(days=1)), 'hasta': str(today+timedelta(days=30)), 'referencia': 'SIMULADO-CARGA-'+run, 'confirmado': True})
+            client.request(f"/empresas/{company['id']}/pagos", 'POST', {'plan': 'ILIMITADO', 'importe': 60, 'desde': str(today-timedelta(days=1)), 'hasta': str(today+timedelta(days=30)), 'referencia': 'SIMULADO-CARGA-'+run, 'confirmado': True})
             actors = []
             groups.append(actors)
             owner = Cliente(url)

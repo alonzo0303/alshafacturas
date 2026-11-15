@@ -153,6 +153,8 @@ export type Empresa = {
   rubroNegocio?: string | null;
 };
 export type Venta = {
+  usuario_nombre?: string | null;
+  usuario_original_id?: number | null;
   id: number;
   numero: string;
   fecha: string;

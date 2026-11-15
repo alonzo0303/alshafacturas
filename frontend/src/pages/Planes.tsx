@@ -19,6 +19,7 @@ export type Pago = {
   desde: string;
   hasta: string;
   referencia: string;
+  limite_empleados?: number;
 };
 export type PlanState = {
   estadoSuscripcion?: "ACTIVO" | "PROGRAMADO" | "VENCIDO" | "SIN_PLAN";
@@ -49,6 +50,12 @@ function dateOnly(value: string) {
 }
 export function PlanInfo({ plan }: { plan: PlanState }) {
   const pago = plan.pagoActual || plan.pagoReferencia;
+  const tarifa = plan.planes.find((p) => p.codigo === plan.plan);
+  const anterior =
+    !!pago &&
+    !!tarifa &&
+    (Number(pago.importe) !== Number(tarifa.precio) ||
+      plan.limiteEmpleados !== tarifa.empleados);
   const estado =
     plan.estadoSuscripcion || (plan.vigente ? "ACTIVO" : "SIN_PLAN");
   const labels = {
@@ -94,6 +101,12 @@ export function PlanInfo({ plan }: { plan: PlanState }) {
           </>
         )}
       </div>
+      {anterior && (
+        <p className="notice">
+          Este pago conserva su importe y cupos anteriores durante la vigencia
+          registrada. Las renovaciones usan las tarifas actuales.
+        </p>
+      )}
       <p className="hint">
         El administrador principal no ocupa un cupo de empleado. Activos:{" "}
         {plan.empleadosActivos}. Reservados durante 15 días:{" "}

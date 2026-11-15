@@ -30,7 +30,7 @@ class ControlRegression(unittest.TestCase):
 
     def test_grace_hard_delete_preserves_sales_and_releases_slot(self):
         company,email,owner=self.company('Gracia y baja',paid=False)
-        self.payment(company['id'],'INICIO',35)
+        self.payment(company['id'],'EQUIPO',45)
         u=self.employee(owner,name='Autor histórico');self.employee(owner)
         actor=Client();actor.login(company['ruc'],u['correo'])
         p=self.product(3,owner,price=10);sale=actor.ok('/ventas','POST',self.sale(p))

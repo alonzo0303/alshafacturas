@@ -60,7 +60,7 @@ Primero crea los actores ficticios, solo en Pruebas:
 python herramientas/carga.py preparar --actores 100 --negocios 5
 ```
 
-Crea cinco negocios ficticios, cien colaboradores, productos, compras con stock suficiente y pagos **simulados** del plan de S/70 para habilitar sus cupos. No cobra dinero ni llama a SUNAT. Las credenciales quedan en `work/carga/actores.json`, fuera de Git. Cada corrida tiene correos y claves propios. Si una preparación se interrumpe puede dejar datos parciales en Pruebas; no se hace limpieza automática.
+Crea cinco negocios ficticios, cien colaboradores, productos, compras con stock suficiente y pagos **simulados** del plan de S/60 para habilitar sus cupos. No cobra dinero ni llama a SUNAT. Las credenciales quedan en `work/carga/actores.json`, fuera de Git. Cada corrida tiene correos y claves propios. Si una preparación se interrumpe puede dejar datos parciales en Pruebas; no se hace limpieza automática.
 
 En una segunda etapa ejecuta la carga:
 

@@ -74,7 +74,7 @@ class ApiRegression(unittest.TestCase):
         access=cls.platform.ok(f"/empresas/{empresa['id']}/rubros-catalogo")
         cls.platform.ok(f"/empresas/{empresa['id']}/rubros-catalogo",'PUT',{'rubros':access['disponibles']})
         if paid:
-            cls.payment(empresa['id'], 'ILIMITADO', 70)
+            cls.payment(empresa['id'], 'ILIMITADO', 60)
         client = Client()
         client.login(ruc, email)
         return empresa, email, client
@@ -160,15 +160,14 @@ class ApiRegression(unittest.TestCase):
 
     def test_last_employee_slot_is_atomic(self):
         company, email, owner = self.company('Último cupo', paid=False)
-        self.payment(company['id'], 'INICIO', 35)
-        owner.ok('/usuarios','POST',{'nombre':'Primero','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})
+        self.payment(company['id'], 'INICIO', 30)
         clients=[Client(),Client()]
         for client in clients: client.login(company['ruc'],email)
         def create(client):
             return client.request('/usuarios','POST',{'nombre':'Concurrente','correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':'VENDEDOR'})[0]
         with concurrent.futures.ThreadPoolExecutor(2) as pool:
             self.assertEqual(sorted(pool.map(create,clients)),[201,409])
-        self.assertEqual(owner.ok('/plan')['empleadosActivos'],2)
+        self.assertEqual(owner.ok('/plan')['empleadosActivos'],1)
         invalid={'plan':'EQUIPO','importe':35,'desde':'2020-01-01','hasta':'2020-01-02','referencia':uuid.uuid4().hex,'confirmado':True}
         self.assertEqual(self.platform.request(f"/empresas/{company['id']}/pagos",'POST',invalid)[0],409)
 
@@ -187,23 +186,39 @@ class ApiRegression(unittest.TestCase):
         def employee():
             return {'nombre': 'Empleado prueba', 'correo': uuid.uuid4().hex+'@test.local', 'password': PASSWORD, 'rol': 'VENDEDOR'}
         self.assertEqual(owner.request('/usuarios', 'POST', employee())[0], 409)
-        plan = self.payment(company['id'], 'INICIO', 35)
-        self.assertEqual(plan['limiteEmpleados'], 2)
+        plan = self.payment(company['id'], 'INICIO', 30)
+        self.assertEqual(plan['limiteEmpleados'], 1)
         first = owner.ok('/usuarios', 'POST', employee())
-        owner.ok('/usuarios', 'POST', employee())
         self.assertEqual(owner.request('/usuarios', 'POST', employee())[0], 409)
         owner.ok(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': False})
         self.assertEqual(owner.request('/usuarios', 'POST', employee())[0],409)
         self.assertEqual(owner.ok('/plan')['cuposReservados'],1)
         owner.ok(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': True})
-        self.assertEqual(owner.ok('/plan')['empleadosActivos'],2)
+        self.assertEqual(owner.ok('/plan')['empleadosActivos'],1)
         owner.ok(f"/usuarios/{first['id']}/activo", 'PATCH', {'activo': False})
         self.platform.ok(f"/admin/personal/{first['id']}?empresaId={company['id']}",'DELETE',{'confirmado':True})
         owner.ok('/usuarios', 'POST', employee())
-        self.assertEqual(owner.ok('/plan')['empleadosActivos'], 2)
+        self.assertEqual(owner.ok('/plan')['empleadosActivos'], 1)
         self.assertEqual(owner.request(f"/empresas/{company['id']}/pagos", 'POST', {})[0], 403)
         other, _, _ = self.company('Plan tres', paid=False)
-        self.assertEqual(self.payment(other['id'], 'EQUIPO', 50)['limiteEmpleados'], 3)
+        self.assertEqual(self.payment(other['id'], 'EQUIPO', 45)['limiteEmpleados'], 2)
+
+    def test_current_tariffs_slots_and_rejected_previous_prices(self):
+        for code,amount,limit,old in [('INICIO',30,1,35),('EQUIPO',45,2,50),('ILIMITADO',60,-1,70)]:
+            with self.subTest(plan=code):
+                company,_,owner=self.company('Nueva tarifa '+code,paid=False)
+                state=self.payment(company['id'],code,amount)
+                self.assertEqual(state['limiteEmpleados'],limit)
+                self.assertEqual(state['pagoActual']['limite_empleados'],limit)
+                self.assertEqual(state['pagoActual']['importe'],amount)
+                self.assertEqual([(p['precio'],p['empleados']) for p in state['planes']],[(30,1),(45,2),(60,-1)])
+                def employee(role='VENDEDOR'):
+                    return {'nombre':'Personal '+uuid.uuid4().hex[:6],'correo':uuid.uuid4().hex+'@test.local','password':PASSWORD,'rol':role}
+                for n in range(limit if limit>=0 else 5):
+                    u=owner.ok('/usuarios','POST',employee('ADMIN' if n==0 else 'VENDEDOR'))
+                    client=Client();self.assertEqual(client.login(company['ruc'],u['correo'])['id'],u['id'])
+                if limit>=0:self.assertEqual(owner.request('/usuarios','POST',employee())[0],409)
+                self.assertEqual(self.platform.request(f"/empresas/{company['id']}/pagos",'POST',{'plan':code,'importe':old,'desde':'2098-01-01','hasta':'2098-01-30','referencia':uuid.uuid4().hex,'confirmado':True})[0],409)
 
     def test_custom_roles_refresh_permissions_and_isolation(self):
         company, _, owner = self.company('Roles personalizados')

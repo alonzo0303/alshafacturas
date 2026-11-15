@@ -10,7 +10,7 @@ La selección es individual, no por empresa: dos personas del mismo negocio pued
 
 La migración V10 añade únicamente `modalidad` y `tipo_atencion` a usuarios; asigna Comercio a los existentes y valida combinaciones en PostgreSQL. El endpoint de asignación es exclusivo de SUPERADMIN y exige empresa e ID coincidentes. El guardado actualiza solo esos dos campos, sin editar contraseña, correo, empresa, rol o estado. Las cuentas SUPERADMIN conservan la administración de plataforma.
 
-**Modalidad no es permiso ni una separación de datos.** La empresa sigue delimitando los datos y el rol sigue delimitando las operaciones permitidas por la API. Ocultar las rutas de Comercio en Atención no revoca permisos comerciales previamente otorgados: sus endpoints siguen aplicando los permisos existentes. La modalidad no altera plan, pago, cupos, productos, fotos, existencias, compras ni ventas. Los planes mantienen sus precios de S/35, S/50 y S/70 y sus límites actuales.
+**Modalidad no es permiso ni una separación de datos.** La empresa sigue delimitando los datos y el rol sigue delimitando las operaciones permitidas por la API. Ocultar las rutas de Comercio en Atención no revoca permisos comerciales previamente otorgados: sus endpoints siguen aplicando los permisos existentes. La modalidad no altera plan, pago, cupos, productos, fotos, existencias, compras ni ventas. Los planes mantienen sus precios de S/30, S/45 y S/60 y sus límites actuales.
 
 El apartado ya permite registrar y cobrar servicios y crear tipos de atención adicionales. Consulta [Servicios, sucursales y accesos](SERVICIOS_LOCALES_ACCESOS.md). Las agendas, comisiones, mesas, comandas y recetas se desarrollarán por separado. Los roles incluyen permisos de servicios.
 
