@@ -73,9 +73,9 @@ test("OC pendiente, recepción física y autor visible con fecha y hora", async 
   });
   expect((await (await f.owner.get("/api/productos")).json())[0].stock).toBe(0);
   await page.context().addCookies((await f.owner.storageState()).cookies);
-  await page.goto("/panel/compras");
+  await page.goto("/panel/ordenes-compra");
   await expect(
-    page.getByText("Pendiente de recepción", { exact: true }),
+    page.getByRole("cell", { name: "Pendiente de recepción", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("Comprador UI", { exact: true }).last(),

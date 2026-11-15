@@ -1,3 +1,4 @@
+import CodigoProducto from "./CodigoProducto";
 import { useState } from "react";
 import { api, date, money, exportCsv } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -17,18 +18,28 @@ type Datos = {
   recibido_en?: string;
   documento_recepcion?: string;
   orden_numero?: string;
-  lineas: { nombre: string; sku: string; cantidad: number; costo: number }[];
+  orden_id?: number;
+  lineas: {
+    producto_id: number;
+    codigo_barras?: string | null;
+    nombre: string;
+    sku: string;
+    cantidad: number;
+    costo: number;
+  }[];
   empresa: { razon_social: string; ruc: string | null };
   local: { nombre: string };
 };
 export default function DetalleCompra({
   id,
   onClose,
+  onVerOrden,
 }: {
   id: number;
   onClose: () => void;
+  onVerOrden?: (id: number) => void;
 }) {
-  const { data, error, loading } = useData(
+  const { data, error, loading, refresh } = useData(
     () => api<Datos>(`/compras/${id}`),
     null,
   );
@@ -55,6 +66,14 @@ export default function DetalleCompra({
             {data.recibido_en && date(data.recibido_en)} · Documento:{" "}
             {data.documento_recepcion || "Sin documento de recepción histórico"}
           </p>
+          {data.orden_id && onVerOrden && (
+            <button
+              className="no-print"
+              onClick={() => onVerOrden(data.orden_id!)}
+            >
+              Ver OC vinculada {data.orden_numero}
+            </button>
+          )}
           <table>
             <thead>
               <tr>
@@ -70,6 +89,13 @@ export default function DetalleCompra({
                   <td>
                     {l.nombre}
                     <small>{l.sku}</small>
+                    <CodigoProducto
+                      id={l.producto_id}
+                      nombre={l.nombre}
+                      codigo={l.codigo_barras}
+                      compraId={id}
+                      onSaved={() => void refresh()}
+                    />
                   </td>
                   <td>{l.cantidad}</td>
                   <td>{money(l.costo)}</td>

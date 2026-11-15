@@ -1,3 +1,4 @@
+import FlujoCompra from "../components/FlujoCompra";
 import { useUnsaved } from "../lib/dirty";
 import { ProductImage } from "../components/ProductImage";
 import { useRef, useState, type FormEvent } from "react";
@@ -19,7 +20,6 @@ import PurchaseFields from "../components/PurchaseFields";
 import { emptyPurchaseTax, type PurchaseTax } from "../lib/purchase";
 import { CatalogoPicker } from "./CatalogoComun";
 import ImprimirPedido from "../components/ImprimirPedido";
-import DetalleCompra from "../components/DetalleCompra";
 import type { Pedido } from "../lib/pedidos";
 import { Link } from "react-router-dom";
 import Recibo from "./Recibo";
@@ -36,8 +36,10 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
     }),
     { productos: [], clientes: [], empresa: null },
   );
-  const [mostrarCompra, setMostrarCompra] = useState(false),
-    [modoCompra, setModoCompra] = useState("ORDEN");
+  const [ultimaOC, setUltimaOC] = useState<{
+    id: number;
+    numero: string;
+  } | null>(null);
   const [tienePreparacion, setTienePreparacion] = useState(false);
   const configuracion = useData(
     () => api<{ preparacion_habilitada: boolean }>("/operacion/configuracion"),
@@ -49,8 +51,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
     fingerprint: string;
   } | null>(null);
   const preparacionKey = useRef(crypto.randomUUID());
-  const [hoja, setHoja] = useState<Pedido | null>(null),
-    [compraRegistrada, setCompraRegistrada] = useState<number | null>(null);
+  const [hoja, setHoja] = useState<Pedido | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]),
     [search, setSearch] = useState(""),
     [actionError, setActionError] = useState(""),
@@ -217,7 +218,6 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
       setCart([]);
       setTax(emptyPurchaseTax);
       form.reset();
-      setModoCompra("ORDEN");
       setSuccess(
         compra
           ? esOrden
@@ -226,7 +226,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
           : `Venta ${result.numero} registrada.`,
       );
       if (!compra) setReceipt(result);
-      else if (!esOrden) setCompraRegistrada(result.id);
+      else setUltimaOC({ id: result.id, numero: result.numero });
       await refresh();
     } catch (e) {
       setActionError((e as Error).message);
@@ -272,29 +272,31 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         title={compra ? "Registrar compra" : "Punto de venta"}
         description={
           compra
-            ? "Registra el costo real de la mercadería recibida. El costo es independiente de tu precio de venta."
+            ? "Solicita mercadería al proveedor. Se genera una OC y el stock aumenta solo al confirmar su recepción."
             : "Escanea o selecciona mercadería y registra la venta."
         }
       />
+      {compra && <FlujoCompra paso={1} />}
       <ErrorNotice message={error || actionError || configuracion.error} />
       {hoja && <ImprimirPedido pedido={hoja} onClose={() => setHoja(null)} />}
-      {compraRegistrada && (
-        <button type="button" onClick={() => setMostrarCompra(true)}>
-          Ver / descargar última compra
-        </button>
-      )}
-      {compraRegistrada && mostrarCompra && (
-        <DetalleCompra
-          id={compraRegistrada}
-          onClose={() => setMostrarCompra(false)}
-        />
+      {compra && ultimaOC && (
+        <div className="notice" role="status">
+          <strong>{ultimaOC.numero} guardada · Pendiente de recepción</strong>
+          <p>El inventario todavía no cambió.</p>
+          <Link
+            className="button"
+            to={`${session.modalidad === "ATENCION" ? "/atencion/ordenes-compra" : "/panel/ordenes-compra"}?orden=${ultimaOC.id}`}
+          >
+            Abrir {ultimaOC.numero}
+          </Link>
+        </div>
       )}
       {compra && (
         <Link
           className="button"
           to={
             session.modalidad === "ATENCION"
-              ? "/atencion/compras"
+              ? "/atencion/ordenes-compra"
               : "/panel/ordenes-compra"
           }
         >
@@ -396,18 +398,20 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
           <h2>{compra ? "Detalle de compra" : "Detalle de venta"}</h2>
           <form className="form" onSubmit={submit}>
             {compra && (
-              <Field label="Registro de compra">
-                <select
-                  name="registroCompra"
-                  value={modoCompra}
-                  onChange={(e) => setModoCompra(e.target.value)}
-                  disabled={busy}
-                >
-                  <option value="ORDEN">
-                    Crear orden de compra sin ingresar stock
-                  </option>
-                </select>
-              </Field>
+              <section
+                className="notice purchase-workflow"
+                aria-label="Orden de compra automática"
+              >
+                <strong>Orden de compra automática</strong>
+                <p>
+                  1. Guardar pedido y asignar número OC → 2. Verificar recepción
+                  → 3. Ingresar al inventario.
+                </p>
+                <p>
+                  El correlativo definitivo aparece al guardar. Este paso no
+                  ingresa stock.
+                </p>
+              </section>
             )}
             {!compra &&
               configuracion.data.preparacion_habilitada &&
@@ -425,6 +429,19 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
             <OperationCart
               lines={cart}
               purchase={compra}
+              onBarcode={(id, codigo) => {
+                setCart((items) =>
+                  items.map((l) =>
+                    l.producto.id === id
+                      ? {
+                          ...l,
+                          producto: { ...l.producto, codigo_barras: codigo },
+                        }
+                      : l,
+                  ),
+                );
+                void refresh();
+              }}
               busy={busy}
               onChange={(id, field, value) =>
                 setCart((items) =>
@@ -506,9 +523,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
               {busy
                 ? "Registrando…"
                 : compra
-                  ? modoCompra === "ORDEN"
-                    ? "Crear orden de compra"
-                    : "Confirmar compra"
+                  ? "Crear orden de compra"
                   : "Confirmar venta"}
             </button>
           </form>

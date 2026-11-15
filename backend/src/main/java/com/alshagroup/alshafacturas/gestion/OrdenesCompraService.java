@@ -48,7 +48,7 @@ public class OrdenesCompraService {
     r.put(
         "lineas",
         db.queryForList(
-            "SELECT d.*,p.nombre,p.sku FROM compra_detalles d JOIN productos p ON"
+            "SELECT d.*,p.nombre,p.sku,p.codigo_barras FROM compra_detalles d JOIN productos p ON"
                 + " p.id=d.producto_id WHERE d.compra_id=? ORDER BY d.id",
             id));
     r.put(
@@ -58,6 +58,17 @@ public class OrdenesCompraService {
     r.put(
         "local",
         db.queryForMap("SELECT nombre,direccion FROM locales WHERE id=?", LocalesService.actual()));
+    var origen =
+        db.queryForList(
+            "SELECT id,numero FROM ordenes_compra WHERE empresa_id=? AND local_id=? AND"
+                + " compra_id=?",
+            p.getEmpresaId(),
+            LocalesService.actual(),
+            id);
+    if (!origen.isEmpty()) {
+      r.put("orden_id", origen.getFirst().get("id"));
+      r.put("orden_numero", origen.getFirst().get("numero"));
+    }
     return r;
   }
 
@@ -79,7 +90,34 @@ public class OrdenesCompraService {
     var datos = json.readValue(r.get("datos").toString(), Map.class);
     r.remove("recepcion_idempotencia");
     r.put("datos", datos.containsKey("compra") ? datos.get("compra") : datos);
-    r.put("articulos", datos.getOrDefault("articulos", List.of()));
+    var articulos = (List<Map<String, Object>>) datos.getOrDefault("articulos", List.of());
+    if (articulos.isEmpty()) {
+      var entrada = (Map<String, Object>) datos.getOrDefault("compra", datos);
+      articulos = new ArrayList<>();
+      for (var linea : (List<Map<String, Object>>) entrada.getOrDefault("lineas", List.of()))
+        articulos.add(new LinkedHashMap<>(linea));
+    }
+    if (!articulos.isEmpty()) {
+      var args = new ArrayList<Object>();
+      args.add(p.getEmpresaId());
+      args.add(LocalesService.actual());
+      for (var a : articulos) args.add(((Number) a.get("productoId")).longValue());
+      var codigos =
+          db.queryForList(
+              "SELECT id,codigo_barras,nombre,sku FROM productos WHERE empresa_id=? AND local_id=?"
+                  + " AND id IN ("
+                  + String.join(",", Collections.nCopies(articulos.size(), "?"))
+                  + ")",
+              args.toArray());
+      for (var a : articulos)
+        for (var c : codigos)
+          if (((Number) a.get("productoId")).longValue() == ((Number) c.get("id")).longValue()) {
+            a.put("codigo_barras", c.get("codigo_barras"));
+            a.putIfAbsent("nombre", c.get("nombre"));
+            a.putIfAbsent("sku", c.get("sku"));
+          }
+    }
+    r.put("articulos", articulos);
     return r;
   }
 

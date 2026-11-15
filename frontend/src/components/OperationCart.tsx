@@ -1,3 +1,4 @@
+import CodigoProducto from "./CodigoProducto";
 import { money, type Producto } from "../lib/api";
 import { Table, Empty } from "./ui";
 export type CartLine = { producto: Producto; cantidad: number; costo: number };
@@ -7,12 +8,14 @@ export default function OperationCart({
   busy,
   onChange,
   onRemove,
+  onBarcode,
 }: {
   lines: CartLine[];
   purchase: boolean;
   busy: boolean;
   onChange: (id: number, field: "cantidad" | "costo", value: number) => void;
   onRemove: (id: number) => void;
+  onBarcode?: (id: number, codigo: string) => void;
 }) {
   return lines.length ? (
     <Table
@@ -30,6 +33,15 @@ export default function OperationCart({
             <small>
               {l.producto.marca} · {l.producto.presentacion || l.producto.sku}
             </small>
+            {purchase && (
+              <CodigoProducto
+                id={l.producto.id}
+                nombre={l.producto.nombre}
+                codigo={l.producto.codigo_barras}
+                disabled={busy}
+                onSaved={(codigo) => onBarcode?.(l.producto.id, codigo)}
+              />
+            )}
             {purchase && l.producto.ultimo_costo != null && (
               <small>
                 Último costo neto: {money(l.producto.ultimo_costo)} (referencia)

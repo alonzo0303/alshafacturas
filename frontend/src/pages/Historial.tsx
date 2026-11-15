@@ -1,10 +1,9 @@
 import OrdenesCompra from "./OrdenesCompra";
 import { useSession } from "../lib/session";
 import { useData } from "../lib/useData";
-import { useEffect, useState } from "react";
-import { api, money, date, localDay, exportCsv, type Venta } from "../lib/api";
+import { useState } from "react";
+import { api, money, localDay, exportCsv, type Venta } from "../lib/api";
 import { ErrorNotice, Empty, PageTitle, Table, Badge } from "../components/ui";
-import DetalleCompra from "../components/DetalleCompra";
 import Recibo from "./Recibo";
 const saleDate = (value: string) =>
   new Intl.DateTimeFormat("es-PE", {
@@ -249,141 +248,6 @@ export function Ventas({
     </>
   );
 }
-type Compra = {
-  id: number;
-  fecha: string;
-  proveedor: string;
-  referencia: string;
-  total: number;
-  subtotal: number;
-  igv: number;
-  tipo_documento: string;
-  proveedor_ruc?: string;
-  credito_fiscal: boolean;
-  usuario_nombre?: string;
-  recibido_nombre?: string;
-  recibido_en?: string;
-  orden_numero?: string;
-};
 export function Compras() {
-  const { data, loading, error, refresh } = useData(
-    () => api<Compra[]>("/compras"),
-    [],
-  );
-  const [detalle, setDetalle] = useState<number | null>(null);
-  useEffect(() => {
-    const updated = () => void refresh();
-    window.addEventListener("compras-updated", updated);
-    return () => window.removeEventListener("compras-updated", updated);
-  }, [refresh]);
-  return (
-    <>
-      {detalle && (
-        <DetalleCompra id={detalle} onClose={() => setDetalle(null)} />
-      )}
-      <PageTitle
-        title="Compras y recepción"
-        description="Pedidos pendientes y entradas confirmadas. El inventario aumenta después de verificar la recepción."
-      />
-      <ErrorNotice message={error} />
-      <OrdenesCompra pendientesOnly />
-      <section className="surface">
-        <div className="section-toolbar">
-          <h2>Compras recibidas / Completadas</h2>
-          <button onClick={() => void refresh()}>Actualizar</button>
-          <button
-            onClick={() =>
-              exportCsv(
-                "compras.csv",
-                [
-                  "Fecha y hora (Perú)",
-                  "Registró",
-                  "Recibió",
-                  "Fecha de recepción",
-                  "Orden de compra",
-                  "Proveedor",
-                  "Referencia",
-                  "Base PEN",
-                  "IGV PEN",
-                  "Total PEN",
-                  "Crédito fiscal potencial",
-                ],
-                data.map((c) => [
-                  date(c.fecha),
-                  c.usuario_nombre,
-                  c.recibido_nombre,
-                  c.recibido_en
-                    ? date(c.recibido_en)
-                    : "Sin recepción histórica",
-                  c.orden_numero,
-                  c.proveedor,
-                  c.referencia,
-                  c.subtotal,
-                  c.igv,
-                  c.total,
-                  c.credito_fiscal ? "Por validar" : "No marcado",
-                ]),
-              )
-            }
-          >
-            Exportar CSV
-          </button>
-        </div>
-        {loading ? (
-          <p role="status">Cargando compras…</p>
-        ) : data.length ? (
-          <Table
-            headers={[
-              "Registró / Fecha y hora (Perú)",
-              "Recibió / Fecha y hora (Perú)",
-              "OC",
-              "Proveedor",
-              "Documento",
-              "Base",
-              "IGV",
-              "Total",
-              "Crédito fiscal potencial",
-              "Acciones",
-            ]}
-          >
-            {data.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  {c.usuario_nombre || "Sin autor histórico"}
-                  <small>{date(c.fecha)}</small>
-                </td>
-                <td>
-                  {c.recibido_nombre || "Sin recepción histórica"}
-                  <small>{c.recibido_en && date(c.recibido_en)}</small>
-                </td>
-                <td>{c.orden_numero || "Anterior al flujo OC"}</td>
-                <td>
-                  {c.proveedor}
-                  <small>{c.proveedor_ruc}</small>
-                </td>
-                <td>
-                  {c.tipo_documento}
-                  <small>{c.referencia}</small>
-                </td>
-                <td>{money(c.subtotal)}</td>
-                <td>{money(c.igv)}</td>
-                <td className="number">{money(c.total)}</td>
-                <td>
-                  {c.credito_fiscal ? "Por validar con contador" : "No marcado"}
-                </td>
-                <td>
-                  <button onClick={() => setDetalle(c.id)}>
-                    Ver / descargar compra
-                    <span className="sr-only"> {c.referencia}</span>
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <Empty>Registra una compra para ingresar mercadería.</Empty>
-        )}
-      </section>
-    </>
-  );
+  return <OrdenesCompra paso={3} />;
 }

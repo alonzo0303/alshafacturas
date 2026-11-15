@@ -388,12 +388,10 @@ test("Comercio: preparación vinculada, cierre, CSV y orden con factura adjunta"
   await page.getByRole("link", { name: "Ventas", exact: true }).click();
   await expect(page.getByText("🔴 Stock bajo", { exact: true })).toBeVisible();
   await page
-    .getByRole("link", { name: "Registrar compra", exact: true })
+    .getByRole("link", { name: "1. Registrar compra", exact: true })
     .click();
   await page.getByRole("button", { name: /Artículo de preparación/ }).click();
-  await page
-    .getByLabel("Registro de compra", { exact: true })
-    .selectOption("ORDEN");
+  await expect(page.getByLabel("Orden de compra automática")).toBeVisible();
   await page
     .getByLabel("Cantidad de Artículo de preparación", { exact: true })
     .fill("2");
@@ -412,13 +410,13 @@ test("Comercio: preparación vinculada, cierre, CSV y orden con factura adjunta"
   ).toBeVisible();
   expect((await (await f.owner.get("/api/productos")).json())[0].stock).toBe(7);
   await page
-    .getByRole("link", { name: "Órdenes de compra", exact: true })
+    .getByRole("link", { name: "2. Órdenes y recepción", exact: true })
     .click();
   await page.getByRole("button", { name: /^Ver orden/ }).click();
   await expect(
     page
       .getByRole("dialog")
-      .getByRole("cell", { name: "Artículo de preparación", exact: true }),
+      .getByRole("cell", { name: /^Artículo de preparación/ }),
   ).toBeVisible();
   const pdf = Buffer.from(
     "%PDF-1.4\n1 0 obj <</Type /Catalog>> endobj\ntrailer <</Root 1 0 R>>\n%%EOF",

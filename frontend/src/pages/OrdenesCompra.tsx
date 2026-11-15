@@ -1,7 +1,10 @@
+import { useSearchParams } from "react-router-dom";
+import ListaCicloCompra from "../components/ListaCicloCompra";
+import FlujoCompra from "../components/FlujoCompra";
+import CodigoProducto from "../components/CodigoProducto";
 import { can, useSession } from "../lib/session";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, date, money } from "../lib/api";
-import { useData } from "../lib/useData";
 import {
   PageTitle,
   ErrorNotice,
@@ -33,19 +36,14 @@ type Orden = {
     sku: string;
     cantidad: number;
     costo: number;
+    codigo_barras?: string | null;
   }[];
   datos?: { lineas: { productoId: number; cantidad: number; costo: number }[] };
 };
-export default function OrdenesCompra({
-  pendientesOnly = false,
-}: {
-  pendientesOnly?: boolean;
-}) {
+export default function OrdenesCompra({ paso = 2 }: { paso?: 2 | 3 }) {
   const session = useSession();
-  const { data, error, loading, refresh } = useData(
-    () => api<Orden[]>("/ordenes-compra"),
-    [],
-  );
+  const [params] = useSearchParams();
+  const refresh = () => window.dispatchEvent(new Event("compras-updated"));
   const [selected, setSelected] = useState<Orden | null>(null),
     [failure, setFailure] = useState(""),
     [action, setAction] = useState<"recibir" | "cancelar" | null>(null),
@@ -59,6 +57,21 @@ export default function OrdenesCompra({
       setFailure((e as Error).message);
     }
   }
+  const ordenInicial = params.get("orden");
+  useEffect(() => {
+    let alive = true;
+    if (ordenInicial && /^\d+$/.test(ordenInicial))
+      api<Orden>(`/ordenes-compra/${Number(ordenInicial)}`)
+        .then((data) => {
+          if (alive) setSelected(data);
+        })
+        .catch((e) => {
+          if (alive) setFailure((e as Error).message);
+        });
+    return () => {
+      alive = false;
+    };
+  }, [ordenInicial]);
   const content = selected && (
     <>
       <h2>{selected.numero}</h2>
@@ -83,6 +96,19 @@ export default function OrdenesCompra({
           <tr key={l.productoId}>
             <td>
               {"nombre" in l ? String(l.nombre) : `Artículo #${l.productoId}`}
+              <CodigoProducto
+                id={l.productoId}
+                nombre={
+                  "nombre" in l ? String(l.nombre) : `Artículo #${l.productoId}`
+                }
+                codigo={
+                  "codigo_barras" in l && typeof l.codigo_barras === "string"
+                    ? l.codigo_barras
+                    : null
+                }
+                ordenId={selected.id}
+                onSaved={() => void abrir(selected.id)}
+              />
             </td>
             <td>{l.cantidad}</td>
             <td>{money(l.costo)}</td>
@@ -97,64 +123,18 @@ export default function OrdenesCompra({
   );
   return (
     <>
-      {!pendientesOnly && (
-        <PageTitle
-          title="Órdenes de compra"
-          description="Registra el pedido y su referencia. Verifica físicamente la mercadería antes de confirmar la recepción."
-        />
-      )}
-      <ErrorNotice message={error || failure} />
-      <section className="surface">
-        <div className="section-toolbar">
-          <h2>
-            {pendientesOnly ? "Pendientes de recepción" : "Órdenes registradas"}
-          </h2>
-          <button onClick={() => void refresh()}>Actualizar órdenes</button>
-        </div>
-        {loading ? (
-          <p role="status">Cargando órdenes…</p>
-        ) : (
-          <Table
-            headers={[
-              "Orden",
-              "Registró / Fecha y hora (Perú)",
-              "Proveedor / Referencia",
-              "Estado",
-              "Total",
-              "Acciones",
-            ]}
-          >
-            {data
-              .filter((o) => !pendientesOnly || o.estado === "PENDIENTE")
-              .map((o) => (
-                <tr key={o.id}>
-                  <td>{o.numero}</td>
-                  <td>
-                    {o.usuario_nombre || "Sin autor histórico"}
-                    <small>{date(o.fecha)}</small>
-                  </td>
-                  <td>
-                    {o.proveedor}
-                    <small>{o.referencia}</small>
-                  </td>
-                  <td>
-                    {o.estado === "PENDIENTE"
-                      ? "Pendiente de recepción"
-                      : o.estado === "RECIBIDA"
-                        ? "Recibido / Completado"
-                        : o.estado}
-                  </td>
-                  <td>{money(o.total)}</td>
-                  <td>
-                    <button onClick={() => void abrir(o.id)}>
-                      Ver orden<span className="sr-only"> {o.numero}</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </Table>
-        )}
-      </section>
+      <PageTitle
+        title={paso === 2 ? "Órdenes y recepción" : "Compras recibidas"}
+        description="Cada pedido conserva su OC y su compra final. El stock aumenta únicamente al confirmar la recepción."
+      />
+      <FlujoCompra paso={paso} />
+      <ErrorNotice message={failure} />
+      <ListaCicloCompra
+        key={paso}
+        paso={paso}
+        onOrden={(id) => void abrir(id)}
+        onCompra={setPurchase}
+      />
       {selected && (
         <Modal title={selected.numero} onClose={() => setSelected(null)}>
           {content}
@@ -235,7 +215,14 @@ export default function OrdenesCompra({
         />
       )}
       {purchase && (
-        <DetalleCompra id={purchase} onClose={() => setPurchase(null)} />
+        <DetalleCompra
+          id={purchase}
+          onClose={() => setPurchase(null)}
+          onVerOrden={(id) => {
+            setPurchase(null);
+            void abrir(id);
+          }}
+        />
       )}{" "}
       {print && (
         <ImpresionInterna

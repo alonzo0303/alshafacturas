@@ -59,9 +59,9 @@ const empresaLinks = [
   ["Productos", "/panel/productos", "PRODUCTOS_VER"],
   ["Catálogo común", "/panel/catalogo", "PRODUCTOS_VER"],
   ["Inventario", "/panel/inventario", "INVENTARIO_VER"],
-  ["Registrar compra", "/panel/compra", "COMPRAS_GESTIONAR"],
-  ["Compras", "/panel/compras", "COMPRAS_GESTIONAR"],
-  ["Órdenes de compra", "/panel/ordenes-compra", "COMPRAS_GESTIONAR"],
+  ["1. Registrar compra", "/panel/compra", "COMPRAS_GESTIONAR"],
+  ["2. Órdenes y recepción", "/panel/ordenes-compra", "COMPRAS_GESTIONAR"],
+  ["3. Compras recibidas", "/panel/compras", "COMPRAS_GESTIONAR"],
   ["Preparaciones", "/panel/preparaciones", "PREPARACION_GESTIONAR"],
   ["Caja y cierres", "/panel/cajas", "CAJA_GESTIONAR"],
   ["Rendimiento", "/panel/rendimiento", "RENDIMIENTO_VER"],
@@ -148,12 +148,15 @@ function Shell({
           ...(can(session, "INVENTARIO_VER")
             ? [["Inventario", "/atencion/inventario"]]
             : []),
+          ...(can(session, "COMPRAS_GESTIONAR")
+            ? [["1. Registrar compra", "/atencion/compra"]]
+            : []),
           ...(can(session, "COMPRAS_GESTIONAR") ||
           can(session, "COMPRAS_RECIBIR")
-            ? [["Compras y recepción", "/atencion/compras"]]
-            : []),
-          ...(can(session, "COMPRAS_GESTIONAR")
-            ? [["Registrar compra", "/atencion/compra"]]
+            ? [
+                ["2. Órdenes y recepción", "/atencion/ordenes-compra"],
+                ["3. Compras recibidas", "/atencion/compras"],
+              ]
             : []),
           ...(can(session, "CAJA_GESTIONAR")
             ? [["Caja y cierres", "/atencion/cajas"]]
@@ -193,7 +196,7 @@ function Shell({
               (l[2] === "ADMIN"
                 ? admin
                 : can(session, l[2]) ||
-                  (l[1] === "/panel/ordenes-compra" &&
+                  (["/panel/ordenes-compra", "/panel/compras"].includes(l[1]) &&
                     can(session, "COMPRAS_RECIBIR")))),
         );
   const orderedLinks = superadmin
@@ -371,6 +374,13 @@ function Shell({
                     element={<CatalogoNegocio />}
                   />
                 )}
+                {(can(session, "COMPRAS_GESTIONAR") ||
+                  can(session, "COMPRAS_RECIBIR")) && (
+                  <Route
+                    path="/atencion/ordenes-compra"
+                    element={<OrdenesCompra />}
+                  />
+                )}
                 {can(session, "PRODUCTOS_VER") && (
                   <Route path="/atencion/productos" element={<Productos />} />
                 )}
@@ -379,16 +389,7 @@ function Shell({
                 )}
                 {(can(session, "COMPRAS_GESTIONAR") ||
                   can(session, "COMPRAS_RECIBIR")) && (
-                  <Route
-                    path="/atencion/compras"
-                    element={
-                      can(session, "COMPRAS_GESTIONAR") ? (
-                        <Compras />
-                      ) : (
-                        <OrdenesCompra />
-                      )
-                    }
-                  />
+                  <Route path="/atencion/compras" element={<Compras />} />
                 )}
                 {can(session, "COMPRAS_GESTIONAR") && (
                   <Route
@@ -513,13 +514,16 @@ function Shell({
                 {can(session, "INVENTARIO_VER") && (
                   <Route path="/panel/inventario" element={<Inventario />} />
                 )}
+                {(can(session, "COMPRAS_GESTIONAR") ||
+                  can(session, "COMPRAS_RECIBIR")) && (
+                  <Route path="/panel/compras" element={<Compras />} />
+                )}
                 {can(session, "COMPRAS_GESTIONAR") && (
                   <>
                     <Route
                       path="/panel/compra"
                       element={<Operacion key="compra" compra />}
                     />
-                    <Route path="/panel/compras" element={<Compras />} />
                   </>
                 )}
                 {can(session, "FACTURACION_VER") && (

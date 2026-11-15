@@ -284,7 +284,7 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
     .click();
   await page
     .getByRole("navigation")
-    .getByRole("link", { name: "Registrar compra", exact: true })
+    .getByRole("link", { name: "1. Registrar compra", exact: true })
     .click();
   await page
     .getByRole("button", { name: "Agregar mercadería", exact: true })
@@ -323,7 +323,7 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
   ).toBe(0);
   await page
     .getByRole("navigation")
-    .getByRole("link", { name: "Órdenes de compra", exact: true })
+    .getByRole("link", { name: "2. Órdenes y recepción", exact: true })
     .click();
   await page.getByRole("button", { name: /Ver orden OC-/ }).click();
   await page
@@ -413,7 +413,7 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
   for (const path of [
     "Productos",
     "Inventario",
-    "Registrar compra",
+    "1. Registrar compra",
     "Roles",
     "Mi plan",
   ]) {
@@ -722,6 +722,7 @@ test("Editar negocio conserva su código y permite continuar con sus productos",
   await page
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();
+  await expect(page).toHaveURL(/\/login$/);
   await page.goto("/admin/login");
   await page
     .getByLabel("Correo electrónico")
@@ -759,6 +760,7 @@ test("Editar negocio conserva su código y permite continuar con sus productos",
   await page
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();
+  await expect(page).toHaveURL(/\/login$/);
   await page.goto("/login");
   await page.getByLabel("Correo electrónico").fill(company.correo);
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
