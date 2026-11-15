@@ -1,3 +1,5 @@
+import FlujoCompra from "../components/FlujoCompra";
+import { useUnsaved } from "../lib/dirty";
 import { ProductImage } from "../components/ProductImage";
 import { useRef, useState, type FormEvent } from "react";
 import { useData } from "../lib/useData";
@@ -17,6 +19,9 @@ import OperationCart, { type CartLine } from "../components/OperationCart";
 import PurchaseFields from "../components/PurchaseFields";
 import { emptyPurchaseTax, type PurchaseTax } from "../lib/purchase";
 import { CatalogoPicker } from "./CatalogoComun";
+import ImprimirPedido from "../components/ImprimirPedido";
+import type { Pedido } from "../lib/pedidos";
+import { Link } from "react-router-dom";
 import Recibo from "./Recibo";
 export default function Operacion({ compra = false }: { compra?: boolean }) {
   const { data, loading, error, refresh } = useData<{
@@ -31,6 +36,22 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
     }),
     { productos: [], clientes: [], empresa: null },
   );
+  const [ultimaOC, setUltimaOC] = useState<{
+    id: number;
+    numero: string;
+  } | null>(null);
+  const [tienePreparacion, setTienePreparacion] = useState(false);
+  const configuracion = useData(
+    () => api<{ preparacion_habilitada: boolean }>("/operacion/configuracion"),
+    { preparacion_habilitada: false },
+  );
+  const preparacion = useRef<{
+    id: number;
+    version: number;
+    fingerprint: string;
+  } | null>(null);
+  const preparacionKey = useRef(crypto.randomUUID());
+  const [hoja, setHoja] = useState<Pedido | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]),
     [search, setSearch] = useState(""),
     [actionError, setActionError] = useState(""),
@@ -58,6 +79,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  useUnsaved(cart.length > 0);
   const totals = cart.reduce(
     (sum, l) => {
       const amount = round((compra ? l.costo : l.producto.precio) * l.cantidad);
@@ -146,7 +168,29 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         tax.gravada &&
         /^\d{11}$/.test(tax.ruc),
       );
-      const result = await api<Venta>(compra ? "/compras" : "/ventas", "POST", {
+      const esOrden = compra;
+      const fingerprint = JSON.stringify(
+        cart.map((l) => ({ productoId: l.producto.id, cantidad: l.cantidad })),
+      );
+      if (
+        !compra &&
+        preparacion.current &&
+        preparacion.current.fingerprint !== fingerprint
+      )
+        throw new Error(
+          "El carrito cambió. Actualiza la preparación antes de cobrar.",
+        );
+      const url = compra
+        ? esOrden
+          ? "/ordenes-compra"
+          : "/compras"
+        : preparacion.current
+          ? `/pedidos/${preparacion.current.id}/cobrar`
+          : "/ventas";
+      const result = await api<Venta>(url, "POST", {
+        ...(!compra && preparacion.current
+          ? { version: preparacion.current.version }
+          : {}),
         idempotencia: key.current,
         lineas,
         ...(compra
@@ -168,16 +212,54 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
             }),
       });
       key.current = crypto.randomUUID();
+      preparacion.current = null;
+      setTienePreparacion(false);
+      preparacionKey.current = crypto.randomUUID();
       setCart([]);
       setTax(emptyPurchaseTax);
       form.reset();
       setSuccess(
         compra
-          ? "Compra registrada. El inventario se ha actualizado."
+          ? esOrden
+            ? `Orden ${result.numero} creada. El stock no cambió; registra la recepción desde Órdenes de compra.`
+            : "Compra pendiente de recepción. El stock todavía no cambia."
           : `Venta ${result.numero} registrada.`,
       );
       if (!compra) setReceipt(result);
+      else setUltimaOC({ id: result.id, numero: result.numero });
       await refresh();
+    } catch (e) {
+      setActionError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function generarPreparacion() {
+    if (!cart.length || busy) return;
+    setBusy(true);
+    setActionError("");
+    try {
+      let p = preparacion.current
+        ? await api<Pedido>(`/pedidos/${preparacion.current.id}`)
+        : await api<Pedido>("/pedidos", "POST", {
+            clase: "PREPARACION",
+            idempotencia: preparacionKey.current,
+          });
+      const fingerprint = JSON.stringify(
+        cart.map((l) => ({ productoId: l.producto.id, cantidad: l.cantidad })),
+      );
+      if (!p.lineas.length || preparacion.current?.fingerprint !== fingerprint)
+        p = await api<Pedido>(`/pedidos/${p.id}`, "PUT", {
+          version: p.version,
+          lineas: cart.map((l) => ({
+            productoId: l.producto.id,
+            cantidad: l.cantidad,
+          })),
+          observacion: "Preparación desde punto de venta",
+        });
+      preparacion.current = { id: p.id, version: p.version, fingerprint };
+      setTienePreparacion(true);
+      setHoja(p);
     } catch (e) {
       setActionError((e as Error).message);
     } finally {
@@ -190,11 +272,37 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         title={compra ? "Registrar compra" : "Punto de venta"}
         description={
           compra
-            ? "Registra el costo real de la mercadería recibida. El costo es independiente de tu precio de venta."
+            ? "Solicita mercadería al proveedor. Se genera una OC y el stock aumenta solo al confirmar su recepción."
             : "Escanea o selecciona mercadería y registra la venta."
         }
       />
-      <ErrorNotice message={error || actionError} />
+      {compra && <FlujoCompra paso={1} />}
+      <ErrorNotice message={error || actionError || configuracion.error} />
+      {hoja && <ImprimirPedido pedido={hoja} onClose={() => setHoja(null)} />}
+      {compra && ultimaOC && (
+        <div className="notice" role="status">
+          <strong>{ultimaOC.numero} guardada · Pendiente de recepción</strong>
+          <p>El inventario todavía no cambió.</p>
+          <Link
+            className="button"
+            to={`${session.modalidad === "ATENCION" ? "/atencion/ordenes-compra" : "/panel/ordenes-compra"}?orden=${ultimaOC.id}`}
+          >
+            Abrir {ultimaOC.numero}
+          </Link>
+        </div>
+      )}
+      {compra && (
+        <Link
+          className="button"
+          to={
+            session.modalidad === "ATENCION"
+              ? "/atencion/ordenes-compra"
+              : "/panel/ordenes-compra"
+          }
+        >
+          Ver órdenes de compra
+        </Link>
+      )}
       <p role="status">{success}</p>
       <div className="pos-grid">
         <section className="surface">
@@ -289,9 +397,51 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
         >
           <h2>{compra ? "Detalle de compra" : "Detalle de venta"}</h2>
           <form className="form" onSubmit={submit}>
+            {compra && (
+              <section
+                className="notice purchase-workflow"
+                aria-label="Orden de compra automática"
+              >
+                <strong>Orden de compra automática</strong>
+                <p>
+                  1. Guardar pedido y asignar número OC → 2. Verificar recepción
+                  → 3. Ingresar al inventario.
+                </p>
+                <p>
+                  El correlativo definitivo aparece al guardar. Este paso no
+                  ingresa stock.
+                </p>
+              </section>
+            )}
+            {!compra &&
+              configuracion.data.preparacion_habilitada &&
+              can(session, "PREPARACION_GESTIONAR") && (
+                <button
+                  type="button"
+                  disabled={busy || !cart.length}
+                  onClick={() => void generarPreparacion()}
+                >
+                  {tienePreparacion
+                    ? "Actualizar / imprimir preparación"
+                    : "Generar preparación antes de cobrar"}
+                </button>
+              )}
             <OperationCart
               lines={cart}
               purchase={compra}
+              onBarcode={(id, codigo) => {
+                setCart((items) =>
+                  items.map((l) =>
+                    l.producto.id === id
+                      ? {
+                          ...l,
+                          producto: { ...l.producto, codigo_barras: codigo },
+                        }
+                      : l,
+                  ),
+                );
+                void refresh();
+              }}
               busy={busy}
               onChange={(id, field, value) =>
                 setCart((items) =>
@@ -373,7 +523,7 @@ export default function Operacion({ compra = false }: { compra?: boolean }) {
               {busy
                 ? "Registrando…"
                 : compra
-                  ? "Confirmar compra"
+                  ? "Crear orden de compra"
                   : "Confirmar venta"}
             </button>
           </form>

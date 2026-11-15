@@ -131,6 +131,27 @@ test("Empresa: catálogo, stock, venta, comprobante, anulación, sesión y móvi
   await expect(
     page.getByRole("cell", { name: "CONFIRMADA", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", {
+      name: "Vendido / cobrado por",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "Responsable de ventas", exact: true }),
+  ).toBeVisible();
+  const timestamp = page.locator("tbody time").first();
+  await expect(timestamp).toHaveAttribute("datetime", /.+/);
+  await expect(timestamp).toContainText(/\d{1,2}:\d{2}:\d{2}/);
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Exportar CSV", exact: true }).click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+  const csv = Buffer.concat(chunks).toString("utf8");
+  expect(csv).toContain('"Fecha (Perú)";"Hora (Perú)";"Vendido / cobrado por"');
+  expect(csv).toContain("Responsable de ventas");
   page.once("dialog", (d) => d.accept("Devolución de prueba"));
   await page.getByRole("button", { name: "Anular", exact: true }).click();
   await expect(
@@ -263,7 +284,7 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
     .click();
   await page
     .getByRole("navigation")
-    .getByRole("link", { name: "Registrar compra", exact: true })
+    .getByRole("link", { name: "1. Registrar compra", exact: true })
     .click();
   await page
     .getByRole("button", { name: "Agregar mercadería", exact: true })
@@ -288,12 +309,42 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
     .getByLabel("Proveedor", { exact: true })
     .fill("Mayorista de prueba");
   await page
-    .getByLabel("Referencia del documento de compra")
+    .getByLabel("Referencia (cotización o pedido del proveedor)")
     .fill(randomUUID());
   await page
-    .getByRole("button", { name: "Confirmar compra", exact: true })
+    .getByRole("button", { name: "Crear orden de compra", exact: true })
     .click();
-  await expect(page.getByText(/Compra registrada/)).toBeVisible();
+  await expect(page.getByText(/Orden .* creada/)).toBeVisible();
+  const beforeReceipt = await (await page.request.get("/api/productos")).json();
+  expect(
+    beforeReceipt.find(
+      (p: { nombre: string }) => p.nombre === "Labial compra navegador",
+    ).stock,
+  ).toBe(0);
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "2. Órdenes y recepción", exact: true })
+    .click();
+  await page.getByRole("button", { name: /Ver orden OC-/ }).click();
+  await page
+    .getByRole("button", { name: "Confirmar recepción", exact: true })
+    .click();
+  const receipt = page.getByRole("dialog", {
+    name: "Verificar recepción de mercadería",
+    exact: true,
+  });
+  await receipt
+    .getByLabel("Guía de remisión o factura del proveedor")
+    .fill("GR-NAVEGADOR");
+  await receipt.getByRole("checkbox").check();
+  await receipt
+    .getByRole("button", { name: "Aprobar ingreso al inventario" })
+    .click();
+  await expect(receipt).toHaveCount(0);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cerrar", exact: true })
+    .click();
   await page.getByRole("link", { name: "Resumen", exact: true }).click();
   await expect(page.locator(".stock-alert").first()).toBeVisible();
   expect(
@@ -348,6 +399,9 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
   await expect(page.getByRole("alert")).toContainText(/cámara|permiso/i);
   await page.getByRole("link", { name: "Catálogo común", exact: true }).click();
   await page
+    .getByRole("button", { name: "Salir sin guardar", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Usar producto Lápiz de ojos", exact: true })
     .click();
   dialog = page.getByRole("dialog");
@@ -359,7 +413,7 @@ test("Compra con nueva mercadería, costo independiente, catálogo y escáner", 
   for (const path of [
     "Productos",
     "Inventario",
-    "Registrar compra",
+    "1. Registrar compra",
     "Roles",
     "Mi plan",
   ]) {
@@ -395,7 +449,7 @@ test("Pago confirmado, cupos, roles y consulta de inventario por vendedor", asyn
   });
   await post(platform, `/empresas/${company.id}/pagos`, {
     plan: "INICIO",
-    importe: 35,
+    importe: 30,
     desde: "2026-01-01",
     hasta: "2099-12-31",
     referencia: randomUUID(),
@@ -409,7 +463,9 @@ test("Pago confirmado, cupos, roles y consulta de inventario por vendedor", asyn
     .getByRole("button", { name: "Iniciar sesión", exact: true })
     .click();
   await page.getByRole("link", { name: "Usuarios", exact: true }).click();
-  await expect(page.getByText("S/ 35.00", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("S/ 30.00", { exact: true }).first(),
+  ).toBeVisible();
   const email = randomUUID() + "@test.local";
   await page.getByLabel("Nombre completo").fill("Vendedor de prueba");
   await page.getByLabel("Correo", { exact: true }).fill(email);
@@ -630,7 +686,9 @@ test("SUPERADMIN asigna el rubro visible para el negocio", async ({ page }) => {
     "Ferretería",
   ]);
   await rubro.fill("FERRETERIA");
-  await expect(page.getByRole("option")).toHaveText(["Ferretería"]);
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveText([
+    "Ferretería",
+  ]);
   await rubro.press("ArrowDown");
   await rubro.press("Enter");
   await expect(rubro).toHaveValue("Ferretería");
@@ -664,6 +722,7 @@ test("Editar negocio conserva su código y permite continuar con sus productos",
   await page
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();
+  await expect(page).toHaveURL(/\/login$/);
   await page.goto("/admin/login");
   await page
     .getByLabel("Correo electrónico")
@@ -701,6 +760,7 @@ test("Editar negocio conserva su código y permite continuar con sus productos",
   await page
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();
+  await expect(page).toHaveURL(/\/login$/);
   await page.goto("/login");
   await page.getByLabel("Correo electrónico").fill(company.correo);
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
@@ -709,7 +769,10 @@ test("Editar negocio conserva su código y permite continuar con sus productos",
     .click();
   await page.getByRole("link", { name: "Productos", exact: true }).click();
   await expect(
-    page.getByText("Mercadería que se conserva", { exact: true }),
+    page
+      .getByRole("cell")
+      .filter({ hasText: "Mercadería que se conserva" })
+      .first(),
   ).toBeVisible();
 });
 
@@ -734,7 +797,9 @@ test("Buscar rubro del catálogo, elegir con teclado y crear uno propio", async 
     exact: true,
   });
   await rubro.fill("ferreteria");
-  await expect(page.getByRole("option")).toHaveText(["Ferretería"]);
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveText([
+    "Ferretería",
+  ]);
   await rubro.press("ArrowDown");
   await rubro.press("Enter");
   await expect(rubro).toHaveValue("Ferretería");

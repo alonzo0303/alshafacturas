@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useData } from "../lib/useData";
-import { api, date, type Producto } from "../lib/api";
+import { api, date, downloadFile, type Producto } from "../lib/api";
 import { can, useSession } from "../lib/session";
 import {
   Field,
@@ -23,6 +23,7 @@ type Movimiento = {
   motivo: string;
 };
 export default function Inventario() {
+  const [downloadError, setDownloadError] = useState("");
   const { data, error, loading, refresh } = useData(
       async () => ({
         productos: await api<Producto[]>("/productos"),
@@ -48,6 +49,19 @@ export default function Inventario() {
   }
   return (
     <>
+      <ErrorNotice message={downloadError} />
+      <button
+        onClick={async () => {
+          setDownloadError("");
+          try {
+            await downloadFile("/inventario/stock.csv", "stock.csv");
+          } catch (e) {
+            setDownloadError((e as Error).message);
+          }
+        }}
+      >
+        Descargar stock CSV
+      </button>
       <PageTitle
         title="Inventario"
         description="Existencias actuales, stock mínimo e historial de movimientos."

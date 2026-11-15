@@ -1,0 +1,16 @@
+ALTER TABLE empresas ADD COLUMN modalidad_visual VARCHAR(12) NOT NULL DEFAULT 'COMERCIO' CHECK(modalidad_visual IN ('COMERCIO','ATENCION'));
+ALTER TABLE empresas ADD COLUMN tipo_visual VARCHAR(20) REFERENCES tipos_atencion(codigo);
+ALTER TABLE empresas ADD COLUMN color_visual VARCHAR(7) CHECK(color_visual ~ '^#[0-9a-fA-F]{6}$');
+ALTER TABLE empresas ADD COLUMN diseno_visual VARCHAR(12) NOT NULL DEFAULT 'AMPLIO' CHECK(diseno_visual IN ('AMPLIO','COMPACTO'));
+ALTER TABLE empresas ADD COLUMN version_visual BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE empresas ADD COLUMN modulos_visuales TEXT[];
+ALTER TABLE empresas ADD COLUMN orden_visual TEXT[];
+UPDATE empresas e SET modalidad_visual=u.modalidad,tipo_visual=u.tipo_atencion FROM usuarios u WHERE u.id=COALESCE(e.administrador_principal_id,(SELECT min(id) FROM usuarios WHERE empresa_id=e.id AND rol='ADMIN'));
+ALTER TABLE empresas ADD CONSTRAINT visualizacion_consistente CHECK((modalidad_visual='COMERCIO' AND tipo_visual IS NULL) OR (modalidad_visual='ATENCION' AND tipo_visual IS NOT NULL));
+ALTER TABLE pedidos ADD COLUMN responsable_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL;
+ALTER TABLE pedidos ADD COLUMN responsable_original_id BIGINT;
+ALTER TABLE pedidos ADD COLUMN responsable_nombre VARCHAR(150);
+CREATE INDEX pedidos_responsable ON pedidos(empresa_id,local_id,responsable_original_id,id);
+CREATE INDEX ventas_autor ON ventas(empresa_id,local_id,usuario_original_id,id DESC);
+CREATE INDEX compras_autor ON compras(empresa_id,local_id,usuario_original_id,id DESC);
+CREATE INDEX movimientos_autor ON movimientos(empresa_id,local_id,usuario_original_id,id DESC);

@@ -2,6 +2,7 @@ package com.alshagroup.alshafacturas.sunat;
 
 import com.alshagroup.alshafacturas.comercial.ComercialService;
 import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import com.alshagroup.alshafacturas.visual.AlcanceDatos;
 import java.math.BigDecimal;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -50,16 +51,33 @@ public class SunatService {
         "SELECT"
             + " c.id,c.venta_id,c.ambiente,c.tipo,c.numero,c.estado,c.ticket,c.codigo,c.mensaje,c.creado,c.actualizado,v.numero"
             + " AS venta_numero FROM comprobantes c JOIN ventas v ON v.id=c.venta_id WHERE"
-            + " c.empresa_id=? ORDER BY c.id DESC LIMIT 500",
-        p.getEmpresaId());
+            + " v.local_id="
+            + com.alshagroup.alshafacturas.gestion.LocalesService.actual()
+            + " AND c.empresa_id=? AND (? OR v.usuario_original_id=?) ORDER BY c.id DESC LIMIT 500",
+        AlcanceDatos.args(p, p.getEmpresaId()));
   }
 
   private Map<String, Object> row(Long empresa, Long id) {
     var rows =
-        db.queryForList("SELECT * FROM comprobantes WHERE empresa_id=? AND id=?", empresa, id);
+        db.queryForList(
+            "SELECT * FROM comprobantes WHERE empresa_id=? AND id=?"
+                + com.alshagroup.alshafacturas.gestion.LocalesService.filtroComprobante(),
+            empresa,
+            id);
     if (rows.isEmpty())
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Comprobante no encontrado");
     return rows.getFirst();
+  }
+
+  private Map<String, Object> autorizado(UsuarioPrincipal p, Long id) {
+    var c = row(p.getEmpresaId(), id);
+    var venta =
+        db.queryForMap(
+            "SELECT usuario_original_id FROM ventas WHERE empresa_id=? AND id=?",
+            p.getEmpresaId(),
+            c.get("venta_id"));
+    AlcanceDatos.verificar(p, venta, "usuario_original_id");
+    return c;
   }
 
   private Map<String, Object> publico(Long empresa, Long id) {
@@ -81,6 +99,7 @@ public class SunatService {
 
   @SuppressWarnings("unchecked")
   public Map<String, Object> emitir(UsuarioPrincipal p, Long ventaId) {
+    ventas.ventaAutorizada(p, ventaId);
     var cfg = config.cargar(ruc(p));
     Long empresa = p.getEmpresaId();
     var prepared =
@@ -210,8 +229,9 @@ public class SunatService {
   }
 
   public Map<String, Object> consultar(UsuarioPrincipal p, Long id) {
+    autorizado(p, id);
     var cfg = config.cargar(ruc(p));
-    var c = row(p.getEmpresaId(), id);
+    var c = autorizado(p, id);
     if (!cfg.ambiente().equals(c.get("ambiente")))
       throw error("Activa el mismo ambiente del comprobante para consultarlo");
     if (!"03".equals(c.get("tipo")) || c.get("ticket") == null)
@@ -240,6 +260,7 @@ public class SunatService {
   }
 
   public Map<String, Object> reintentar(UsuarioPrincipal p, Long id) {
+    autorizado(p, id);
     var cfg = config.cargar(ruc(p));
     boolean send =
         Boolean.TRUE.equals(
@@ -249,7 +270,7 @@ public class SunatService {
                       "SELECT id FROM empresas WHERE id=? FOR UPDATE",
                       Long.class,
                       p.getEmpresaId());
-                  var c = row(p.getEmpresaId(), id);
+                  var c = autorizado(p, id);
                   if (!cfg.ambiente().equals(c.get("ambiente")))
                     throw error("El ambiente configurado no coincide");
                   if (!Set.of("REVISAR", "ENVIANDO").contains(c.get("estado")))
@@ -326,7 +347,7 @@ public class SunatService {
   public record Archivo(String nombre, byte[] contenido, String tipo) {}
 
   public Archivo archivo(UsuarioPrincipal p, Long id, String kind) {
-    var c = row(p.getEmpresaId(), id);
+    var c = autorizado(p, id);
     String key =
         "xml".equals(kind)
             ? "xml_firmado"

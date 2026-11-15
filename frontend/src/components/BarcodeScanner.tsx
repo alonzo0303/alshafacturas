@@ -7,12 +7,14 @@ export default function BarcodeScanner({
   onScan,
   label = "Buscar por nombre, SKU o código de barras",
   name,
+  actionLabel = "Buscar código",
 }: {
   value: string;
   onChange: (value: string) => void;
   onScan: (value: string) => void;
   label?: string;
   name?: string;
+  actionLabel?: string;
 }) {
   const [camera, setCamera] = useState(false),
     [busy, setBusy] = useState(false),
@@ -128,7 +130,7 @@ export default function BarcodeScanner({
           />
         </Field>
         <button type="button" onClick={() => accept(value)}>
-          Buscar código
+          {actionLabel}
         </button>
       </div>
       <div className="scanner-actions">

@@ -1,0 +1,380 @@
+package com.alshagroup.alshafacturas.gestion;
+
+import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import java.math.BigDecimal;
+import java.util.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+public class CajaService {
+  private final JdbcTemplate db;
+  private final AuditoriaService audit;
+
+  public CajaService(JdbcTemplate db, AuditoriaService audit) {
+    this.db = db;
+    this.audit = audit;
+  }
+
+  public Long paraVenta(UsuarioPrincipal p) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
+    if (!pendientes(p).isEmpty())
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Cierra la caja de la jornada anterior antes de continuar");
+    var rows =
+        db.queryForList(
+            "SELECT id FROM cajas WHERE empresa_id=? AND local_id=? AND usuario_original_id=? AND"
+                + " estado='ABIERTA'",
+            Long.class,
+            p.getEmpresaId(),
+            LocalesService.actual(),
+            p.getId());
+    if (!rows.isEmpty()) return rows.getFirst();
+    if (Boolean.TRUE.equals(
+        db.queryForObject(
+            "SELECT caja_obligatoria FROM empresas WHERE id=?", Boolean.class, p.getEmpresaId())))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Abre tu caja antes de registrar ventas");
+    return null;
+  }
+
+  public void validarAnulacion(Object caja) {
+    if (caja != null
+        && "CERRADA"
+            .equals(db.queryForObject("SELECT estado FROM cajas WHERE id=?", String.class, caja)))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "La caja ya está cerrada. No se permite modificar su corte con una anulación interna");
+  }
+
+  public Map<String, Object> detalle(Long empresa, Long local, Long id) {
+    var rows =
+        db.queryForList(
+            "SELECT * FROM cajas WHERE empresa_id=? AND local_id=? AND id=?", empresa, local, id);
+    if (rows.isEmpty())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Caja no encontrada");
+    var result = rows.getFirst();
+    result.put(
+        "medios",
+        db.queryForList(
+            "SELECT metodo_pago,count(*) AS ventas,COALESCE(sum(total),0) AS total FROM ventas"
+                + " WHERE empresa_id=? AND local_id=? AND caja_id=? AND estado='CONFIRMADA' GROUP"
+                + " BY metodo_pago ORDER BY metodo_pago",
+            empresa,
+            local,
+            id));
+    result.put(
+        "movimientos",
+        db.queryForList(
+            "SELECT * FROM caja_movimientos WHERE empresa_id=? AND local_id=? AND caja_id=? ORDER"
+                + " BY id",
+            empresa,
+            local,
+            id));
+    result.put("saldo_esperado", saldo(empresa, local, id, (BigDecimal) result.get("fondo")));
+    return result;
+  }
+
+  public List<Map<String, Object>> pendientes(UsuarioPrincipal p) {
+    return db.queryForList(
+        "SELECT * FROM cajas WHERE empresa_id=? AND usuario_original_id=? AND estado='ABIERTA' AND"
+            + " (abierta AT TIME ZONE 'America/Lima')::date < (CURRENT_TIMESTAMP AT TIME ZONE"
+            + " 'America/Lima')::date ORDER BY abierta",
+        p.getEmpresaId(),
+        p.getId());
+  }
+
+  private BigDecimal ajustes(Long empresa, Long local, Long id) {
+    return db.queryForObject(
+        "SELECT COALESCE(sum(CASE WHEN tipo='INGRESO' THEN importe ELSE -importe END),0) FROM"
+            + " caja_movimientos WHERE empresa_id=? AND local_id=? AND caja_id=?",
+        BigDecimal.class,
+        empresa,
+        local,
+        id);
+  }
+
+  private BigDecimal saldo(Long empresa, Long local, Long id, BigDecimal fondo) {
+    return fondo
+        .add(
+            db.queryForObject(
+                "SELECT COALESCE(sum(total),0) FROM ventas WHERE empresa_id=? AND local_id=? AND"
+                    + " caja_id=? AND estado='CONFIRMADA' AND metodo_pago='EFECTIVO'",
+                BigDecimal.class,
+                empresa,
+                local,
+                id))
+        .add(ajustes(empresa, local, id));
+  }
+
+  @Transactional
+  public Map<String, Object> movimiento(
+      UsuarioPrincipal p,
+      Long empresa,
+      Long local,
+      Long id,
+      String tipo,
+      BigDecimal importe,
+      String motivo,
+      UUID clave) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    var rows =
+        db.queryForList(
+            "SELECT * FROM cajas WHERE empresa_id=? AND local_id=? AND id=? FOR UPDATE",
+            empresa,
+            local,
+            id);
+    if (rows.isEmpty())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Caja no encontrada");
+    var caja = rows.getFirst();
+    if (!Set.of("ADMIN", "SUPERADMIN").contains(p.getRol())
+        && !Objects.equals(p.getId(), caja.get("usuario_original_id")))
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Solo puedes registrar movimientos en tu caja");
+    String razon = normalizarComentario(motivo);
+    if (razon == null)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el motivo del movimiento");
+    var old =
+        db.queryForList(
+            "SELECT * FROM caja_movimientos WHERE empresa_id=? AND idempotencia=?", empresa, clave);
+    if (!old.isEmpty()) {
+      var m = old.getFirst();
+      if (!Objects.equals(m.get("caja_id"), id)
+          || !Objects.equals(m.get("tipo"), tipo)
+          || !Objects.equals(m.get("motivo"), razon)
+          || ((BigDecimal) m.get("importe")).compareTo(importe) != 0)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT, "La clave corresponde a otro movimiento");
+      return detalle(empresa, local, id);
+    }
+    if (!"ABIERTA".equals(caja.get("estado")))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "La caja está cerrada");
+    if (!pendientes(p).isEmpty())
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Cierra la caja anterior antes de registrar movimientos");
+    if ("EGRESO".equals(tipo)
+        && importe.compareTo(saldo(empresa, local, id, (BigDecimal) caja.get("fondo"))) > 0)
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "No hay efectivo suficiente en caja");
+    db.update(
+        "INSERT INTO"
+            + " caja_movimientos(empresa_id,local_id,caja_id,tipo,importe,motivo,usuario_original_id,usuario_nombre,idempotencia)"
+            + " VALUES (?,?,?,?,?,?,?,?,?)",
+        empresa,
+        local,
+        id,
+        tipo,
+        importe,
+        razon,
+        p.getId(),
+        p.getNombre(),
+        clave);
+    audit.registrar(
+        p, empresa, local, "CAJA_" + tipo, id, "Importe=" + importe + ", motivo registrado");
+    return detalle(empresa, local, id);
+  }
+
+  @Transactional
+  public Map<String, Object> abrir(UsuarioPrincipal p, BigDecimal fondo) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
+    long local = LocalesService.actual();
+    var policy =
+        db.queryForList(
+            "SELECT habilitada,fondo_asignado FROM accesos_caja WHERE empresa_id=? AND local_id=?"
+                + " AND usuario_id=?",
+            p.getEmpresaId(),
+            local,
+            p.getId());
+    if (!policy.isEmpty()) {
+      var config = policy.getFirst();
+      if (!Boolean.TRUE.equals(config.get("habilitada")))
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN, "El administrador no ha habilitado tu caja");
+      if (config.get("fondo_asignado") instanceof BigDecimal asignado
+          && asignado.compareTo(fondo) != 0)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT, "Usa el fondo inicial asignado por el administrador");
+    }
+    return abrirPara(p, p.getId(), p.getNombre(), fondo);
+  }
+
+  @Transactional
+  public Map<String, Object> abrirPara(
+      UsuarioPrincipal actor, Long responsable, String nombre, BigDecimal fondo) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, actor.getEmpresaId());
+    long local = LocalesService.actual();
+    if (db.queryForObject(
+            "SELECT count(*) FROM cajas WHERE empresa_id=? AND usuario_original_id=? AND"
+                + " estado='ABIERTA' AND (abierta AT TIME ZONE 'America/Lima')::date <"
+                + " (CURRENT_TIMESTAMP AT TIME ZONE 'America/Lima')::date",
+            Long.class,
+            actor.getEmpresaId(),
+            responsable)
+        > 0)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Resuelve primero la caja de la jornada anterior");
+    if (db.queryForObject(
+            "SELECT count(*) FROM cajas WHERE empresa_id=? AND local_id=? AND usuario_original_id=?"
+                + " AND estado='ABIERTA'",
+            Long.class,
+            actor.getEmpresaId(),
+            local,
+            responsable)
+        > 0)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Esta persona ya tiene una caja abierta en el local");
+    Long id =
+        db.queryForObject(
+            "INSERT INTO"
+                + " cajas(empresa_id,local_id,usuario_id,usuario_original_id,usuario_nombre,fondo,abierto_por_original_id,abierto_nombre)"
+                + " VALUES (?,?,?,?,?,?,?,?) RETURNING id",
+            Long.class,
+            actor.getEmpresaId(),
+            local,
+            responsable,
+            responsable,
+            nombre,
+            fondo,
+            actor.getId(),
+            actor.getNombre());
+    audit.registrar(
+        actor,
+        actor.getEmpresaId(),
+        local,
+        "CAJA_ABIERTA",
+        id,
+        "Responsable=" + responsable + ", fondo=" + fondo);
+    return detalle(actor.getEmpresaId(), local, id);
+  }
+
+  @Transactional
+  public Map<String, Object> cerrar(
+      UsuarioPrincipal p,
+      Long empresa,
+      Long local,
+      Long id,
+      BigDecimal contado,
+      String comentario) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    var rows =
+        db.queryForList(
+            "SELECT * FROM cajas WHERE empresa_id=? AND local_id=? AND id=? FOR UPDATE",
+            empresa,
+            local,
+            id);
+    if (rows.isEmpty())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Caja no encontrada");
+    var caja = rows.getFirst();
+    if (!Set.of("ADMIN", "SUPERADMIN").contains(p.getRol())
+        && !Objects.equals(p.getId(), caja.get("usuario_original_id")))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo puedes cerrar tu caja");
+    if ("CERRADA".equals(caja.get("estado"))) return detalle(empresa, local, id);
+    var totals =
+        db.queryForMap(
+            "SELECT count(*) AS cantidad,COALESCE(sum(total),0) AS total,COALESCE(sum(total)"
+                + " FILTER(WHERE metodo_pago='EFECTIVO'),0) AS efectivo FROM ventas WHERE"
+                + " empresa_id=? AND local_id=? AND caja_id=? AND estado='CONFIRMADA'",
+            empresa,
+            local,
+            id);
+    BigDecimal esperado =
+        ((BigDecimal) caja.get("fondo"))
+            .add((BigDecimal) totals.get("efectivo"))
+            .add(ajustes(empresa, local, id));
+    String motivo = normalizarComentario(comentario);
+    if (contado.compareTo(esperado) != 0 && motivo == null)
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "El efectivo contado difiere del esperado. Es obligatorio explicar el descuadre en el"
+              + " comentario del cierre");
+    db.update(
+        "UPDATE cajas SET"
+            + " estado='CERRADA',cerrada=CURRENT_TIMESTAMP,cerrado_por=?,cerrado_nombre=?,efectivo_esperado=?,efectivo_contado=?,diferencia=?,total_ventas=?,cantidad_ventas=?,comentario_cierre=?,comentado_por_original_id=?,comentado_nombre=?,comentado_en=CASE"
+            + " WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?",
+        p.getId(),
+        p.getNombre(),
+        esperado,
+        contado,
+        contado.subtract(esperado),
+        totals.get("total"),
+        totals.get("cantidad"),
+        motivo,
+        motivo == null ? null : p.getId(),
+        motivo == null ? null : p.getNombre(),
+        motivo != null,
+        id);
+    audit.registrar(
+        p,
+        empresa,
+        local,
+        "CAJA_CERRADA",
+        id,
+        "Efectivo esperado="
+            + esperado
+            + ", contado="
+            + contado
+            + ", comentario registrado="
+            + (motivo != null));
+    return detalle(empresa, local, id);
+  }
+
+  private String normalizarComentario(String comentario) {
+    if (comentario == null || comentario.isBlank()) return null;
+    String result = comentario.strip();
+    if (result.length() > 1000)
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "El comentario admite hasta 1000 caracteres");
+    return result;
+  }
+
+  @Transactional
+  public Map<String, Object> comentar(
+      UsuarioPrincipal p, Long empresa, Long local, Long id, String comentario) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    var rows =
+        db.queryForList(
+            "SELECT * FROM cajas WHERE empresa_id=? AND local_id=? AND id=? FOR UPDATE",
+            empresa,
+            local,
+            id);
+    if (rows.isEmpty())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Caja no encontrada");
+    var caja = rows.getFirst();
+    if (!Set.of("ADMIN", "SUPERADMIN").contains(p.getRol())
+        && !Objects.equals(p.getId(), caja.get("usuario_original_id")))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo puedes comentar tu caja");
+    if (!"CERRADA".equals(caja.get("estado")))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "El comentario se registra al cerrar la caja");
+    String motivo = normalizarComentario(comentario);
+    if (motivo == null)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el comentario del cierre");
+    if (caja.get("comentario_cierre") != null) {
+      if (motivo.equals(caja.get("comentario_cierre"))) return detalle(empresa, local, id);
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "El cierre ya tiene un comentario registrado y no se puede reemplazar");
+    }
+    db.update(
+        "UPDATE cajas SET"
+            + " comentario_cierre=?,comentado_por_original_id=?,comentado_nombre=?,comentado_en=CURRENT_TIMESTAMP"
+            + " WHERE id=?",
+        motivo,
+        p.getId(),
+        p.getNombre(),
+        id);
+    audit.registrar(
+        p,
+        empresa,
+        local,
+        "CAJA_COMENTARIO_REGISTRADO",
+        id,
+        "Comentario añadido al cierre sin modificar importes");
+    return detalle(empresa, local, id);
+  }
+}
