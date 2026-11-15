@@ -52,6 +52,7 @@ jobs:
       - run: python tests/test_experiencia.py
       - run: python tests/test_herencia.py
       - run: python tests/test_caja_personal.py
+      - run: python tests/test_caja_comentarios.py
       - run: python tests/test_carga_guard.py
       - run: npx playwright install --with-deps chromium
         working-directory: frontend

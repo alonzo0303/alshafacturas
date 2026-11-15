@@ -91,7 +91,7 @@ class ControlRegression(unittest.TestCase):
         first=owner.ok('/ventas','POST',self.sale(p,2));second=owner.ok('/ventas','POST',self.sale(p,1,metodoPago='TARJETA'))
         third=owner.ok('/ventas','POST',self.sale(p,1,metodoPago='TRANSFERENCIA'))
         owner.ok(f"/ventas/{third['id']}/anular",'POST',{'motivo':'Corrección antes de corte'})
-        close=owner.ok(f"/cajas/{caja['id']}/cerrar",'POST',{'efectivoContado':35})
+        close=owner.ok(f"/cajas/{caja['id']}/cerrar",'POST',{'efectivoContado':35,'comentario':'Faltante de S/5 al realizar el arqueo'})
         self.assertEqual((close['cantidad_ventas'],close['total_ventas'],close['efectivo_esperado'],close['diferencia']),(2,30,40,-5))
         self.assertEqual(close['cerrado_por'],owner.ok('/auth/me')['id'])
         self.assertEqual(owner.ok(f"/cajas/{caja['id']}/cerrar",'POST',{'efectivoContado':99})['efectivo_contado'],35)

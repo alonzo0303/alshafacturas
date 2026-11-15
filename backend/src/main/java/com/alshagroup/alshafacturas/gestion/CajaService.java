@@ -132,7 +132,12 @@ public class CajaService {
 
   @Transactional
   public Map<String, Object> cerrar(
-      UsuarioPrincipal p, Long empresa, Long local, Long id, BigDecimal contado) {
+      UsuarioPrincipal p,
+      Long empresa,
+      Long local,
+      Long id,
+      BigDecimal contado,
+      String comentario) {
     db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
     var rows =
         db.queryForList(
@@ -156,10 +161,16 @@ public class CajaService {
             local,
             id);
     BigDecimal esperado = ((BigDecimal) caja.get("fondo")).add((BigDecimal) totals.get("efectivo"));
+    String motivo = normalizarComentario(comentario);
+    if (contado.compareTo(esperado) < 0 && motivo == null)
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "El efectivo contado es menor al esperado. Es obligatorio explicar el faltante en el"
+              + " comentario del cierre");
     db.update(
         "UPDATE cajas SET"
-            + " estado='CERRADA',cerrada=CURRENT_TIMESTAMP,cerrado_por=?,cerrado_nombre=?,efectivo_esperado=?,efectivo_contado=?,diferencia=?,total_ventas=?,cantidad_ventas=?"
-            + " WHERE id=?",
+            + " estado='CERRADA',cerrada=CURRENT_TIMESTAMP,cerrado_por=?,cerrado_nombre=?,efectivo_esperado=?,efectivo_contado=?,diferencia=?,total_ventas=?,cantidad_ventas=?,comentario_cierre=?,comentado_por_original_id=?,comentado_nombre=?,comentado_en=CASE"
+            + " WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?",
         p.getId(),
         p.getNombre(),
         esperado,
@@ -167,6 +178,10 @@ public class CajaService {
         contado.subtract(esperado),
         totals.get("total"),
         totals.get("cantidad"),
+        motivo,
+        motivo == null ? null : p.getId(),
+        motivo == null ? null : p.getNombre(),
+        motivo != null,
         id);
     audit.registrar(
         p,
@@ -174,7 +189,67 @@ public class CajaService {
         local,
         "CAJA_CERRADA",
         id,
-        "Efectivo esperado=" + esperado + ", contado=" + contado);
+        "Efectivo esperado="
+            + esperado
+            + ", contado="
+            + contado
+            + ", comentario registrado="
+            + (motivo != null));
+    return detalle(empresa, local, id);
+  }
+
+  private String normalizarComentario(String comentario) {
+    if (comentario == null || comentario.isBlank()) return null;
+    String result = comentario.strip();
+    if (result.length() > 1000)
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "El comentario admite hasta 1000 caracteres");
+    return result;
+  }
+
+  @Transactional
+  public Map<String, Object> comentar(
+      UsuarioPrincipal p, Long empresa, Long local, Long id, String comentario) {
+    db.queryForObject("SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, empresa);
+    var rows =
+        db.queryForList(
+            "SELECT * FROM cajas WHERE empresa_id=? AND local_id=? AND id=? FOR UPDATE",
+            empresa,
+            local,
+            id);
+    if (rows.isEmpty())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Caja no encontrada");
+    var caja = rows.getFirst();
+    if (!Set.of("ADMIN", "SUPERADMIN").contains(p.getRol())
+        && !Objects.equals(p.getId(), caja.get("usuario_original_id")))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo puedes comentar tu caja");
+    if (!"CERRADA".equals(caja.get("estado")))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "El comentario se registra al cerrar la caja");
+    String motivo = normalizarComentario(comentario);
+    if (motivo == null)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el comentario del cierre");
+    if (caja.get("comentario_cierre") != null) {
+      if (motivo.equals(caja.get("comentario_cierre"))) return detalle(empresa, local, id);
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "El cierre ya tiene un comentario registrado y no se puede reemplazar");
+    }
+    db.update(
+        "UPDATE cajas SET"
+            + " comentario_cierre=?,comentado_por_original_id=?,comentado_nombre=?,comentado_en=CURRENT_TIMESTAMP"
+            + " WHERE id=?",
+        motivo,
+        p.getId(),
+        p.getNombre(),
+        id);
+    audit.registrar(
+        p,
+        empresa,
+        local,
+        "CAJA_COMENTARIO_REGISTRADO",
+        id,
+        "Comentario añadido al cierre sin modificar importes");
     return detalle(empresa, local, id);
   }
 }

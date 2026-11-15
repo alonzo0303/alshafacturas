@@ -35,3 +35,11 @@ V18 añade `accesos_caja` por empresa/local/usuario y la identidad de apertura e
 La consulta `/api/sesion/recordatorios` devuelve únicamente las cajas abiertas de la cuenta autenticada y su aviso de membresía. No acepta otro usuario o empresa como destino. Los cambios de acceso requieren rol Administrador, empresa propia y usuario activo del local. El fondo y el responsable se validan en el servidor.
 
 `tests/test_caja_personal.py` verifica permisos, fondo fijo, apertura por administrador, duplicados, diferencias, reversión de cambios al fallar, separación entre empresas/locales y avisos para jefe/personal. La prueba Java usa un reloj controlado para comprobar las 23:59:59, las 00:00 y la renovación. Playwright recorre habilitación, entrega de S/30, consulta, aviso al salir, salida sin cerrar, nuevo aviso al entrar, cierre con diferencia y aviso de pago después de cerrar; comprueba móvil y accesibilidad.
+
+## Comentario del cierre y faltantes
+
+El cierre incluye «Comentario del cierre». Es obligatorio si el efectivo contado es menor al esperado: fondo inicial más ventas en efectivo confirmadas. Por ejemplo, fondo S/30 sin ventas y conteo S/25 exige explicar los S/5 faltantes. Con ventas en efectivo de S/10 se esperan S/40; contar S/35 también requiere motivo, aunque sea mayor al fondo inicial. Los pagos con tarjeta no aumentan el efectivo esperado.
+
+El servidor vuelve a calcular el importe bajo el bloqueo de caja; no confía en la comparación de la pantalla. Un comentario ausente, vacío o de solo espacios rechaza el cierre con faltante y deja la caja abierta. Admite hasta 1000 caracteres. Si no falta efectivo, el comentario es opcional. El motivo se guarda con autor y fecha y se muestra en el detalle. Explicar una diferencia no la elimina ni registra automáticamente un gasto o retiro.
+
+V19 conserva todos los cierres anteriores con comentario vacío, sin inventar explicaciones ni cambiar el arqueo. Al abrir uno de esos cierres aparece «Guardar comentario del cierre»: el responsable o un administrador autorizado puede añadir el motivo una sola vez. Se registra quién lo añadió y cuándo; fondo, ventas, efectivo esperado/contado, diferencia y fecha de cierre quedan iguales. Un motivo guardado no se puede reemplazar; repetir exactamente la misma solicitud es idempotente. Las reglas de empresa, local, rol y suscripción siguen aplicándose.

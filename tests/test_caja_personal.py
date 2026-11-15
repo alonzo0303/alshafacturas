@@ -21,7 +21,7 @@ class CajaPersonalRegression(unittest.TestCase):
   self.assertEqual(a.request(path,'PUT',{'habilitada':True,'fondoAsignado':40,'abrirAhora':True})[0],409);self.assertEqual(s.ok('/cajas/mi-acceso')['fondoAsignado'],30)
   reminders=s.ok('/sesion/recordatorios');self.assertEqual([b['id'] for b in reminders['cajas']],[box['id']]);self.assertEqual(a.ok('/sesion/recordatorios')['cajas'],[])
   _,other,otheruser,otherstaff=self.fixture();self.assertEqual(other.request(path,'PUT',{'habilitada':True,'fondoAsignado':None,'abrirAhora':False})[0],404);other.ok(f"/cajas/personal/{otheruser['id']}",'PUT',{'habilitada':True,'fondoAsignado':None,'abrirAhora':False});self.assertEqual(otherstaff.request(f"/cajas/{box['id']}")[0],404)
-  closed=s.ok(f"/cajas/{box['id']}/cerrar",'POST',{'efectivoContado':25});self.assertEqual(closed['diferencia'],-5);self.assertEqual(s.ok('/sesion/recordatorios')['cajas'],[])
+  closed=s.ok(f"/cajas/{box['id']}/cerrar",'POST',{'efectivoContado':25,'comentario':'Faltan S/5 en el conteo de monedas'});self.assertEqual(closed['diferencia'],-5);self.assertEqual(s.ok('/sesion/recordatorios')['cajas'],[])
   a.ok(path,'PUT',{'habilitada':False,'fondoAsignado':None,'abrirAhora':False});self.assertNotIn('CAJA_GESTIONAR',s.ok('/auth/me')['permisos']);self.assertEqual(s.request('/cajas')[0],403)
   assigned=a.ok(path,'PUT',{'habilitada':True,'fondoAsignado':50,'abrirAhora':True});self.assertEqual(assigned['fondo'],50);self.assertEqual(assigned['usuario_original_id'],u['id']);self.assertEqual(assigned['abierto_por_original_id'],a.ok('/auth/me')['id']);self.assertEqual(s.ok('/cajas')[0]['id'],assigned['id'])
  def test_local_policies_do_not_leak_and_invalid_funds_rejected(self):

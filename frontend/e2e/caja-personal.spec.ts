@@ -187,10 +187,37 @@ test("Caja por persona, entrega de fondo y avisos obligatorios en cada entrada y
     .getByRole("button", { name: `Ver caja ${box.id}`, exact: true })
     .click();
   await staff.getByLabel("Efectivo contado al cierre (S/)").fill("25");
+  await expect(staff.getByLabel("Comentario del cierre")).toHaveAttribute(
+    "required",
+    "",
+  );
+  await staff
+    .getByRole("button", { name: "Confirmar cierre de caja", exact: true })
+    .click();
+  await expect(staff.getByLabel("Comentario del cierre")).toBeVisible();
+  expect((await (await owner.get(`/api/cajas/${box.id}`)).json()).estado).toBe(
+    "ABIERTA",
+  );
+  await staff
+    .getByLabel("Comentario del cierre")
+    .fill("Faltan S/5 en el conteo de monedas");
   await staff
     .getByRole("button", { name: "Confirmar cierre de caja", exact: true })
     .click();
   await expect(staff.getByRole("dialog")).toHaveCount(0);
+  await staff
+    .getByRole("button", { name: `Ver caja ${box.id}`, exact: true })
+    .click();
+  await expect(
+    staff.getByText("Faltan S/5 en el conteo de monedas", { exact: true }),
+  ).toBeVisible();
+  await expect(staff.getByRole("dialog")).toContainText(
+    "Registrado por Personal de caja",
+  );
+  await staff
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cerrar", exact: true })
+    .click();
   await write(
     owner,
     `/cajas/personal/${user.id}`,
@@ -223,6 +250,26 @@ test("Caja por persona, entrega de fondo y avisos obligatorios en cada entrada y
     .getByRole("button", { name: "Confirmar cierre de caja", exact: true })
     .click();
   await expect(staff.getByRole("dialog")).toHaveCount(0);
+  await staff
+    .getByRole("button", { name: `Ver caja ${ownBox.id}`, exact: true })
+    .click();
+  await staff
+    .getByLabel("Comentario del cierre")
+    .fill("Arqueo verificado sin diferencia");
+  await staff
+    .getByRole("button", { name: "Guardar comentario del cierre", exact: true })
+    .click();
+  await expect(
+    staff.getByText("Arqueo verificado sin diferencia", { exact: true }),
+  ).toBeVisible();
+  await expect(staff.getByLabel("Comentario del cierre")).toHaveCount(0);
+  const annotated = await (await owner.get(`/api/cajas/${ownBox.id}`)).json();
+  expect(annotated.efectivo_contado).toBe(70);
+  expect(annotated.diferencia).toBe(0);
+  await staff
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cerrar", exact: true })
+    .click();
 
   await staff
     .getByRole("button", { name: "Cerrar sesión", exact: true })

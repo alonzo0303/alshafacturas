@@ -57,7 +57,8 @@ public class ControlController {
 
   public record Cierre(
       @NotNull @DecimalMin("0") @DecimalMax("999999999999.99") @Digits(integer = 12, fraction = 2)
-          BigDecimal efectivoContado) {}
+          BigDecimal efectivoContado,
+      @Size(max = 1000) String comentario) {}
 
   @GetMapping("/cajas")
   @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('CAJA_GESTIONAR')")
@@ -107,7 +108,21 @@ public class ControlController {
       @RequestParam(required = false) Long localId,
       @Valid @RequestBody Cierre r) {
     Long e = empresa(p, empresaId);
-    return cajas.cerrar(p, e, local(p, e, localId), id, r.efectivoContado());
+    return cajas.cerrar(p, e, local(p, e, localId), id, r.efectivoContado(), r.comentario());
+  }
+
+  public record Comentario(@NotBlank @Size(max = 1000) String comentario) {}
+
+  @PatchMapping("/cajas/{id}/comentario")
+  @PreAuthorize("hasRole('SUPERADMIN') or hasAuthority('CAJA_GESTIONAR')")
+  public Map<String, Object> comentar(
+      @AuthenticationPrincipal UsuarioPrincipal p,
+      @PathVariable Long id,
+      @RequestParam(required = false) Long empresaId,
+      @RequestParam(required = false) Long localId,
+      @Valid @RequestBody Comentario r) {
+    Long e = empresa(p, empresaId);
+    return cajas.comentar(p, e, local(p, e, localId), id, r.comentario());
   }
 
   @GetMapping("/rendimiento")

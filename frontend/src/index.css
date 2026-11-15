@@ -1694,3 +1694,7 @@ a {
   flex-wrap: wrap;
   overflow-wrap: anywhere;
 }
+.cash-close-comment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

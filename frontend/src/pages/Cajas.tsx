@@ -1,3 +1,5 @@
+import type { Caja } from "../lib/cajas";
+import DetalleCaja from "../components/DetalleCaja";
 import CajaPersonal from "../components/CajaPersonal";
 import { useState } from "react";
 import { api, date, money, type Session } from "../lib/api";
@@ -8,26 +10,9 @@ import {
   PageTitle,
   ErrorNotice,
   Table,
-  Modal,
   Badge,
 } from "../components/ui";
-type Caja = {
-  id: number;
-  usuario_original_id: number;
-  usuario_nombre: string;
-  abierto_nombre?: string | null;
-  abierta: string;
-  cerrada: string | null;
-  estado: string;
-  fondo: number;
-  cerrado_nombre: string | null;
-  efectivo_esperado: number | null;
-  efectivo_contado: number | null;
-  diferencia: number | null;
-  total_ventas: number | null;
-  cantidad_ventas: number | null;
-  medios?: { metodo_pago: string; ventas: number; total: number }[];
-};
+
 export default function Cajas({
   session,
   query = "",
@@ -161,64 +146,16 @@ export default function Cajas({
         )}
       </section>
       {selected && (
-        <Modal title={`Caja #${selected.id}`} onClose={() => setSelected(null)}>
-          <p>
-            Responsable: <strong>{selected.usuario_nombre}</strong> · Fondo:{" "}
-            {money(selected.fondo)}
-          </p>
-          <p>Abrió: {selected.abierto_nombre || selected.usuario_nombre}</p>
-          <Table headers={["Medio de pago", "Ventas", "Total"]}>
-            {selected.medios?.map((m) => (
-              <tr key={m.metodo_pago}>
-                <td>{m.metodo_pago}</td>
-                <td>{m.ventas}</td>
-                <td>{money(m.total)}</td>
-              </tr>
-            ))}
-          </Table>
-          {selected.estado === "ABIERTA" ? (
-            <Form
-              label="Confirmar cierre de caja"
-              onSave={(d) =>
-                api(`/cajas/${selected.id}/cerrar${query}`, "POST", {
-                  efectivoContado: Number(d.get("efectivo")),
-                })
-              }
-              onDone={() => {
-                setSelected(null);
-                void refresh();
-                window.dispatchEvent(new Event("caja-updated"));
-              }}
-            >
-              <p>
-                Las ventas de esta caja quedarán cerradas. No se incluyen
-                retiros ni gastos de caja en esta versión.
-              </p>
-              <Field label="Efectivo contado al cierre (S/)">
-                <input
-                  name="efectivo"
-                  type="number"
-                  min="0"
-                  max="999999999999.99"
-                  step="0.01"
-                  required
-                />
-              </Field>
-            </Form>
-          ) : (
-            <>
-              <p>
-                Cerró: {selected.cerrado_nombre} ·{" "}
-                {selected.cerrada && date(selected.cerrada)}
-              </p>
-              <p>Efectivo esperado: {money(selected.efectivo_esperado || 0)}</p>
-              <p>Efectivo contado: {money(selected.efectivo_contado || 0)}</p>
-              <p>
-                Diferencia: <strong>{money(selected.diferencia || 0)}</strong>
-              </p>
-            </>
-          )}
-        </Modal>
+        <DetalleCaja
+          key={selected.id}
+          caja={selected}
+          query={query}
+          onClose={() => setSelected(null)}
+          onChanged={() => {
+            void refresh();
+            window.dispatchEvent(new Event("caja-updated"));
+          }}
+        />
       )}
     </>
   );
