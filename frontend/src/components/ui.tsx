@@ -177,8 +177,18 @@ export function Table({
               value={Math.round(position.offset)}
               aria-valuetext={`${Math.round(position.max ? (position.offset / position.max) * 100 : 0)}% de desplazamiento`}
               onChange={(e) => {
-                if (scroll.current)
-                  scroll.current.scrollLeft = Number(e.target.value);
+                const element = scroll.current;
+                if (element) {
+                  element.scrollLeft = Number(e.target.value);
+                  setPosition((previous) => ({
+                    ...previous,
+                    offset: element.scrollLeft,
+                    start: element.scrollLeft < 1,
+                    end:
+                      element.scrollLeft + element.clientWidth >=
+                      element.scrollWidth - 1,
+                  }));
+                }
               }}
             />
           </label>
