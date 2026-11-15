@@ -19,6 +19,13 @@ export default function EditorPedido({
 }) {
   const session = useSession(),
     menu = useData(() => api<ArticuloPedido[]>("/pedidos/catalogo"), []);
+  const responsables = useData(
+    () =>
+      session.rol === "ADMIN"
+        ? api<{ id: number; nombre: string }[]>("/pedidos/responsables")
+        : Promise.resolve([]),
+    [],
+  );
   const [pedido, setPedido] = useState(initial),
     [lineas, setLineas] = useState<PedidoLinea[]>(initial.lineas),
     [observacion, setObservacion] = useState(initial.observacion || ""),
@@ -67,8 +74,43 @@ export default function EditorPedido({
         <ErrorNotice message={error || menu.error} />
         <p>
           Estado: <strong>{pedido.estado}</strong> · Responsable:{" "}
-          {pedido.usuario_nombre}
+          {pedido.responsable_nombre || pedido.usuario_nombre}
         </p>
+        {editable && session.rol === "ADMIN" && (
+          <Field label="Asignar pedido a colaborador">
+            <select
+              disabled={busy || dirty}
+              value={pedido.responsable_original_id ?? ""}
+              onChange={(e) => {
+                const id = e.target.value;
+                void run(async () => {
+                  setPedido(
+                    await api<Pedido>(
+                      `/pedidos/${pedido.id}/responsable`,
+                      "PATCH",
+                      {
+                        version: pedido.version,
+                        usuarioId: id ? Number(id) : null,
+                      },
+                    ),
+                  );
+                });
+              }}
+            >
+              <option value="">Sin asignación adicional</option>
+              {responsables.data.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nombre}
+                </option>
+              ))}
+            </select>
+            <p className="hint">
+              El creador y el responsable podrán atenderlo si su rol lo permite.
+              Guarda los cambios antes de asignar.
+            </p>
+          </Field>
+        )}
+        <ErrorNotice message={responsables.error} />
         <button disabled={busy} onClick={() => void reload()}>
           Actualizar pedido
         </button>

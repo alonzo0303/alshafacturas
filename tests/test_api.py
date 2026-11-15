@@ -297,7 +297,7 @@ class ApiRegression(unittest.TestCase):
         self.assertEqual(self.b.request('/ventas/' + str(sale['id']) + '/anular', 'POST', {'motivo': 'intrusión'})[0], 404)
         self.assertEqual(self.stock(p), 4)
 
-    def test_visualizaciones_individuales_y_roles(self):
+    def test_visualizacion_heredada_y_roles(self):
         company, email, owner = self.company('Modalidades independientes')
         before = owner.ok('/auth/me')
         self.assertEqual(before['modalidad'], 'COMERCIO')
@@ -320,13 +320,13 @@ class ApiRegression(unittest.TestCase):
             self.assertEqual(current['tipoAtencion'],tipo)
             self.assertEqual(current['permisos'],before['permisos'])
         rows=self.platform.ok(base)
-        self.assertEqual(next(u for u in rows if u['id']==staff['id'])['modalidad'],'COMERCIO')
+        self.assertEqual(next(u for u in rows if u['id']==staff['id'])['modalidad'],'ATENCION')
         for path, snapshot in snapshots.items():
             self.assertEqual(owner.ok(path),snapshot)
         custom=owner.ok('/roles','POST',{'codigo':'R_BARBERO','nombre':'Barbero','permisos':['CLIENTES_GESTIONAR']})
         owner.ok(f"/usuarios/{staff['id']}/rol",'PATCH',{'rol':'R_BARBERO'})
         staffpath=f"/admin/visualizaciones/{staff['id']}?empresaId={company['id']}"
-        self.platform.ok(staffpath,'PATCH',{'modalidad':'ATENCION','tipoAtencion':'BARBERIA'})
+        self.assertEqual(self.platform.request(staffpath,'PATCH',{'modalidad':'ATENCION','tipoAtencion':'BARBERIA'})[0],409)
         employee=Client()
         session=employee.login(company['ruc'],staff['correo'])
         self.assertEqual(session['rol'],'R_BARBERO')
@@ -335,7 +335,7 @@ class ApiRegression(unittest.TestCase):
         self.assertEqual(employee.request('/roles')[0],403)
         self.assertEqual(employee.request('/compras')[0],403)
         self.platform.ok(target,'PATCH',{'modalidad':'COMERCIO','tipoAtencion':None})
-        self.assertEqual(owner.ok('/auth/me'),before)
+        after=owner.ok('/auth/me');self.assertGreater(after.pop('aparienciaVersion'),before.pop('aparienciaVersion'));self.assertEqual(after,before)
         self.assertEqual(self.stock(producto,owner),3)
         root=self.platform.ok('/auth/me')
         self.assertEqual(self.platform.request(f"/admin/visualizaciones/{root['id']}?empresaId={root['empresaId']}",'PATCH',{'modalidad':'COMERCIO'})[0],409)
@@ -606,7 +606,9 @@ class ApiRegression(unittest.TestCase):
         self.assertFalse(config['configurado'])
         self.assertNotIn('password', str(config).lower())
         self.assertEqual(self.a.ok('/sunat/comprobantes'), [])
-        self.assertEqual(self.a.request('/sunat/ventas/1/emitir', 'POST')[0], 412)
+        self.assertEqual(self.a.request('/sunat/ventas/999999999/emitir', 'POST')[0], 404)
+        own=self.a.ok('/ventas','POST',self.sale(self.product(1)))
+        self.assertEqual(self.a.request(f"/sunat/ventas/{own['id']}/emitir", 'POST')[0], 412)
         self.assertEqual(self.vendor.request('/sunat/ventas/1/emitir', 'POST')[0], 403)
         self.assertEqual(self.b.request('/sunat/comprobantes/999999/xml')[0], 404)
 

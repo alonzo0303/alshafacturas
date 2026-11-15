@@ -7,7 +7,7 @@ export function useSession() {
   return session;
 }
 export function can(session: Session, permission: string) {
-  return session.rol === "ADMIN" || session.permisos?.includes(permission);
+  return session.permisos?.includes(permission) ?? false;
 }
 export const permissionLabels: Record<string, string> = {
   ACTIVIDADES_GESTIONAR: "Registrar mis actividades y etapas",

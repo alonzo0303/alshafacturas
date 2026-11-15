@@ -1,3 +1,4 @@
+import { useSession } from "../lib/session";
 import { useData } from "../lib/useData";
 import { useState } from "react";
 import { api, money, date, localDay, exportCsv, type Venta } from "../lib/api";
@@ -13,6 +14,7 @@ export function Ventas({
   fiscal?: boolean;
   atencion?: boolean;
 }) {
+  const own = useSession().rol !== "ADMIN";
   const { data, loading, error, refresh } = useData(
     () => api<Venta[]>("/ventas"),
     [],
@@ -64,11 +66,19 @@ export function Ventas({
   return (
     <>
       <PageTitle
-        title={fiscal ? "Facturación electrónica" : "Ventas y reportes"}
+        title={
+          fiscal
+            ? "Facturación electrónica"
+            : own
+              ? "Mis ventas y reportes"
+              : "Ventas y reportes"
+        }
         description={
           fiscal
             ? "Solicitudes de comprobantes pendientes de emisión fiscal."
-            : "Últimas 500 ventas de tu empresa. Filtra y exporta el resultado."
+            : own
+              ? "Últimas 500 ventas realizadas por ti. Filtra y exporta tus resultados."
+              : "Últimas 500 ventas de tu empresa. Filtra y exporta el resultado."
         }
       >
         <button

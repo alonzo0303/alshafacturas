@@ -1,3 +1,4 @@
+import { useSession } from "../lib/session";
 import { useState } from "react";
 import { api, date, money } from "../lib/api";
 import { useData } from "../lib/useData";
@@ -18,8 +19,10 @@ type Mesa = {
   capacidad: number;
   activo: boolean;
   pedido_id: number | null;
+  ocupada?: boolean;
 };
 export function Mesas() {
+  const admin = useSession().rol === "ADMIN";
   const { data, error, loading, refresh } = useData(
     () => api<Mesa[]>("/mesas"),
     [],
@@ -54,9 +57,11 @@ export function Mesas() {
         title="Mesas"
         description="Crea y organiza las mesas de este local. Un pedido abierto por mesa; el stock se descuenta al cobrar."
       >
-        <button className="primary" onClick={() => setEdit(null)}>
-          Nueva mesa
-        </button>
+        {admin && (
+          <button className="primary" onClick={() => setEdit(null)}>
+            Nueva mesa
+          </button>
+        )}
       </PageTitle>
       <ErrorNotice message={error || failure} />
       <section className="surface">
@@ -75,21 +80,27 @@ export function Mesas() {
                 <Badge neutral={!m.pedido_id}>
                   {!m.activo
                     ? "Inactiva"
-                    : m.pedido_id
+                    : m.ocupada
                       ? "Con pedido abierto"
                       : "Libre"}
                 </Badge>
                 <div className="row-actions">
                   <button
-                    disabled={busy || !m.activo}
+                    disabled={busy || !m.activo || (m.ocupada && !m.pedido_id)}
                     onClick={() => void abrir(m)}
                   >
-                    {m.pedido_id ? "Abrir pedido" : "Atender mesa"}
+                    {m.pedido_id
+                      ? "Abrir pedido"
+                      : m.ocupada
+                        ? "Asignada a otro colaborador"
+                        : "Atender mesa"}
                     <span className="sr-only"> {m.nombre}</span>
                   </button>
-                  <button disabled={busy} onClick={() => setEdit(m)}>
-                    Editar mesa<span className="sr-only"> {m.nombre}</span>
-                  </button>
+                  {admin && (
+                    <button disabled={busy} onClick={() => setEdit(m)}>
+                      Editar mesa<span className="sr-only"> {m.nombre}</span>
+                    </button>
+                  )}
                 </div>
               </article>
             ))}

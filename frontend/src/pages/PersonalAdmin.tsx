@@ -82,7 +82,10 @@ function Equipo({ empresaId }: { empresaId: number }) {
                       <Badge neutral>Administrador principal</Badge>
                     )}
                   </td>
-                  <td>{u.rol}</td>
+                  <td>
+                    {roles.data.roles.find((r) => r.codigo === u.rol)?.nombre ||
+                      u.rol}
+                  </td>
                   <td>
                     <Badge neutral={u.activo}>
                       {u.activo ? "Activo" : "Desactivado"}

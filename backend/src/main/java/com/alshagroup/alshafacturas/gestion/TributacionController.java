@@ -1,6 +1,7 @@
 package com.alshagroup.alshafacturas.gestion;
 
 import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import com.alshagroup.alshafacturas.visual.AlcanceDatos;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.*;
@@ -80,20 +81,17 @@ public class TributacionController {
                 + " estado_fiscal='PRODUCCION_ACEPTADO'),0) AS igv_ventas_con_cdr FROM ventas WHERE"
                 + " local_id="
                 + LocalesService.actual()
-                + " AND empresa_id=? AND estado='CONFIRMADA' AND fecha>=? AND fecha<?",
-            p.getEmpresaId(),
-            start,
-            end));
+                + " AND empresa_id=? AND estado='CONFIRMADA' AND fecha>=? AND fecha<? AND (? OR"
+                + " usuario_original_id=?)",
+            AlcanceDatos.args(p, p.getEmpresaId(), start, end)));
     result.putAll(
         db.queryForMap(
             "SELECT COALESCE(SUM(igv),0) AS igv_compras_registrado,COALESCE(SUM(igv) FILTER(WHERE"
                 + " credito_fiscal),0) AS credito_fiscal_potencial FROM compras WHERE local_id="
                 + LocalesService.actual()
                 + " AND empresa_id=?"
-                + " AND fecha>=? AND fecha<?",
-            p.getEmpresaId(),
-            start,
-            end));
+                + " AND fecha>=? AND fecha<? AND (? OR usuario_original_id=?)",
+            AlcanceDatos.args(p, p.getEmpresaId(), start, end)));
     return result;
   }
 }

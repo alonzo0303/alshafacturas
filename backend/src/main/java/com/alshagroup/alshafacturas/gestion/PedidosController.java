@@ -2,6 +2,7 @@ package com.alshagroup.alshafacturas.gestion;
 
 import com.alshagroup.alshafacturas.comercial.ComercialDtos;
 import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import com.alshagroup.alshafacturas.visual.AlcanceDatos;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.*;
@@ -35,14 +36,19 @@ public class PedidosController {
   public List<Map<String, Object>> mesas(@AuthenticationPrincipal UsuarioPrincipal p) {
     return db.queryForList(
         "SELECT m.*,(SELECT id FROM pedidos p WHERE p.mesa_id=m.id AND p.estado IN"
-            + " ('ABIERTO','PREPARADO')) AS pedido_id FROM mesas m WHERE m.empresa_id=? AND"
-            + " m.local_id=? ORDER BY m.nombre,m.id",
+            + " ('ABIERTO','PREPARADO') AND (? OR p.usuario_original_id=? OR"
+            + " p.responsable_original_id=?)) AS pedido_id,EXISTS(SELECT 1 FROM pedidos busy WHERE"
+            + " busy.mesa_id=m.id AND busy.estado IN ('ABIERTO','PREPARADO')) AS ocupada FROM mesas"
+            + " m WHERE m.empresa_id=? AND m.local_id=? ORDER BY m.nombre,m.id",
+        AlcanceDatos.equipo(p),
+        p.getId(),
+        p.getId(),
         p.getEmpresaId(),
         LocalesService.actual());
   }
 
   @PostMapping("/mesas")
-  @PreAuthorize("hasAuthority('MESAS_GESTIONAR')")
+  @PreAuthorize("hasRole('ADMIN') and hasAuthority('MESAS_GESTIONAR')")
   @Transactional
   public Map<String, Object> crearMesa(
       @AuthenticationPrincipal UsuarioPrincipal p, @Valid @RequestBody Mesa r) {
@@ -64,7 +70,7 @@ public class PedidosController {
   }
 
   @PutMapping("/mesas/{id}")
-  @PreAuthorize("hasAuthority('MESAS_GESTIONAR')")
+  @PreAuthorize("hasRole('ADMIN') and hasAuthority('MESAS_GESTIONAR')")
   @Transactional
   public void editarMesa(
       @AuthenticationPrincipal UsuarioPrincipal p,
@@ -141,11 +147,15 @@ public class PedidosController {
         db.queryForList(
             "SELECT p.*,m.nombre AS mesa,COALESCE((SELECT sum(cantidad*precio) FROM pedido_detalles"
                 + " WHERE pedido_id=p.id),0) AS total FROM pedidos p LEFT JOIN mesas m ON"
-                + " m.id=p.mesa_id WHERE p.empresa_id=? AND p.local_id=? AND p.clase=? ORDER BY"
-                + " p.id DESC LIMIT 200",
+                + " m.id=p.mesa_id WHERE p.empresa_id=? AND p.local_id=? AND p.clase=? AND (? OR"
+                + " p.usuario_original_id=? OR p.responsable_original_id=?) ORDER BY p.id DESC"
+                + " LIMIT 200",
             p.getEmpresaId(),
             LocalesService.actual(),
-            clase);
+            clase,
+            AlcanceDatos.equipo(p),
+            p.getId(),
+            p.getId());
     resultados.forEach(r -> r.remove("cobro_idempotencia"));
     return resultados;
   }
@@ -176,6 +186,69 @@ public class PedidosController {
       @PathVariable Long id,
       @Valid @RequestBody Estado r) {
     return pedidos.estado(p, id, r);
+  }
+
+  public record Responsable(@NotNull @Min(0) Integer version, Long usuarioId) {}
+
+  @GetMapping("/pedidos/responsables")
+  @PreAuthorize("hasRole('ADMIN')")
+  public List<Map<String, Object>> responsables(@AuthenticationPrincipal UsuarioPrincipal p) {
+    return db.queryForList(
+        "SELECT u.id,u.nombre FROM usuarios u WHERE u.empresa_id=? AND u.activo AND"
+            + " u.rol<>'SUPERADMIN' AND (u.rol='ADMIN' OR EXISTS(SELECT 1 FROM usuario_locales ul"
+            + " WHERE ul.usuario_id=u.id AND ul.local_id=?) OR (NOT EXISTS(SELECT 1 FROM"
+            + " usuario_locales ul WHERE ul.usuario_id=u.id) AND ?=(SELECT min(id) FROM locales"
+            + " WHERE empresa_id=u.empresa_id))) ORDER BY u.nombre,u.id",
+        p.getEmpresaId(),
+        LocalesService.actual(),
+        LocalesService.actual());
+  }
+
+  @PatchMapping("/pedidos/{id}/responsable")
+  @PreAuthorize("hasRole('ADMIN')")
+  @Transactional
+  public Map<String, Object> asignar(
+      @AuthenticationPrincipal UsuarioPrincipal p,
+      @PathVariable Long id,
+      @Valid @RequestBody Responsable r) {
+    db.queryForObject(
+        "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
+    var pedido = pedidos.detalle(p, id);
+    if (!Set.of("ABIERTO", "PREPARADO").contains(pedido.get("estado")))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "El pedido ya está cerrado");
+    Map<String, Object> user = null;
+    if (r.usuarioId() != null) {
+      user =
+          responsables(p).stream()
+              .filter(u -> ((Number) u.get("id")).longValue() == r.usuarioId())
+              .findFirst()
+              .orElseThrow(
+                  () ->
+                      new ResponseStatusException(
+                          HttpStatus.BAD_REQUEST, "Responsable no disponible en este local"));
+    }
+    if (db.update(
+            "UPDATE pedidos SET"
+                + " responsable_id=?,responsable_original_id=?,responsable_nombre=?,version=version+1"
+                + " WHERE empresa_id=? AND local_id=? AND id=? AND version=?",
+            r.usuarioId(),
+            r.usuarioId(),
+            user == null ? null : user.get("nombre"),
+            p.getEmpresaId(),
+            LocalesService.actual(),
+            id,
+            r.version())
+        != 1)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "El pedido cambió; recarga antes de asignar");
+    audit.registrar(
+        p,
+        p.getEmpresaId(),
+        LocalesService.actual(),
+        "PEDIDO_ASIGNADO",
+        id,
+        "Responsable=" + r.usuarioId());
+    return pedidos.detalle(p, id);
   }
 
   public record PrimeraEntrega(@NotNull @Min(0) Integer version) {}

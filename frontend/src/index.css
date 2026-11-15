@@ -1642,3 +1642,55 @@ a {
 .profile-metric p {
   margin: 0.5rem 0;
 }
+
+.visual-modules {
+  padding-left: 1.5rem;
+  max-width: 52rem;
+}
+.visual-modules li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border, #e6dfef);
+}
+.visual-modules label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.visual-modules li > span {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.app-shell[style] .sidebar {
+  background: var(--business-color);
+  color: var(--business-ink);
+}
+.app-shell[style] .sidebar a:not(.active),
+.app-shell[style] .sidebar-caption,
+.app-shell[style] .sidebar-footer {
+  color: var(--business-ink);
+}
+.app-shell[style] .primary {
+  background: var(--business-color);
+  color: var(--business-ink);
+  border-color: var(--business-color);
+}
+.app-shell[data-density="COMPACTO"] .surface {
+  padding: 1rem;
+}
+.app-shell[data-density="COMPACTO"] td,
+.app-shell[data-density="COMPACTO"] th {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.permission-list label {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}

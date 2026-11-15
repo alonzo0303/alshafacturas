@@ -53,6 +53,11 @@ public class AuthController {
     return token;
   }
 
+  @GetMapping("/visualizacion")
+  public LoginResponse visualizacion(@AuthenticationPrincipal UsuarioPrincipal p) {
+    return response(p);
+  }
+
   @GetMapping("/me")
   public LoginResponse me(@AuthenticationPrincipal UsuarioPrincipal p) {
     return response(p);
@@ -177,7 +182,27 @@ public class AuthController {
         p.getLocalNombre(),
         tipo.get("nombre").toString(),
         tipo.get("emoji").toString(),
-        tipo.get("tema").toString());
+        tipo.get("tema").toString(),
+        "ADMIN".equals(p.getRol())
+            ? "Administrador"
+            : db.query(
+                "SELECT nombre FROM roles_negocio WHERE empresa_id=? AND codigo=?",
+                rs ->
+                    rs.next()
+                        ? rs.getString(1)
+                        : switch (p.getRol()) {
+                          case "VENDEDOR" -> "Vendedor";
+                          case "ALMACENERO" -> "Inventario";
+                          case "COMPRAS" -> "Compras";
+                          default -> p.getRol();
+                        },
+                p.getEmpresaId(),
+                p.getRol()),
+        p.getColorPrimario(),
+        p.getDiseno(),
+        p.getAparienciaVersion(),
+        p.getModulosVisibles(),
+        p.getOrdenModulos());
   }
 
   private ResponseStatusException bad() {

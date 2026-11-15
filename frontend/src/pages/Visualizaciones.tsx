@@ -3,26 +3,19 @@ import { api, type Empresa, type Session } from "../lib/api";
 import AparienciaNichos from "../components/AparienciaNichos";
 import EditarCredenciales from "../components/EditarCredenciales";
 import { Form } from "../components/ui";
-import SeleccionUsuario from "../components/SeleccionVisualizacion";
+import VisualNegocio from "../components/VisualNegocio";
 import { useData } from "../lib/useData";
 import { Empty, ErrorNotice, Field, PageTitle } from "../components/ui";
 
 type Usuario = Session & { activo: boolean };
 
-function UsuariosEmpresa({
-  empresaId,
-  tipos,
-}: {
-  empresaId: number;
-  tipos: { codigo: string; nombre: string }[];
-}) {
+function UsuariosEmpresa({ empresaId }: { empresaId: number }) {
   const [credenciales, setCredenciales] = useState<Usuario | null>(null);
   const { data, loading, error, refresh } = useData(
     () => api<Usuario[]>(`/admin/visualizaciones?empresaId=${empresaId}`),
     [],
   );
   const [busqueda, setBusqueda] = useState("");
-  const [guardados, setGuardados] = useState<Record<number, Usuario>>({});
   const [revision, setRevision] = useState(0);
   const usuarios = data.filter((u) =>
     `${u.nombre} ${u.correo} ${u.rol}`
@@ -37,7 +30,6 @@ function UsuariosEmpresa({
           <button
             onClick={async () => {
               await refresh();
-              setGuardados({});
               setRevision((r) => r + 1);
             }}
           >
@@ -59,7 +51,6 @@ function UsuariosEmpresa({
           onClose={() => setCredenciales(null)}
           onDone={() => {
             setCredenciales(null);
-            setGuardados({});
             setRevision((r) => r + 1);
             void refresh();
           }}
@@ -71,19 +62,13 @@ function UsuariosEmpresa({
       ) : usuarios.length ? (
         usuarios.map((u) => (
           <section className="visual-user-card" key={`${u.id}-${revision}`}>
-            <SeleccionUsuario
-              key={`${u.id}-${revision}`}
-              tipos={tipos}
-              usuario={guardados[u.id] || u}
-              empresaId={empresaId}
-              onSaved={(actualizado) =>
-                setGuardados((prev) => ({
-                  ...prev,
-                  [actualizado.id]: actualizado,
-                }))
-              }
-            />
-            <button onClick={() => setCredenciales(guardados[u.id] || u)}>
+            <h3>{u.nombre}</h3>
+            <p>{u.correo}</p>
+            <p className="hint">
+              Visualización heredada del negocio ·{" "}
+              {u.activo ? "Activo" : "Inactivo"}
+            </p>
+            <button onClick={() => setCredenciales(u)}>
               Editar correo y contraseña de {u.nombre}
             </button>
           </section>
@@ -109,7 +94,7 @@ export default function Visualizaciones() {
     <>
       <PageTitle
         title="Visualizaciones de usuarios"
-        description="Asigna a cada persona su modalidad y tipo de atención."
+        description="Configura una apariencia compartida para cada negocio y todo su personal."
       />
       <ErrorNotice message={error || tipos.error} />
       <section className="surface">
@@ -178,11 +163,13 @@ export default function Visualizaciones() {
         </p>
       </section>
       {empresaId && (
-        <UsuariosEmpresa
-          key={empresaId}
-          empresaId={Number(empresaId)}
-          tipos={tipos.data}
-        />
+        <>
+          <VisualNegocio
+            key={`visual-${empresaId}`}
+            empresaId={Number(empresaId)}
+          />
+          <UsuariosEmpresa key={empresaId} empresaId={Number(empresaId)} />
+        </>
       )}
     </>
   );

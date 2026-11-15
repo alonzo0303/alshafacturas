@@ -13,4 +13,10 @@ public record LoginResponse(
     String localNombre,
     String tipoNombre,
     String nichoEmoji,
-    String nichoTema) {}
+    String nichoTema,
+    String rolNombre,
+    String colorPrimario,
+    String diseno,
+    long aparienciaVersion,
+    java.util.List<String> modulosVisibles,
+    java.util.List<String> ordenModulos) {}

@@ -135,6 +135,18 @@ public class PersonalAdminController {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT,
           "Reasigna o cancela las actividades abiertas antes de eliminar la cuenta");
+    if (db.queryForObject(
+            "SELECT count(*) FROM pedidos WHERE empresa_id=? AND estado IN ('ABIERTO','PREPARADO')"
+                + " AND (usuario_original_id=? OR responsable_original_id=?)",
+            Long.class,
+            empresaId,
+            id,
+            id)
+        > 0)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Cierra los pedidos creados por esta cuenta y reasigna los pedidos abiertos antes de"
+              + " eliminarla");
     audit.registrar(
         p,
         empresaId,

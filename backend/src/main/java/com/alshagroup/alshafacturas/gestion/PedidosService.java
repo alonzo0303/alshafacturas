@@ -2,6 +2,7 @@ package com.alshagroup.alshafacturas.gestion;
 
 import com.alshagroup.alshafacturas.comercial.*;
 import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import com.alshagroup.alshafacturas.visual.AlcanceDatos;
 import java.math.*;
 import java.util.*;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,7 @@ public class PedidosService {
     if (rows.isEmpty())
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido no encontrado");
     var r = rows.getFirst();
+    AlcanceDatos.pedido(p, r);
     permiso(p, r.get("clase").toString());
     return r;
   }
@@ -247,7 +249,7 @@ public class PedidosService {
         "SELECT id FROM empresas WHERE id=? FOR UPDATE", Long.class, p.getEmpresaId());
     var order = row(p, id);
     if (order.get("venta_id") != null)
-      return comercial.venta(p.getEmpresaId(), ((Number) order.get("venta_id")).longValue());
+      return comercial.ventaAutorizada(p, ((Number) order.get("venta_id")).longValue());
     if (!Set.of("ABIERTO", "PREPARADO").contains(order.get("estado")))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "El pedido está cancelado");
     if (((Number) order.get("version")).intValue() != r.version())

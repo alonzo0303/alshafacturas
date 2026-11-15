@@ -143,23 +143,20 @@ test("Tipo personalizado, sucursales y cobro de servicio sin stock", async ({
   await admin
     .getByLabel("Empresa para asignar visualizaciones")
     .selectOption(String(business.id));
+  await admin.getByLabel("Modalidad del negocio").selectOption("ATENCION");
   await admin
-    .getByLabel(`Modalidad de Responsable ${name}`)
-    .selectOption("ATENCION");
-  await admin
-    .getByLabel(`Tipo de atención de Responsable ${name}`)
+    .getByLabel("Tipo de atención del negocio")
     .selectOption({ label: type });
   await admin
     .getByRole("button", {
-      name: `Guardar visualización de Responsable ${name}`,
+      name: "Guardar apariencia del negocio",
       exact: true,
     })
     .click();
   await expect(
-    admin.getByText(
-      "Visualización guardada. Se aplica al recargar o iniciar sesión.",
-      { exact: true },
-    ),
+    admin.getByText("Configuración guardada para todo el equipo.", {
+      exact: true,
+    }),
   ).toBeVisible();
   await mutate(page.request, "/auth/login", {
     empresaId: business.id,

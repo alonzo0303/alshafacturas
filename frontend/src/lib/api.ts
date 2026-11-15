@@ -12,6 +12,12 @@ export type Session = {
   tipoNombre?: string;
   nichoEmoji?: string;
   nichoTema?: string;
+  rolNombre?: string;
+  colorPrimario?: string | null;
+  diseno?: "AMPLIO" | "COMPACTO";
+  aparienciaVersion?: number;
+  modulosVisibles?: string[];
+  ordenModulos?: string[];
 };
 export class ApiError extends Error {
   status: number;

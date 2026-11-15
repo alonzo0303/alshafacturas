@@ -32,7 +32,7 @@ export default function Atencion({ session }: { session: Session }) {
           </div>
           <div>
             <dt>Rol asignado</dt>
-            <dd>{session.rol}</dd>
+            <dd>{session.rolNombre || session.rol}</dd>
           </div>
           <div>
             <dt>Tipo de atención</dt>
@@ -41,7 +41,7 @@ export default function Atencion({ session }: { session: Session }) {
         </dl>
         <p>
           Gestiona los servicios, cobros y ventas de este local desde el menú.
-          Las citas, mesas y comandas se desarrollarán en sus módulos
+          Las actividades, mesas y pedidos se gestionan en sus módulos
           específicos.
         </p>
       </section>
@@ -69,7 +69,7 @@ export default function Atencion({ session }: { session: Session }) {
           <h2>Personal y permisos</h2>
           <p>
             Tu administrador gestiona tu rol y los permisos del negocio. El
-            superadministrador asigna la visualización de cada usuario.
+            equipo hereda la visualización configurada para el negocio.
           </p>
         </section>
       )}

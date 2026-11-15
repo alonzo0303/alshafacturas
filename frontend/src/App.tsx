@@ -1,3 +1,7 @@
+import VisualSync from "./components/VisualSync";
+import VisualNegocio from "./components/VisualNegocio";
+import { moduleForPath } from "./lib/visual";
+import type { CSSProperties } from "react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
   createBrowserRouter,
@@ -71,11 +75,21 @@ const empresaLinks = [
   ["Notificaciones", "/panel/notificaciones", "TODOS"],
   ["Configuración", "/panel/configuracion", "ADMIN"],
 ] as const;
+function contrast(hex: string) {
+  const values = [1, 3, 5]
+    .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722 > 0.179
+    ? "#111111"
+    : "#ffffff";
+}
 function Shell({
   session,
   onLogout,
   postLogin = false,
+  onUpdate,
 }: {
+  onUpdate: (s: Session) => void;
   postLogin?: boolean;
   session: Session;
   onLogout: () => void;
@@ -153,6 +167,7 @@ function Shell({
                 ["Personal", "/atencion/usuarios"],
                 ["Roles", "/atencion/roles"],
                 ["Mi plan", "/atencion/plan"],
+                ["Configuración", "/atencion/configuracion"],
               ]
             : []),
         ]
@@ -163,10 +178,32 @@ function Shell({
             (l[2] === "TODOS" ||
               (l[2] === "ADMIN" ? admin : can(session, l[2]))),
         );
-  const home = links[0]?.[1] || "/sin-acceso";
+  const orderedLinks = superadmin
+    ? links
+    : [...links].sort((a, b) => {
+        const order = session.aparienciaVersion
+          ? (session.ordenModulos ?? [])
+          : [];
+        const rank = (path: string) => {
+          const m = moduleForPath(path);
+          const i = m ? order.indexOf(m) : -1;
+          return i < 0 ? 999 : i;
+        };
+        return rank(a[1]) - rank(b[1]);
+      });
+  const home = orderedLinks[0]?.[1] || "/sin-acceso";
   return (
     <div
       className="app-shell"
+      data-density={session.diseno}
+      style={
+        session.colorPrimario
+          ? ({
+              "--business-color": session.colorPrimario,
+              "--business-ink": contrast(session.colorPrimario),
+            } as CSSProperties)
+          : undefined
+      }
       data-nicho={atencion ? session.nichoTema || "OTRO" : "COMERCIO"}
     >
       {!superadmin && (
@@ -205,7 +242,7 @@ function Shell({
           data-open={mobileOpen}
           aria-label="Navegación principal"
         >
-          {links.map(([label, path]) => (
+          {orderedLinks.map(([label, path]) => (
             <NavLink
               key={path}
               to={path}
@@ -229,7 +266,7 @@ function Shell({
           <div className="account">
             <span>
               <strong>{session.nombre}</strong>
-              <small>{session.rol}</small>
+              <small>{session.rolNombre || session.rol}</small>
             </span>
             <button
               disabled={busy}
@@ -240,6 +277,7 @@ function Shell({
           </div>
         </header>
         <main id="contenido" className="content" tabIndex={-1}>
+          <VisualSync session={session} onUpdate={onUpdate} />
           <ErrorNotice message={error} />
           {!superadmin && (
             <AvisoMembresia
@@ -360,6 +398,10 @@ function Shell({
                     <Route
                       path="/atencion/usuarios"
                       element={<Usuarios session={session} />}
+                    />
+                    <Route
+                      path="/atencion/configuracion"
+                      element={<VisualNegocio />}
                     />
                     <Route path="/atencion/roles" element={<Roles />} />
                     <Route path="/atencion/plan" element={<MiPlan />} />
@@ -559,6 +601,7 @@ function SessionApp() {
         <DirtyProvider>
           <Shell
             session={session}
+            onUpdate={setSession}
             postLogin={postLogin}
             onLogout={() => setSession(null)}
           />

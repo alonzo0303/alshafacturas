@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/admin/visualizaciones")
 @PreAuthorize("hasRole('SUPERADMIN')")
 public class VisualizacionController {
+  private final com.alshagroup.alshafacturas.visual.VisualNegocioService visual;
   private final UsuarioRepository usuarios;
   private final com.alshagroup.alshafacturas.security.LoginAttemptService attempts;
   private final com.alshagroup.alshafacturas.gestion.AuditoriaService audit;
@@ -23,10 +24,12 @@ public class VisualizacionController {
 
   public VisualizacionController(
       UsuarioRepository usuarios,
+      com.alshagroup.alshafacturas.visual.VisualNegocioService visual,
       org.springframework.jdbc.core.JdbcTemplate db,
       com.alshagroup.alshafacturas.gestion.AuditoriaService audit,
       org.springframework.security.crypto.password.PasswordEncoder encoder,
       com.alshagroup.alshafacturas.security.LoginAttemptService attempts) {
+    this.visual = visual;
     this.usuarios = usuarios;
     this.audit = audit;
     this.encoder = encoder;
@@ -63,32 +66,32 @@ public class VisualizacionController {
       @PathVariable Long id,
       @RequestParam Long empresaId,
       @Valid @RequestBody Seleccion seleccion) {
-    if (("ATENCION".equals(seleccion.modalidad()) && seleccion.tipoAtencion() == null)
-        || ("COMERCIO".equals(seleccion.modalidad()) && seleccion.tipoAtencion() != null))
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST,
-          "Elige un tipo para Atención y servicios; Comercio no utiliza tipo de atención");
-    if (seleccion.tipoAtencion() != null
-        && db.queryForObject(
-                "SELECT count(*) FROM tipos_atencion WHERE codigo=? AND activo",
-                Long.class,
-                seleccion.tipoAtencion())
-            != 1)
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tipo de atención no válido");
     var usuario =
         usuarios
             .findByIdAndEmpresaId(id, empresaId)
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
-    if ("SUPERADMIN".equals(usuario.getRol()))
+    if (!"ADMIN".equals(usuario.getRol()))
       throw new ResponseStatusException(
-          HttpStatus.CONFLICT, "La cuenta de plataforma conserva su administración");
-    db.update(
-        "UPDATE usuarios SET modalidad=?, tipo_atencion=? WHERE id=? AND empresa_id=?",
-        seleccion.modalidad(),
-        seleccion.tipoAtencion(),
-        id,
-        empresaId);
+          HttpStatus.CONFLICT,
+          "La visualización del personal se hereda del negocio. Configura el negocio completo.");
+    var actor =
+        (com.alshagroup.alshafacturas.security.UsuarioPrincipal)
+            org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+    var old = visual.obtener(empresaId);
+    visual.guardar(
+        actor,
+        empresaId,
+        new com.alshagroup.alshafacturas.visual.VisualNegocioService.Config(
+            seleccion.modalidad(),
+            seleccion.tipoAtencion(),
+            (String) old.get("colorPrimario"),
+            (String) old.get("diseno"),
+            (List<String>) old.get("modulosVisibles"),
+            (List<String>) old.get("ordenModulos"),
+            ((Number) old.get("version")).longValue()));
     return new VisualizacionUsuario(
         usuario.getId(),
         empresaId,
@@ -176,7 +179,7 @@ public class VisualizacionController {
         u.getCorreo(),
         u.getRol(),
         Boolean.TRUE.equals(u.getActivo()),
-        u.getModalidad(),
-        u.getTipoAtencion());
+        u.getEmpresa().getModalidadVisual(),
+        u.getEmpresa().getTipoVisual());
   }
 }

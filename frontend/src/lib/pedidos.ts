@@ -6,8 +6,8 @@ export type PedidoLinea = {
   precio: number;
 };
 export type Pedido = {
-  servido_en?:string|null;
-  servido_por_nombre?:string|null;
+  servido_en?: string | null;
+  servido_por_nombre?: string | null;
   id: number;
   clase: string;
   estado: string;
@@ -16,6 +16,8 @@ export type Pedido = {
   mesa?: string;
   fecha: string;
   usuario_nombre: string;
+  responsable_original_id?: number | null;
+  responsable_nombre?: string | null;
   observacion: string;
   venta_id: number | null;
   lineas: PedidoLinea[];

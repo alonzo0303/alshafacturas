@@ -3,6 +3,7 @@ package com.alshagroup.alshafacturas.comercial;
 import static com.alshagroup.alshafacturas.comercial.ComercialDtos.*;
 
 import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import com.alshagroup.alshafacturas.visual.AlcanceDatos;
 import java.math.*;
 import java.util.*;
 import org.springframework.http.HttpStatus;
@@ -210,13 +211,14 @@ public class ComercialService {
         id);
   }
 
-  public List<Map<String, Object>> movimientos(Long empresa) {
+  public List<Map<String, Object>> movimientos(UsuarioPrincipal p) {
+    Long empresa = p.getEmpresaId();
     return db.queryForList(
         "SELECT m.*,p.nombre,p.sku FROM movimientos m JOIN productos p ON p.id=m.producto_id WHERE"
             + " m.local_id="
             + local()
-            + " AND m.empresa_id=? ORDER BY m.id DESC LIMIT 500",
-        empresa);
+            + " AND m.empresa_id=? AND (? OR m.usuario_original_id=?) ORDER BY m.id DESC LIMIT 500",
+        AlcanceDatos.args(p, empresa));
   }
 
   private void mover(UsuarioPrincipal p, Long producto, int cantidad, String tipo, String motivo) {
@@ -264,7 +266,8 @@ public class ComercialService {
     mover(p, r.productoId(), r.cantidad(), "AJUSTE", r.motivo().trim());
   }
 
-  public List<Map<String, Object>> ventas(Long empresa) {
+  public List<Map<String, Object>> ventas(UsuarioPrincipal p) {
+    Long empresa = p.getEmpresaId();
     return db.queryForList(
         "SELECT v.*,c.nombre AS cliente,EXISTS(SELECT 1 FROM venta_detalles d JOIN productos pr ON"
             + " pr.id=d.producto_id WHERE d.venta_id=v.id AND d.clase='PRODUCTO' AND"
@@ -272,8 +275,8 @@ public class ComercialService {
             + " venta_detalles d WHERE d.venta_id=v.id AND d.clase='PRODUCTO') AS tiene_productos"
             + " FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.local_id="
             + local()
-            + " AND v.empresa_id=? ORDER BY v.id DESC LIMIT 500",
-        empresa);
+            + " AND v.empresa_id=? AND (? OR v.usuario_original_id=?) ORDER BY v.id DESC LIMIT 500",
+        AlcanceDatos.args(p, empresa));
   }
 
   public Map<String, Object> venta(Long empresa, Long id) {
@@ -293,6 +296,12 @@ public class ComercialService {
     return v;
   }
 
+  public Map<String, Object> ventaAutorizada(UsuarioPrincipal p, Long id) {
+    var row = venta(p.getEmpresaId(), id);
+    AlcanceDatos.verificar(p, row, "usuario_original_id");
+    return row;
+  }
+
   @Transactional
   public Map<String, Object> vender(UsuarioPrincipal p, VentaRequest r) {
     Long empresa = p.getEmpresaId();
@@ -306,7 +315,7 @@ public class ComercialService {
             r.idempotencia());
     if (!existing.isEmpty()) {
       Long previousId = ((Number) existing.getFirst().get("id")).longValue();
-      var previous = venta(empresa, previousId);
+      var previous = ventaAutorizada(p, previousId);
       var previousLines =
           db.queryForList(
               "SELECT producto_id,cantidad FROM venta_detalles WHERE venta_id=?", previousId);
@@ -442,13 +451,13 @@ public class ComercialService {
       mover(p, producto, -cantidad, "VENTA", numero);
     }
     audit.registrar(p, empresa, local(), "VENTA_CONFIRMADA", id, numero + ", total=" + total);
-    return venta(empresa, id);
+    return ventaAutorizada(p, id);
   }
 
   @Transactional
   public Map<String, Object> anular(UsuarioPrincipal p, Long id, String motivo) {
     lock(p.getEmpresaId());
-    var v = venta(p.getEmpresaId(), id);
+    var v = ventaAutorizada(p, id);
     if ("ANULADA".equals(v.get("estado"))) return v;
     cajas.validarAnulacion(v.get("caja_id"));
     Long fiscales =
@@ -479,15 +488,16 @@ public class ComercialService {
         p.getEmpresaId(),
         id);
     audit.registrar(p, p.getEmpresaId(), local(), "VENTA_ANULADA", id, motivo);
-    return venta(p.getEmpresaId(), id);
+    return ventaAutorizada(p, id);
   }
 
-  public List<Map<String, Object>> compras(Long empresa) {
+  public List<Map<String, Object>> compras(UsuarioPrincipal p) {
+    Long empresa = p.getEmpresaId();
     return db.queryForList(
         "SELECT * FROM compras WHERE local_id="
             + local()
-            + " AND empresa_id=? ORDER BY id DESC LIMIT 500",
-        empresa);
+            + " AND empresa_id=? AND (? OR usuario_original_id=?) ORDER BY id DESC LIMIT 500",
+        AlcanceDatos.args(p, empresa));
   }
 
   @Transactional
@@ -503,6 +513,7 @@ public class ComercialService {
             r.idempotencia());
     if (!existing.isEmpty()) {
       var previous = existing.getFirst();
+      AlcanceDatos.verificar(p, previous, "usuario_original_id");
       var previousLines =
           db.queryForList(
               "SELECT producto_id,cantidad,costo FROM compra_detalles WHERE compra_id=?",
@@ -632,7 +643,18 @@ public class ComercialService {
       throw error("El total excede el máximo permitido");
   }
 
-  public Map<String, Object> resumen(Long empresa) {
+  public Map<String, Object> resumen(UsuarioPrincipal p) {
+    Long empresa = p.getEmpresaId();
+    if (!AlcanceDatos.equipo(p))
+      return db.queryForMap(
+          "SELECT COALESCE(sum(total) FILTER(WHERE estado='CONFIRMADA'),0) AS ventas_total,count(*)"
+              + " FILTER(WHERE estado='CONFIRMADA') AS ventas_cantidad,count(*) FILTER(WHERE"
+              + " estado='CONFIRMADA' AND estado_fiscal='PENDIENTE_CONFIGURACION') AS"
+              + " pendientes_fiscales FROM ventas WHERE empresa_id=? AND local_id=? AND"
+              + " usuario_original_id=?",
+          empresa,
+          local(),
+          p.getId());
     var r =
         one(
             "SELECT COUNT(*) AS productos,COUNT(*) FILTER (WHERE stock<=minimo AND activo) AS"

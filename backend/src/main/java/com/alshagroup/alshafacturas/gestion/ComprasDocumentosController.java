@@ -2,6 +2,7 @@ package com.alshagroup.alshafacturas.gestion;
 
 import com.alshagroup.alshafacturas.comercial.*;
 import com.alshagroup.alshafacturas.security.UsuarioPrincipal;
+import com.alshagroup.alshafacturas.visual.AlcanceDatos;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -45,6 +46,7 @@ public class ComprasDocumentosController {
             id);
     if (rows.isEmpty())
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Compra u orden no encontrada");
+    AlcanceDatos.verificar(p, rows.getFirst(), "usuario_original_id");
     return rows.getFirst();
   }
 
@@ -72,9 +74,9 @@ public class ComprasDocumentosController {
   public List<Map<String, Object>> ordenes(@AuthenticationPrincipal UsuarioPrincipal p) {
     return db.queryForList(
         "SELECT id,numero,proveedor,referencia,fecha,estado,total,compra_id,usuario_nombre FROM"
-            + " ordenes_compra WHERE empresa_id=? AND local_id=? ORDER BY id DESC LIMIT 200",
-        p.getEmpresaId(),
-        LocalesService.actual());
+            + " ordenes_compra WHERE empresa_id=? AND local_id=? AND (? OR usuario_original_id=?)"
+            + " ORDER BY id DESC LIMIT 200",
+        AlcanceDatos.args(p, p.getEmpresaId(), LocalesService.actual()));
   }
 
   @GetMapping("/ordenes-compra/{id}")
@@ -376,6 +378,10 @@ public class ComprasDocumentosController {
     if (rows.isEmpty())
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Documento no encontrado");
     var r = rows.getFirst();
+    if (r.get("compra_id") instanceof Number parent) target(p, "compras", parent.longValue());
+    else if (r.get("orden_id") instanceof Number parent)
+      target(p, "ordenes-compra", parent.longValue());
+    else throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Documento no encontrado");
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(r.get("tipo").toString()))
         .header(

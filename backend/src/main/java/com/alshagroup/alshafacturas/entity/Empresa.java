@@ -43,6 +43,57 @@ public class Empresa {
   @Column(name = "rubro_negocio", length = 100)
   private String rubroNegocio;
 
+  @Column(name = "modalidad_visual", nullable = false)
+  private String modalidadVisual = "COMERCIO";
+
+  @Column(name = "tipo_visual")
+  private String tipoVisual;
+
+  @Column(name = "color_visual")
+  private String colorVisual;
+
+  @Column(name = "diseno_visual", nullable = false)
+  private String disenoVisual = "AMPLIO";
+
+  @Column(name = "version_visual", nullable = false)
+  private long versionVisual;
+
+  @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+  @Column(name = "modulos_visuales", columnDefinition = "text[]")
+  private String[] modulosVisuales;
+
+  @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+  @Column(name = "orden_visual", columnDefinition = "text[]")
+  private String[] ordenVisual;
+
+  public String getModalidadVisual() {
+    return modalidadVisual;
+  }
+
+  public String getTipoVisual() {
+    return tipoVisual;
+  }
+
+  public String getColorVisual() {
+    return colorVisual;
+  }
+
+  public String getDisenoVisual() {
+    return disenoVisual;
+  }
+
+  public long getVersionVisual() {
+    return versionVisual;
+  }
+
+  public java.util.List<String> getModulosVisuales() {
+    return com.alshagroup.alshafacturas.visual.Modulos.lista(modulosVisuales);
+  }
+
+  public java.util.List<String> getOrdenVisual() {
+    return com.alshagroup.alshafacturas.visual.Modulos.lista(ordenVisual);
+  }
+
   public String getRubroNegocio() {
     return rubroNegocio;
   }

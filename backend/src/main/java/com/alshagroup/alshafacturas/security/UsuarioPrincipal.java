@@ -44,6 +44,30 @@ public class UsuarioPrincipal implements UserDetails {
   private final String modalidad;
   private final String tipoAtencion;
 
+  private final String colorPrimario, diseno;
+  private final long aparienciaVersion;
+  private final List<String> modulosVisibles, ordenModulos;
+
+  public String getColorPrimario() {
+    return colorPrimario;
+  }
+
+  public String getDiseno() {
+    return diseno;
+  }
+
+  public long getAparienciaVersion() {
+    return aparienciaVersion;
+  }
+
+  public List<String> getModulosVisibles() {
+    return modulosVisibles;
+  }
+
+  public List<String> getOrdenModulos() {
+    return ordenModulos;
+  }
+
   public String getModalidad() {
     return modalidad;
   }
@@ -59,9 +83,22 @@ public class UsuarioPrincipal implements UserDetails {
   }
 
   public UsuarioPrincipal(Usuario usuario, List<String> permisos) {
-    this.permisos = List.copyOf(permisos);
-    this.modalidad = usuario.getModalidad();
-    this.tipoAtencion = usuario.getTipoAtencion();
+    var empresa = usuario.getEmpresa();
+    this.permisos =
+        permisos.stream()
+            .filter(
+                permiso ->
+                    empresa
+                        .getModulosVisuales()
+                        .contains(com.alshagroup.alshafacturas.visual.Modulos.dePermiso(permiso)))
+            .toList();
+    this.colorPrimario = empresa.getColorVisual();
+    this.diseno = empresa.getDisenoVisual();
+    this.aparienciaVersion = empresa.getVersionVisual();
+    this.modulosVisibles = empresa.getModulosVisuales();
+    this.ordenModulos = empresa.getOrdenVisual();
+    this.modalidad = usuario.getEmpresa().getModalidadVisual();
+    this.tipoAtencion = usuario.getEmpresa().getTipoVisual();
     this.id = usuario.getId();
     this.credencialesVersion = usuario.getCredencialesVersion();
     this.empresaId = usuario.getEmpresa().getId();
