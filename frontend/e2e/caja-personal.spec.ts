@@ -191,6 +191,39 @@ test("Caja por persona, entrega de fondo y avisos obligatorios en cada entrada y
     .getByRole("button", { name: "Confirmar cierre de caja", exact: true })
     .click();
   await expect(staff.getByRole("dialog")).toHaveCount(0);
+  await write(
+    owner,
+    `/cajas/personal/${user.id}`,
+    { habilitada: true, fondoAsignado: 70, abrirAhora: false },
+    "PUT",
+  );
+  await staff
+    .getByRole("button", { name: "Actualizar cajas", exact: true })
+    .click();
+  await expect(staff.getByLabel("Fondo inicial en efectivo (S/)")).toHaveValue(
+    "70",
+  );
+  await expect(
+    staff.getByLabel("Fondo inicial en efectivo (S/)"),
+  ).not.toBeEditable();
+  await staff.getByRole("button", { name: "Abrir caja", exact: true }).click();
+  await expect(
+    staff.getByRole("cell", { name: "ABIERTA", exact: true }),
+  ).toBeVisible();
+  const currentBoxes = await (await context.request.get("/api/cajas")).json();
+  const ownBox = currentBoxes.find(
+    (c: { estado: string }) => c.estado === "ABIERTA",
+  );
+  expect(ownBox.fondo).toBe(70);
+  await staff
+    .getByRole("button", { name: `Ver caja ${ownBox.id}`, exact: true })
+    .click();
+  await staff.getByLabel("Efectivo contado al cierre (S/)").fill("70");
+  await staff
+    .getByRole("button", { name: "Confirmar cierre de caja", exact: true })
+    .click();
+  await expect(staff.getByRole("dialog")).toHaveCount(0);
+
   await staff
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();

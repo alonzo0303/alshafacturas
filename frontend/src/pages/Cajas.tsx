@@ -113,7 +113,14 @@ export default function Cajas({
       <section className="surface">
         <div className="section-toolbar">
           <h2>Cajas registradas</h2>
-          <button onClick={() => void refresh()}>Actualizar cajas</button>
+          <button
+            onClick={() => {
+              void refresh();
+              void acceso.refresh();
+            }}
+          >
+            Actualizar cajas
+          </button>
         </div>
         {loading ? (
           <p role="status">Cargando cajas…</p>
